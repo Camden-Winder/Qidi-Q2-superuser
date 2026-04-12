@@ -120,10 +120,7 @@ Access the printer interface from your web browser. Just type your IP address in
     G1 E-2 F200 # Old is G1 E-2 F200
     M400
     M106 S255
-    # G4 P1000
     M104 S{hotendtemp-40}
-    #TEMPERATURE_WAIT SENSOR=extruder MAXIMUM={hotendtemp-30}
-
     M204 S5000
         G1 X103 F5000
         G1 X90 F5000
@@ -135,7 +132,6 @@ Access the printer interface from your web browser. Just type your IP address in
         G1 X90 F5000
         G1 X103 F5000
         G1 X90 F5000
-
         G1 X114 F5000
         G1 X100 F5000
         G1 X114 F5000
@@ -150,7 +146,6 @@ Access the printer interface from your web browser. Just type your IP address in
         G1 X100 F5000
         G1 X114 F5000
         G1 X100 F5000
-
         G1 X103 F5000
         G1 X90 F5000
         G1 X103 F5000
@@ -161,13 +156,9 @@ Access the printer interface from your web browser. Just type your IP address in
         G1 X90 F5000
         G1 X103 F5000
         G1 X90 F5000
-
-    
-    G1 X125 F15000
-    
-    G1 X130 Y280 F6000
-    G1 Z-0.2 F600
-
+        G1 X125 F15000
+        G1 X130 Y280 F6000
+        G1 Z-0.2 F600
     TEMPERATURE_WAIT SENSOR=extruder MAXIMUM=150
     M106 S255
     G2 I0.5 J0.5 F600
@@ -178,11 +169,9 @@ Access the printer interface from your web browser. Just type your IP address in
     G1 X130 F200
     G1 Y283 F200
     G1 X140 F200
-
     G2 I0.5 J0.5 F600
     G2 I0.5 J0.5 F600
     G2 I0.5 J0.5 F600
-
     G1 Z0.2
     G1 X180 F12000
     G1 Z-1.5
@@ -199,4 +188,58 @@ Access the printer interface from your web browser. Just type your IP address in
     G1 Y10 F18000
     G1 X260 F18000
     M106 S0
+```
+13. Make your way to the "PRINT_START" macro (line 213)
+14. From "gcode" to the next macro "ENABLE_ALL_SENSORS" replace it with this (DOES NOT WORK WITH BOX)
+```
+  gcode:
+    {% set bedtemp = params.get('BED') | int %}
+    {% set hotendtemp = params.get('HOTEND') | int %}
+    {% set chambertemp = params.get('CHAMBER', 0) | int %}
+    {% set extruder = params.EXTRUDER|default(0)|int %}
+    {% set Polar_cooler = printer.save_variables.variables.enable_polar_cooler|default(0) %}
+    {% if bedtemp < 0 or bedtemp > 150 %}
+        {action_respond_error("ERROR: Invalid bed temperature: " ~ bedtemp)}
+    {% endif %}
+    {% if hotendtemp < 0 or hotendtemp > 350 %}
+        {action_respond_error("ERROR: Invalid hotend temperature: " ~ hotendtemp)}
+    {% endif %}
+    {% if chambertemp < 0 or chambertemp > 100 %}
+        {action_respond_error("ERROR: Invalid chamber temperature: " ~ chambertemp)}
+    {% endif %} 
+    M140 S{bedtemp}
+    M141 S{chambertemp}
+	SAVE_VARIABLE VARIABLE=qdc_ai_error_code VALUE='""'
+    AUTOTUNE_SHAPERS
+    DISABLE_ALL_SENSOR
+    CLEAR_PAUSE
+
+	M104 S0
+    {% if chambertemp == 0 %}
+        M106 P3 S255
+    {% else %}
+        M106 P3 S0
+    {% endif %}
+    G28
+    SET_GCODE_OFFSET Z=0 MOVE=0
+    CLEAR_NOZZLE HOTEND={hotendtemp}
+    CUT_FILAMENT_1
+    M104 S140
+    G4 P15000
+    M400
+    G28
+    Z_TILT_ADJUST
+    M190 S{bedtemp}
+    M191 S{chambertemp}
+    M400      
+    G4 P5000 
+
+    BED_MESH_CALIBRATE 
+    Smart_Park
+    M109 S{hotendtemp}
+    set_zoffset
+    ENABLE_ALL_SENSOR
+    save_last_file
+    VORON_purge
+    {action_respond_info("PRINT_START: Printer ready for printing")}
 ```
