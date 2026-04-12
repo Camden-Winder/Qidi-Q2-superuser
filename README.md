@@ -1,5 +1,3 @@
-# Qidi-Q2-superuser
-Qidi Q2 for powerusers
 # What this guide includes
 In here I will list everything I am running on/for my printer and alternatives I have heard of. This includes octoapp, octoeverywhere, and spoolman, which are all running remotely so I don't waste printer ram space.
 # Remote Access
