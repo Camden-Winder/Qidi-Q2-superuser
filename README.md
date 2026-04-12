@@ -61,6 +61,11 @@ services:
 ```
 Run it with 'sudo docker compose up -d'
 Restart the printer and the plugin will be installed correctly
+# Filament tracking
+I use Spoolman for this
+1. In the `companion folder` create a new folder called `Spoolman`
+2. Enter
+3. Finishing later
 # Printer Configs
 Out of the box the printer ships with a really bloated print preparation macro that takes a lot of time. Here is all the documentation I found
 
