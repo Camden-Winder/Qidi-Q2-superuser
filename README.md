@@ -68,6 +68,8 @@ Out of the box the printer ships with a really bloated print preparation macro t
 
 [Heiko910 Integrating KAMP](https://github.com/Heiko910/Qidi-Q2-with-KAMP-fully-integrated/tree/main)
 
+[ckflyer Quick Start Guide](https://github.com/ckflyer/Qidi-Q2-Printer-Quick-Start-Guide)
+
 [Reddit Conversiation on bloated preparation setup](https://www.reddit.com/r/QidiTech3D/comments/1psz4k1/q2_gcode_is_overly_complex/)
 
 It is always wise to back up any configs before we edit them. As of writing these work with Q2 firmware 1.1.0 and have not been tested with the box. In fact, I believe this version is missing the box commands.
