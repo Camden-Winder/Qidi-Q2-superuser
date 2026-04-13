@@ -12,6 +12,8 @@ I will be running this on a spare laptop I have running Lubuntu so make sure to 
 Edit this text with your own IP address
 `- PRINTER_IP=XXX.XXX.XXX.XXX` with your IP adress. So if my IP address was 123.234.345.163 then I would have ` - Printer_IP=123.234.345.163`
 Now, put that IP address into this text
+
+Alternatively, download the file [here](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Remote%20Access/docker-compose.yml)
 ```
 version: '2'
 services:
