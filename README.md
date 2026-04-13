@@ -1,68 +1,18 @@
 # What this guide includes
 In here I will list everything I am running on/for my printer and alternatives I have heard of. This includes octoapp, octoeverywhere, and spoolman, which are all running remotely so I don't waste printer ram space.
-# Remote Access
+# Chapter 1 - Plugins
+### Remote Access
 I like checking on my printer and hate giving my information to china, that is why I chose octoeverywhere
 
 Alternatives: Obico
 
 [Setting up remote access](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Remote%20Access/remote%20access.md)
-## Installation
-The link to full guide is [here](https://blog.octoeverywhere.com/klipper-companion-docker-docker-compose-setup-guide/?source=getstarted_klipper_docker). If you are using windows, use this [guide](https://blog.octoeverywhere.com/octoeverywhere-plugin-manager-for-windows/?source=blog-klipper-companion-docker-compose-button). I will be running this on a spare laptop I have running Lubuntu so make sure to read if you're doing something different
-1. Make a folder to put all of the docker .yml in. Spoolman, Octoeverywhere, and Octoapp all need one so it is best to be organized. In my case I will just call it `Companion`
-Edit this text with your own IP address
-`- PRINTER_IP=XXX.XXX.XXX.XXX` with your IP adress. So if my IP address was 123.234.345.163 then I would have ` - Printer_IP=123.234.345.163`
-Now, put that IP address into this text
-```
-version: '2'
-services:
-  octoeverywhere-klipper-companion:
-    image: octoeverywhere/octoeverywhere:latest
-    environment:
-        # Required to set the Docker container in Klipper Companion mode.
-      - COMPANION_MODE=klipper
-      - PRINTER_IP=XXX.XXX.XXX.XXX
-
-    volumes:
-      # This can also be an absolute path as well.
-      - ./data:/data
-```
-I create a folder called OctoEverywhere to stay organized and then cd into the folder
-Create a file called `docker-compose.yml` in your folder.
-Open `docker-compose.yml` in a text editor and paste the text you just put your IP adress into
-Now, go back into your terminal and run the command 'sudo docker compose up -d'
-There should be a link in the text after you run the command, click on the link to finish setting up OctoEverywhere.
-# Mobile Access
-We will now be setting up OctoApp
+### Mobile Access
+I choose to use OctoApp, which works with IOS and andriod.
 
 Alternatives: Mobilraker
 
-Setting up OctoApp is similar to everything else, it is done with Docker. Go into the `Companion` app.
-Make a folder called `OctoApp`
-In this folder, create another `docker-compose.yml`
-Again, open in a text editor and replace `PRINTER_IP=XXX.XXX.XXX.XXX` with your real IP adress
-```
-version: '2'
-services:
-  octoapp-plugin:
-    image: ghcr.io/crysxd/octoapp-plugin:latest
-    environment:
-        - COMPANION_MODE=klipper
-
-        #  Required - The IP address of the Klipper/Moonraker/Webserver/Printer
-        #- PRINTER_IP=XXX.XXX.XXX.XXX
-       
-        # Optional Settings For All Modes
-        #
-        # Set timezone to proper timezone for logs using standard timezones:
-        # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List
-        - TZ=America/New_York
-
-    volumes:
-      # This can also be an absolute path, e.g. /var/octoapp/plugin/data or /c/users/name/plugin/data
-      - ./data:/data
-```
-Run it with 'sudo docker compose up -d'
-Restart the printer and the plugin will be installed correctly
+[Setting up Mobile Access](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Mobile%20Access/Mobile%20Acess.md)
 # Filament tracking
 I use Spoolman for this
 1. In the `companion folder` create a new folder called `Spoolman`
