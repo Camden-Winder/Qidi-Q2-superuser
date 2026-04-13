@@ -15,9 +15,7 @@ Alternatives: Mobilraker
 [Setting up Mobile Access](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Mobile%20Access/Mobile%20Acess.md)
 # Filament tracking
 I use Spoolman for this
-1. In the `companion folder` create a new folder called `Spoolman`
-2. Enter
-3. Finishing later
+(Needs updating)
 # Printer Configs
 Out of the box the printer ships with a really bloated print preparation macro that takes a lot of time. Here is all the documentation I found
 
