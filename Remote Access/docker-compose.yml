@@ -1,0 +1,14 @@
+version: '2'
+services:
+  octoeverywhere-klipper-companion:
+    image: octoeverywhere/octoeverywhere:latest
+    environment:
+        # Required to set the Docker container in Klipper Companion mode.
+      - COMPANION_MODE=klipper
+      - PRINTER_IP=XXX.XXX.XXX.XXX
+
+    volumes:
+      # This can also be an absolute path as well.
+      - ./data:/data
+
+      # This is a TEMPLATE, make sure to change the PRINTE_IP adress
