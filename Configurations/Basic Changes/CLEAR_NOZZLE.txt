@@ -1,0 +1,98 @@
+gcode:
+    {% set hotendtemp = params.HOTEND|default(250)|int %}
+    MOVE_TO_TRASH
+    M400
+    M109 S{hotendtemp}
+    TEMPERATURE_WAIT SENSOR=extruder MINIMUM={hotendtemp-20}
+    G92 E0
+    G1 E5 F80   # Old is G1 E5 F80
+    G92 E0
+    G1 E80 F300 #old is G1 E80 F300
+    G92 E0
+    G1 E-2 F200 # Old is G1 E-2 F200
+    M400
+    M106 S255
+    # G4 P1000
+    M104 S{hotendtemp-40}
+    M118 "Hotendtemp-40"
+    TEMPERATURE_WAIT SENSOR=extruder MAXIMUM={hotendtemp-30}
+    M118 Temp Wait
+
+    M204 S5000
+        G1 X103 F5000
+        G1 X90 F5000
+        G1 X103 F5000
+        G1 X90 F5000
+        G1 X103 F5000
+        G1 X90 F5000
+        G1 X103 F5000
+        G1 X90 F5000
+        G1 X103 F5000
+        G1 X90 F5000
+
+        G1 X114 F5000
+        G1 X100 F5000
+        G1 X114 F5000
+        G1 X100 F5000
+        G1 X114 F5000
+        G1 X100 F5000
+        G1 X114 F5000
+        G1 X100 F5000
+        G1 X114 F5000
+        G1 X100 F5000
+        G1 X114 F5000
+        G1 X100 F5000
+        G1 X114 F5000
+        G1 X100 F5000
+
+        G1 X103 F5000
+        G1 X90 F5000
+        G1 X103 F5000
+        G1 X90 F5000
+        G1 X103 F5000
+        G1 X90 F5000
+        G1 X103 F5000
+        G1 X90 F5000
+        G1 X103 F5000
+        G1 X90 F5000
+
+    
+    G1 X125 F15000
+    M118 "M204 command"
+    
+    G1 X130 Y280 F6000
+    G1 Z-0.2 F600
+    M104 S150
+    M118 Set Temp 150
+    TEMPERATURE_WAIT SENSOR=extruder MAXIMUM=150
+    M118 Temp Wait
+    M106 S255
+    G2 I0.5 J0.5 F600
+    G2 I0.5 J0.5 F600
+    G2 I0.5 J0.5 F600
+    G1 X140 F200
+    G1 Y281 F200
+    G1 X130 F200
+    G1 Y283 F200
+    G1 X140 F200
+
+    G2 I0.5 J0.5 F600
+    G2 I0.5 J0.5 F600
+    G2 I0.5 J0.5 F600
+
+    G1 Z0.2
+    G1 X180 F12000
+    G1 Z-1.5
+    G1 X164 F12000
+    G1 X180 F12000
+    G1 X164 F12000
+    G1 X180 F12000
+    G1 X164 F12000
+    G1 X180 F12000
+    G1 X164 F12000
+    M400
+    M118 Nozzle cleared
+    G1 Z30 F900
+    G1 Y10 F18000
+    G1 X260 F18000
+    M106 S0
