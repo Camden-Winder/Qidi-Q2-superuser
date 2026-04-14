@@ -35,5 +35,6 @@ It is always wise to back up any configs before we edit them. To do that go to t
 # Printables
 Now that everything is fast lets print some things to make our printer better
 
+[Printables](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Printables/Prints.md)
 # You're done
 Congragulations, you've finished. If you can help format this better it would be greatly appreciated. Thanks. Let me know if you have anything you think should be added.
