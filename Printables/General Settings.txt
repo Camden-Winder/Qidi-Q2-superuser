@@ -1,0 +1,4 @@
+.24 layer height
+3 wall loops
+3 top and bottom layers
+5% Gyriod infill
