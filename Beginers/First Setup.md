@@ -7,9 +7,9 @@ If you have the box hold off on installing the PTFE tubes as installing them whe
 [Setting up Qidi Box](https://youtu.be/lL_5cXKLCfY?si=tI121EERZS4Fo5q1)
 
 # Download a Slicer
-Orca slicer will be by far the best slicer for you to use. 
+Orca slicer will be by far the best slicer for you to use. Scroll down to the very bottom to find the option for Windows installation (unless you're not on Windows of course).
 
-[Download](
+[Download](https://github.com/OrcaSlicer/OrcaSlicer/releases/tag/v2.3.2)
 
 ## Slicer setup
 1. Find the IP adress in the system settings (and enable LAN only while you're here)
