@@ -11,3 +11,6 @@ I would copy it over first and change the 5 to a 1 (fila1). Now when selecting f
 
 ## Example
 For example here is my [filament config file](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/filament%20configs.txt)
+
+## Thanks
+Thank you to jarvis5178 who found this and posted it in the Qidi Discord
