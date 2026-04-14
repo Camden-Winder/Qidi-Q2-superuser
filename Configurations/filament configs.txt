@@ -1,0 +1,96 @@
+[fila1]
+filament                       = PETG Basic
+min_temp                       = 240
+max_temp                       = 280
+box_min_temp                   = 0
+box_max_temp                   = 45
+type                           = PETG
+
+[fila2]
+filament                       = PETG Rapido
+min_temp                       = 220
+max_temp                       = 270
+box_min_temp                   = 0
+box_max_temp                   = 45
+type                           = PETG
+
+[fila3]
+filament                       = PETG-GF
+min_temp                       = 240
+max_temp                       = 270
+box_min_temp                   = 0
+box_max_temp                   = 45
+type                           = PETG-GF
+
+[fila4]
+filament                       = ABS Rapido
+min_temp                       = 240
+max_temp                       = 280
+box_min_temp                   = 0
+box_max_temp                   = 45
+type                           = ABS
+
+[fila5]
+filament                       = ABS
+min_temp                       = 240
+max_temp                       = 280
+box_min_temp                   = 0
+box_max_temp                   = 45
+type                           = ABS
+
+[fila6]
+filament                       = ASA Rapido
+min_temp                       = 240
+max_temp                       = 280
+box_min_temp                   = 0
+box_max_temp                   = 45
+type                           = ASA
+
+[fila7]
+filament                       = ASA
+min_temp                       = 240
+max_temp                       = 280
+box_min_temp                   = 0
+box_max_temp                   = 45
+type                           = ASA
+
+[fila8]
+filament                       = PLA Rapido
+min_temp                       = 190
+max_temp                       = 240
+box_min_temp                   = 0
+box_max_temp                   = 30
+type                           = PLA
+
+[colordict]
+1                              = #FAFAFA
+2                              = #060606
+3                              = #D9E3ED
+4                              = #5CF30F
+5                              = #63E492
+6                              = #2850FF
+7                              = #FE98FE
+8                              = #DFD628
+9                              = #228332
+10                             = #99DEFF
+11                             = #1714B0
+12                             = #CEC0FE
+13                             = #CADE4B
+14                             = #1353AB
+15                             = #5EA9FD
+16                             = #A878FF
+17                             = #FE717A
+18                             = #FF362D
+19                             = #E2DFCD
+20                             = #898F9B
+21                             = #6E3812
+22                             = #CAC59F
+23                             = #F28636
+24                             = #B87F2B
+
+[vendor_list]
+0                              = Qidi
+1                              = Overture
+2                              = Elegoo
+3                              = Tinmory
+4                              = Generic
