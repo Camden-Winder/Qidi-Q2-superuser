@@ -1,5 +1,9 @@
 # What this guide includes
 In here I will list everything I am running (or have printed) on/for my printer and alternatives I have heard of. This includes octoapp, octoeverywhere, and spoolman, which are all running remotely so I don't waste printer ram space.
+# Chapter 0.5 - True Beginers
+If you are a true begginer this will help you get the slicer set up, provide a link to an unboxxing video, and general other "my first 3D printer" things
+
+[Setup for beginer](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Beginers/First%20Setup.md)
 # Chapter 1 - Plugins
 ### Remote Access
 I like checking on my printer and hate giving my information to china, that is why I chose octoeverywhere
