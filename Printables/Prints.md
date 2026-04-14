@@ -25,6 +25,11 @@ The factory Qidi handle kinda sucks. I found this one to be the best. It uses fa
 ## Screen Cover
 Does this really do anything? No. Does it add to the black and white theme I have going on with my printer? Yes.
 
+## Cardboard Spool Adapters
+These are supposed to help cardboard spools work better in the box. I haven't tried them out yet but will update when I do
+
+[Spool Adapters](https://makerworld.com/en/models/988003-universal-cardboard-spool-adapter-ring?from=search#profileId-963058)
+
 [Screen Cover](https://www.thingiverse.com/thing:7329016)
 
 [Settings](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Printables/General%20Settings.txt)
