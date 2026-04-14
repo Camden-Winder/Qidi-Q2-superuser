@@ -1,0 +1,71 @@
+gcode:
+    {% set bedtemp = params.get('BED') | int %}
+    {% set hotendtemp = params.get('HOTEND') | int %}
+    {% set chambertemp = params.get('CHAMBER', 0) | int %}
+    {% set extruder = params.EXTRUDER|default(0)|int %}
+    {% set Polar_cooler = printer.save_variables.variables.enable_polar_cooler|default(0) %}
+    
+    # Temperature validation
+    {% if bedtemp < 0 or bedtemp > 150 %}
+        {action_respond_error("ERROR: Invalid bed temperature: " ~ bedtemp)}
+    {% endif %}
+    {% if hotendtemp < 0 or hotendtemp > 350 %}
+        {action_respond_error("ERROR: Invalid hotend temperature: " ~ hotendtemp)}
+    {% endif %}
+    {% if chambertemp < 0 or chambertemp > 100 %}
+        {action_respond_error("ERROR: Invalid chamber temperature: " ~ chambertemp)}
+    {% endif %} 
+    
+    M140 S{bedtemp}      # Start bed heating (non-blocking) - IMMEDIATELY!
+    M141 S{chambertemp}  # Start chamber heating (non-blocking) - IMMEDIATELY!
+	SAVE_VARIABLE VARIABLE=qdc_ai_error_code VALUE='""' # Disables AI detection, at least to my knowledge
+    AUTOTUNE_SHAPERS
+    DISABLE_ALL_SENSOR
+    CLEAR_PAUSE
+	
+	# PREPARATION: HOTEND OFF AND FANS
+	M104 S0  # Turn off hotend for safety
+	# Chamber fan control
+    {% if chambertemp == 0 %}
+        M106 P3 S255  # Turn on chamber fan if chamber is not used
+    {% else %}
+        M106 P3 S0    # Turn off fan if chamber is used
+    {% endif %}
+
+    # Homing, Nozzle clean, and home again
+    G28  # Home all axes
+    SET_GCODE_OFFSET Z=0 MOVE=0  # Reset Z offset
+
+    CLEAR_NOZZLE HOTEND={hotendtemp} Disabled because box has extrusion and flush
+    CUT_FILAMENT_1
+    
+    # Pre-heat hotend to 140°C for cutting
+    # (140°C is sufficient for most materials for safe cutting)
+    M104 S140
+    G4 P15000  # Optimized: 15 seconds instead of 30 (material already partially heated)
+    M400       # Wait for all commands to complete
+    G28  # Home after cutting (important for positioning accuracy)
+    Z_TILT_ADJUST  # Bed tilt calibration
+
+    # Wait
+    # Parallel waiting for bed and chamber (saves time)
+    M190 S{bedtemp}      # Wait for bed temperature (blocking)
+    M191 S{chambertemp}  # Wait for chamber temperature (blocking)
+    M400                 # Ensure all commands are executed
+    
+    # Short pause for temperature stabilization (optimized)
+    G4 P5000  # 5 seconds instead of 60 - sufficient for stabilization
+
+    BED_MESH_CALIBRATE
+    Smart_Park
+
+    # Make sure its heated
+    M109 S{hotendtemp}  # Heat and wait for hotend working temperature
+
+    set_zoffset
+    ENABLE_ALL_SENSOR
+    save_last_file
+    VORON_purge
+
+    # Ready notification
+    {action_respond_info("PRINT_START: Printer ready for printing")}
