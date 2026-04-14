@@ -1,0 +1,10 @@
+.24 layer height (go down to 0.2 for better quality on the hexagons but a longer print time)
+Slow down for overhangs checked
+4 wall loops
+3 top and bottom layers
+5% Gyriod infill
+Enable supports
+Type: Normal (Auto)
+On build plate only: Checked
+.24 top Z distance
+Independent Support layer height: Checked
