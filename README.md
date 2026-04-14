@@ -1,5 +1,5 @@
 # What this guide includes
-In here I will list everything I am running on/for my printer and alternatives I have heard of. This includes octoapp, octoeverywhere, and spoolman, which are all running remotely so I don't waste printer ram space.
+In here I will list everything I am running (or have printed) on/for my printer and alternatives I have heard of. This includes octoapp, octoeverywhere, and spoolman, which are all running remotely so I don't waste printer ram space.
 # Chapter 1 - Plugins
 ### Remote Access
 I like checking on my printer and hate giving my information to china, that is why I chose octoeverywhere
@@ -25,6 +25,11 @@ Everyone should be able to do this. Later on I will be attempting to install Bun
 It is always wise to back up any configs before we edit them. To do that go to the configs section of the printer web interface, right click, and download. Save these to a folder you will remember. As of writing these work with Q2 firmware 1.1.0 and I have both Qidi Box and no box versions setup.
 
 [Adaptine Bed Leveling (KAMP)](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/Basic%20Changes/KAMP%20Tutorial.md)
-[Print_Start gcode](
+
+[Pre Print macros](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/Basic%20Changes/Print%20Start%20Macro%20Tutorials.md)
+
+# Printables
+Now that everything is fast lets print some things to make our printer better
+
 # You're done
 Congragulations, you've finished. If you can help format this better it would be greatly appreciated. Thanks. Let me know if you have anything you think should be added.
