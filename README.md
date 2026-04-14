@@ -30,7 +30,9 @@ It is always wise to back up any configs before we edit them. To do that go to t
 
 [Adaptine Bed Leveling (KAMP)](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/Basic%20Changes/KAMP%20Tutorial.md)
 
-[Pre Print macros](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/Basic%20Changes/Print%20Start%20Macro%20Tutorials.md)
+[Macros](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/Basic%20Changes/Print%20Start%20Macro%20Tutorials.md)
+
+[Filament Configs](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/Filamet%20Configurations.md)
 
 # Printables
 Now that everything is fast lets print some things to make our printer better
