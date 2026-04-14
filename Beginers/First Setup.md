@@ -22,6 +22,11 @@ This is by far the best video I have seen on the matter, and is what I still use
 
 [Filament Calibration Masterclass](https://youtu.be/gVU5If1VsAM?si=WtGrF_N3Q2ZN3pHT)
 
+# Printable Upgrades
+These upgrades will add some quality of life to using your printer
+
+[Printable Upgrades](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Printables/Prints.md)
+
 # You're ready to start
 If you have some experience continue on to the next steps, but if you don't know your way aroud a computer this may not be for you.
 The next steps are designed to be copy and paste, but computer knowledge is required. Take a look either way and best of luck!
