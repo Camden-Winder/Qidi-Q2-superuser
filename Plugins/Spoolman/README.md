@@ -16,4 +16,9 @@ services:
       # Map the host machine's port 7912 to the container's port 8000
       - "7912:8000"
     environment:
-      - TZ=Europe/Stockholm # Optional, defaults to UT```
+      - TZ=Europe/Stockholm # Optional, defaults to UT
+```
+3. Run `sudo docker compose up -d`
+Spoolman has been installed, running the Docker should have given a link to the web interface. MAKE SURE TO BOOKMARK THIS
+
+Optional - [View the Spoolman Github](https://github.com/Donkie/Spoolman)
