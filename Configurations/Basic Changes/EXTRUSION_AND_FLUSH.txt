@@ -1,0 +1,23 @@
+gcode:
+    {% set hotendtemp = params.HOTEND|int %}
+    MOVE_TO_TRASH
+    M109 S{hotendtemp}
+    M83
+    {% for i in range(4) %}
+        G1 X{85 + i % 2 * 3} F5000
+        {% for j in range(1,3) %} # 3 used to be 6
+            G1 E9 F300
+            G1 E1 F50
+        {% endfor %}
+    {% endfor %}
+    G1 E-1 F1800
+    M400
+    M106 S255
+    M104 S{hotendtemp-45} # Non blocking cooldown
+    M400
+    G4 P5000
+    M109 S{hotendtemp-45} # Blocking cooldown to make sure we reached the temp
+    CLEAR_OOZE
+    CLEAR_FLUSH
+    MOVE_TO_TRASH
+    M106 S0
