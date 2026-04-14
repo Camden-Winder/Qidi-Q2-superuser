@@ -6,16 +6,17 @@ I like checking on my printer and hate giving my information to china, that is w
 
 Alternatives: Obico
 
-[Setting up remote access](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Remote%20Access/remote%20access.md)
+[Setting up remote access](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Plugins/Remote%20Access/remote%20access.md)
 ### Mobile Access
 I choose to use OctoApp, which works with IOS and andriod.
 
 Alternatives: Mobilraker
 
-[Setting up Mobile Access](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Mobile%20Access/Mobile%20Acess.md)
+[Setting up Mobile Access](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Plugins/Mobile%20Access/Mobile%20Access.md)
 # Filament tracking
 I use Spoolman for this
-(Needs updating)
+
+[Setting up Spoolman](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Plugins/Spoolman/README.md)
 # Printer Configs
 Out of the box the printer ships with a really bloated print preparation macro that takes a lot of time. Here is all the documentation I found
 
