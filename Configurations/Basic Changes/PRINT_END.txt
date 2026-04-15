@@ -4,11 +4,13 @@ gcode:
     M141 S0
     G1 E-3 F1800
     G91
-    G0 Z{total3} F600
+    G0 Z-3 F600
     G90
+    G0 Z10 F600
     G0 Y270 F12000
     G0 X90 Y270 F12000
     G1 Z{256 - 5} F600
+    WIPE
 
   save_zoffset
   SET_IDLE_TIMEOUT TIMEOUT={printer.configfile.settings.idle_timeout.timeout}
@@ -17,11 +19,9 @@ gcode:
   M106 P0 S0
   M106 P4 S0
   DISABLE_BOX_HEATER
-
   UNLOAD_FILAMENT T=[current_extruder]
 
   M104 S0
-
   M220 S100
   M221 S100
   M84
