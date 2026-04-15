@@ -27,6 +27,11 @@ Does this really do anything? No. Does it add to the black and white theme I hav
 
 [Screen Cover](https://www.thingiverse.com/thing:7329016)
 ## Cardboard Spool Adapters
-These are supposed to help cardboard spools work better in the box. I haven't tried them out yet but will update when I do
+These are supposed to help cardboard spools work better in the box. As far as I can tell they work pretty good,
 
 [Spool Adapters](https://makerworld.com/en/models/988003-universal-cardboard-spool-adapter-ring?from=search#profileId-963058)
+
+## Filament CLip
+Holds the rolls of filament in class for storage or putting in the box to dry. I printed out of PETG and scaled the object up by 5%.
+
+[Filament Clip](https://makerworld.com/en/models/1303141-clip-mate-filament-clip?from=search#profileId-1335869)
