@@ -65,6 +65,7 @@ gcode:
     #CLEAR_NOZZLE HOTEND={hotendtemp} #UnDisabled because box has extrusion and flush Disabled again
     WIPE
     CUT_FILAMENT_1
+    G1 Z10 F900 # Makes sure nozzle will not colide with print bed
     
     # Pre-heat hotend to 140°C for cutting
     # (140°C is sufficient for most materials for safe cutting)
@@ -100,3 +101,6 @@ gcode:
     save_last_file
     M118 Print Started
     VORON_purge
+
+    # Ready notification
+    {action_respond_info("PRINT_START: Printer ready for printing")}
