@@ -24,3 +24,13 @@ If you do not have the Qidi box, copy and paste [this text](https://github.com/C
 1. You will also need to edit the `EXTRUSION_AND_FLUSH` macro
 2. Replace the old macro with [this one](https://github.com/Camden-Winder/Qidi-Q2-superuser/tree/main/Configurations/Basic%20Changes)
 
+# Macros in Orca (all users)
+It is important to change all the macros in the orca as I have built all the macros into the gcode_macro.cfg
+
+Copy and paste both of these into the machine gcode of printer settings
+
+1. Click the edit button on the printer
+2. Go to machine gcode
+3. [This text](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/Basic%20Changes/Machine%20Start.txt) goes in machine start
+4. Delete everything in machine end, we don't need it anymore
+
