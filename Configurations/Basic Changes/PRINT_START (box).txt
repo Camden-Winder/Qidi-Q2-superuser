@@ -62,14 +62,14 @@ gcode:
             EXTRUSION_AND_FLUSH HOTEND={hotendtemp}
         {% endif %}
     {% endif %}
-    #CLEAR_NOZZLE HOTEND={hotendtemp} #UnDisabled because box has extrusion and flush Disabled again
-    WIPE
+    #CLEAR_NOZZLE HOTEND={hotendtemp} # Disabled because EXTRUSION_AND_FLUSH has a purge
+    WIPE # The second half a clear nozzle that rubs it on the brush
+    G1 Z5 F900 # Makes sure nozzle will not colide with print bed
     CUT_FILAMENT_1
-    G1 Z10 F900 # Makes sure nozzle will not colide with print bed
     
     # Pre-heat hotend to 140°C for cutting
     # (140°C is sufficient for most materials for safe cutting)
-    M104 S140
+    M104 S140 #Set nozzle to 140
     G4 P7500  # Double Optimized, 7.5 seconds instead of 30 (material already partially heated)
     M400       # Wait for all commands to complete
     G28  # Home after cutting (important for positioning accuracy)
@@ -83,8 +83,8 @@ gcode:
     # Short pause for temperature stabilization (optimized)
     # G4 P5000  # 5 seconds instead of 60 - sufficient for stabilization
 
-    BED_MESH_CALIBRATE
-    Smart_Park
+    BED_MESH_CALIBRATE # Calibrate the mesh
+    Smart_Park # Parking... its smart
 
      # ============================================
     # ENABLE BUFFER MONITORING (if needed)
@@ -100,7 +100,7 @@ gcode:
     ENABLE_ALL_SENSOR
     save_last_file
     M118 Print Started
-    VORON_purge
+    VORON_purge #If you're not using VORON_purge what are you doing
 
     # Ready notification
     {action_respond_info("PRINT_START: Printer ready for printing")}
