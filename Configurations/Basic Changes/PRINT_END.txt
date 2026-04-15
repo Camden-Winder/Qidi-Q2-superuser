@@ -1,13 +1,15 @@
-M400
+gcode:
+    M400
     M140 S0
     M141 S0
     G1 E-3 F1800
     G91
-    G0 Z5 F600
+    G0 Z5 F300
     G90
     WIPE
-    G0 Y270 F12000
-    G0 X90 Y270 F12000
+    # Just let WIPE park the toolhead
+    # G0 Y270 F12000
+    # G0 X90 Y270 F12000
     G1 Z{256 - 5} F600
 
   save_zoffset
@@ -17,8 +19,12 @@ M400
   M106 P0 S0
   M106 P4 S0
   DISABLE_BOX_HEATER
-  UNLOAD_FILAMENT T=[current_extruder]
-
+  # UNLOAD_FILAMENT T=[current_extruder]
+  ## Get filament out of the melt zone to prevent oozing
+  G91
+  G1 E-10 F1800
+  G90
+  M400
   M104 S0
   M220 S100
   M221 S100
