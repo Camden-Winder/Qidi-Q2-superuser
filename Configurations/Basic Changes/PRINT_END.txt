@@ -1,29 +1,26 @@
 gcode:
-  M400
-  G1 E-3 F1800
-  G0 Z{max_layer_z + 3} F600
-  G0 Y270 F12000
-  G0 X90 Y270 F12000
-  G1 Z{max_print_height - 5} F600
+    M400
+    M140 S0
+    M141 S0
+    G1 E-3 F1800
+    G91
+    G0 Z{3} F600
+    G90
+    G0 Y270 F12000
+    G0 X90 Y270 F12000
+    G1 Z{256 - 5} F600
+
   save_zoffset
   SET_IDLE_TIMEOUT TIMEOUT={printer.configfile.settings.idle_timeout.timeout}
   CLEAR_PAUSE
   M106 P2 S0
   M106 P0 S0
   M106 P4 S0
-  BUFFER_MONITORING ENABLE=0
   DISABLE_BOX_HEATER
-
-  G1 E-3 F1800
-  G0 Y270 F12000
-  G0 X90 Y270 F12000
-  G1 Z{265 - 5} F600
 
   UNLOAD_FILAMENT T=[current_extruder]
 
   M104 S0
-  M140 S0
-  M141 S0
 
   M220 S100
   M221 S100
