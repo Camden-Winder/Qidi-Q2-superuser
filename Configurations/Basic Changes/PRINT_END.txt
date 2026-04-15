@@ -1,42 +1,42 @@
 gcode:
-    M400
-    M140 S0
-    M141 S0
-    G1 E-3 F1800
-    G91
-    G0 Z5 F300
-    G90
-    WIPE
+    M400 # Allow all proccesses to finish
+    M140 S0 # Turn off the bed
+    M141  # Turn off the chamber
+    G1 E-3 F1800 # Retract a little filament
+    G91 # Change to relative positioning
+    G0 Z5 F300 # Move the nozzle up 5 (move bed down 5mm)
+    G90 # Return to absolute positioning
+    WIPE # Use the nozzle wipe
     # Just let WIPE park the toolhead
     # G0 Y270 F12000
     # G0 X90 Y270 F12000
-    G1 Z{256 - 5} F600
+    G1 Z{256 - 5} F600 # Lower bed to 5mm above the bottom
 
   save_zoffset
   SET_IDLE_TIMEOUT TIMEOUT={printer.configfile.settings.idle_timeout.timeout}
   CLEAR_PAUSE
-  M106 P2 S0
-  M106 P0 S0
-  M106 P4 S0
-  DISABLE_BOX_HEATER
-  # UNLOAD_FILAMENT T=[current_extruder]
+  M106 P2 S0 # Turn off a fan
+  M106 P0 S0 #Turn off a fan
+  M106 P4 S0 #Turn off a fan
+  DISABLE_BOX_HEATER # Turn off box heater
+  # UNLOAD_FILAMENT T=[current_extruder] # Unload filament does not allow for auto reload in 1.1.0 so we will just retract some filament
   ## Get filament out of the melt zone to prevent oozing
-  G91
-  G1 E-10 F1800
-  G90
-  M400
-  M104 S0
-  M220 S100
-  M221 S100
-  M84
+  G91 # Change to relative positioning
+  G1 E-10 F1800 # Retract 10mm of filament
+  G90 # Return to absolute positioning
+  M400 # Ensure all commands execute
+  M104 S0 # Turn off the hotend 
+  M220 S100 # Reset speed factor to 100%
+  M221 S100 # Reset flow to 100%
+  M84 # Unpower/turn off stepper motors
 
-  DISABLE_ALL_SENSOR
+  DISABLE_ALL_SENSOR # Disables filament runout sensor
   {% if printer.save_variables.variables.box_count >= 1 and printer.save_variables.variables.enable_box == 1 and printer["box_extras"] %}
-    BUFFER_MONITORING ENABLE=0
+    BUFFER_MONITORING ENABLE=0 # Something to do with box
   {% endif %}
 
-  BED_MESH_CLEAR
-  G31
-  CLEAR_LAST_FILE
-  BEEP I=2 DUR=500
-  SDCARD_RESET_FILE
+  BED_MESH_CLEAR # Clears the bed mesh. Going to Demon Klipper macros later could help to save meshes
+  G31 # Custom Command, I'm not sure what yet
+  CLEAR_LAST_FILE # Clear the file
+  BEEP I=2 DUR=500 # Beep
+  SDCARD_RESET_FILE # Resets sd card? I need to figure out what this means as well
