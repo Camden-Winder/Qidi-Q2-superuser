@@ -63,7 +63,7 @@ gcode:
         {% endif %}
     {% endif %}
     #CLEAR_NOZZLE HOTEND={hotendtemp} # Disabled because EXTRUSION_AND_FLUSH has a purge
-    WIPE # The second half a clear nozzle that rubs it on the brush
+    BRUSH # The second half a clear nozzle that rubs it on the brush
     G1 Z5 F900 # Makes sure nozzle will not colide with print bed
     CUT_FILAMENT_1
     
