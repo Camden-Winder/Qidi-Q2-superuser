@@ -18,15 +18,13 @@ gcode:
     
     M140 S{bedtemp}      # Start bed heating (non-blocking) - IMMEDIATELY!
     M141 S{chambertemp}  # Start chamber heating (non-blocking) - IMMEDIATELY!
-    M104 S100
+    M104 S100 			 # Start the Hotend temp just a little, to save a few seconds while avioding oozing
 	SAVE_VARIABLE VARIABLE=qdc_ai_error_code VALUE='""' # Disables AI detection, at least to my knowledge
     AUTOTUNE_SHAPERS
-    DISABLE_ALL_SENSOR
+    DISABLE_ALL_SENSOR	 # Disables filament runout sensor
     CLEAR_PAUSE
 	
 	# PREPARATION: HOTEND OFF AND FANS
-	# M104 S0  # Turn off hotend for safety Umm, no
-
 	# Chamber fan control
     {% if chambertemp == 0 %}
         M106 P3 S255  # Turn on chamber fan if chamber is not used
@@ -34,7 +32,7 @@ gcode:
         M106 P3 S0    # Turn off fan if chamber is used
     {% endif %}
 
-    # Homing, Nozzle clean, and home again
+    # Homing
     G28  # Home all axes
     SET_GCODE_OFFSET Z=0 MOVE=0  # Reset Z offset
 
@@ -96,11 +94,7 @@ gcode:
     # Make sure its heated
     M109 S{hotendtemp}  # Heat and wait for hotend working temperature
 
-    set_zoffset
-    ENABLE_ALL_SENSOR
+    set_zoffset # Save Zoffset
+    ENABLE_ALL_SENSOR # Turn filament runout sensor back on
     save_last_file
-    M118 Print Started
     VORON_purge #If you're not using VORON_purge what are you doing
-
-    # Ready notification
-    {action_respond_info("PRINT_START: Printer ready for printing")}
