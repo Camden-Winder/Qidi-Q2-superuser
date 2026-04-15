@@ -4,7 +4,7 @@ gcode:
     M141 S0
     G1 E-3 F1800
     G91
-    G0 Z-3 F600
+    G0 Z3 F600
     G90
     G0 Z10 F600
     WIPE
