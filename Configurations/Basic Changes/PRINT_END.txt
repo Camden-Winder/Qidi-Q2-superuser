@@ -7,10 +7,10 @@ gcode:
     G0 Z-3 F600
     G90
     G0 Z10 F600
+    WIPE
     G0 Y270 F12000
     G0 X90 Y270 F12000
     G1 Z{256 - 5} F600
-    WIPE
 
   save_zoffset
   SET_IDLE_TIMEOUT TIMEOUT={printer.configfile.settings.idle_timeout.timeout}
