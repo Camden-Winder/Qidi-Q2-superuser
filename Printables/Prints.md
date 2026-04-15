@@ -32,6 +32,6 @@ These are supposed to help cardboard spools work better in the box. As far as I 
 [Spool Adapters](https://makerworld.com/en/models/988003-universal-cardboard-spool-adapter-ring?from=search#profileId-963058)
 
 ## Filament CLip
-Holds the rolls of filament in class for storage or putting in the box to dry. I printed out of PETG and scaled the object up by 5%.
+Holds the rolls of filament in class for storage or putting in the box to dry. I printed out of PETG and scaled the object up by 5%. Make sure to print with .16 layer height as creator recomends
 
 [Filament Clip](https://makerworld.com/en/models/1303141-clip-mate-filament-clip?from=search#profileId-1335869)
