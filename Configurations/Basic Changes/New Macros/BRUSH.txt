@@ -1,4 +1,4 @@
-[gcode_macro WIPE]
+[gcode_macro BRUSH]
 gcode:
      G1 X130 Y280 F6000
     G1 Z-0.2 F600
@@ -28,4 +28,5 @@ gcode:
     G1 X164 F12000
     G1 X180 F12000
     G1 X164 F12000
-    M400
+    M400[
+    # G1 Z10 F900
