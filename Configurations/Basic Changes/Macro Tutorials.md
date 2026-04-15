@@ -18,7 +18,8 @@ If you do not have the Qidi box, copy and paste [this text](https://github.com/C
 8. Replace old text with [this text](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/Basic%20Changes/PRINT_END.txt)
 
 9. Go to the VERY BOTTOM of the gcode_macro.cfg (you are already in gcode_macro.cfg by the way, just go to the bottom)
-10. Copy the [WIPE macro](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/Basic%20Changes/New%20Macros/WIPE.txt) to the very bottom
+10. Copy the [BRUSH macro](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/Basic%20Changes/New%20Macros/BRUSH.txt) to the very bottom
+11. Copy the [WIPE macro](https://github.com/Camden-Winder/Qidi-Q2-superuser/tree/main/Configurations/Basic%20Changes/New%20Macros) to the very bottom
 
 ## For box users only
 1. You will also need to edit the `EXTRUSION_AND_FLUSH` macro
