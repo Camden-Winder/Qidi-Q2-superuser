@@ -8,6 +8,7 @@
 1. Go to gcode_macro.cfg
 2. Go to the `CLEAR_NOZZLE` macro
 3.Replace the old macro with [this new one](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/Basic%20Changes/CLEAR_NOZZLE.txt)
+EDIT: PRINT_START macro is currently broken! You will run into erros on large prints! Do not use it yet, I am working on fixing it
 4.Go to the `PRINT_START` macro
 5. If you have the Qidi box use [this text](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/Basic%20Changes/PRINT_START%20(box).txt)
 
