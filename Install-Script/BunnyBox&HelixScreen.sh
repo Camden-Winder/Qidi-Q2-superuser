@@ -45,10 +45,14 @@ echo "printer.cfg updated."
 echo ""
 
 echo "Applying KAMP settings..."
+# Creates the KAMP subdirectory if it doesn't exist, matching the path that
+# printer.cfg expects: ./KAMP/KAMP_Settings.cfg
+mkdir -p /home/mks/printer_data/config/KAMP
 # Installs your tuned KAMP configuration.
-# This ensures KAMP behavior matches your macros and printer.cfg.
+# Filename uses capital S (KAMP_Settings.cfg) to match the [include] directive
+# in printer.cfg. Linux is case-sensitive — wrong case = file not found at boot.
 curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/KAMP_settings.cfg \
-  -o /home/mks/printer_data/config/KAMP_settings.cfg
+  -o /home/mks/printer_data/config/KAMP/KAMP_Settings.cfg
 echo "KAMP settings applied."
 echo ""
 
