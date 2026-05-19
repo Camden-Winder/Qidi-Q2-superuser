@@ -1,11 +1,14 @@
-#!/bin/sh
+#!/bin/bash
+
+# bash is used explicitly (not sh) because pipefail is bash-only and not
+# supported by dash, which is the Q2's /bin/sh. bash is available on the Q2.
 
 # Exit immediately if any command fails. This prevents the script from
 # continuing and overwriting config files if a download or install step errors.
 set -e
 # pipefail makes the script treat a failure anywhere in a pipe as fatal.
-# Without this, `wget ... | bash` would succeed even if wget failed silently.
-# Supported in dash (the Q2's /bin/sh) and bash.
+# Without this, `wget ... | bash` would succeed even if wget failed silently,
+# and the script would continue as if the install completed successfully.
 set -o pipefail
 
 echo "Backing up current configs..."
@@ -35,7 +38,7 @@ echo "Installing HelixScreen..."
 #   -s  silent (no progress meter)
 #   -S  show errors even when silent
 #   -L  follow redirects (required for GitHub raw URLs)
-curl -sSL https://raw.githubusercontent.com/prestonbrown/helixscreen/main/scripts/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/prestonbrown/helixscreen/main/scripts/install.sh | bash
 echo "HelixScreen installed."
 echo ""
 
