@@ -2,7 +2,7 @@
 
 There are multiple install scripts in this repo. Make sure you run the one that matches what you want to install.
 
-**Warning** this script is actively being modified. All install scripts may not work. If you would like to see the status and get updates, join the Discord listed at top of readme
+If you run into any issues ask for help in the Discord listed at the top of the readme
 
 All scripts will:
 
