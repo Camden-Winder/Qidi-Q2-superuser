@@ -14,19 +14,26 @@ echo "Backup complete."
 echo ""
 
 # Update gcode_macro.cfg (no box, no HelixScreen version)
+# Fixed: old URL used Install%20Script/ (space) and wrong filename — folder is now Install-Script/
+# and file is gcode_macro(JustFasterPrinter).cfg
 echo "Updating gcode_macro.cfg ..."
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install%20Script/gcode_macro%28no.box.no.hs%29.cfg \
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/gcode_macro-JustFasterPrinter.cfg \
   -o /home/mks/printer_data/config/gcode_macro.cfg
 
 # Update printer.cfg for the Just Faster setup
+# Fixed: old URL used Install%20Script/ and "Just Faster printer.cfg" — file is now JustFasterPrinter.cfg
 echo "Updating printer.cfg ..."
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install%20Script/Just%20Faster%20printer.cfg \
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/JustFasterPrinter.cfg \
   -o /home/mks/printer_data/config/printer.cfg
 
 # Apply KAMP settings
+# Fixed: old URL used Install%20Script/ — folder is now Install-Script/
+# Fixed: KAMP_Settings.cfg must go in a KAMP/ subdirectory to match the
+# [include ./KAMP/KAMP_Settings.cfg] directive in JustFasterPrinter.cfg
 echo "Applying KAMP settings ..."
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install%20Script/KAMP_settings.cfg \
-  -o /home/mks/printer_data/config/KAMP_Settings.cfg
+mkdir -p /home/mks/printer_data/config/KAMP
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/KAMP_settings.cfg \
+  -o /home/mks/printer_data/config/KAMP/KAMP_Settings.cfg
 
 echo ""
 echo "Congrats — your Q2 is now running the 'Just Faster' setup."
