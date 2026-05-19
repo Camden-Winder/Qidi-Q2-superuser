@@ -70,4 +70,6 @@ If you don’t know your way around a computer, the later sections may feel a bi
 
 The next steps are designed to be mostly copy‑and‑paste, but some basic computer knowledge is required. Take a look either way, move at your own pace, and best of luck.
 
+If you've never used SSH before, here's a quick guide to get you connected: [How to SSH into your Q2](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Beginers/How-to-SSH.md)
+
 ---
