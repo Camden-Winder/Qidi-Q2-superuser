@@ -33,18 +33,7 @@ fi
 echo ""
 
 echo "Checking for Bunny Box installation..."
-if [ -d "/home/mks/Happy-Hare" ]; then
-    echo "Bunny Box detected. Attempting uninstall..."
-
-    if [ -f "/home/mks/Happy-Hare/install.sh" ]; then
-        sudo bash /home/mks/Happy-Hare/install.sh -d
-        echo "Bunny Box uninstall complete."
-    else
-        echo "install.sh not found inside Happy-Hare. Cannot uninstall."
-    fi
-else
-    echo "Bunny Box not detected. Skipping."
-fi
+wget -qO - https://raw.githubusercontent.com/Camden-Winder/Bunny-Box/refs/heads/main/Q2/install-bb-q2.sh | bash -s -- --revert
 echo ""
 
 echo "Restoring configs from mudstockbackups..."
