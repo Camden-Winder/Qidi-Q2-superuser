@@ -55,6 +55,8 @@ After installation, download and import the Orca slicer presets:
 
 [Presets](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Install-Script/Printer%20Presets/1.%20Presets.md)
 
+If you are having any issues, make sure to check the [FAQ](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Install-Script/FAQ-BunnyBox%26Helixscreen.md)
+
 ---
 
 ## Just Faster
