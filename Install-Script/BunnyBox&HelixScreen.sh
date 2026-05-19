@@ -56,11 +56,17 @@ curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs
 echo "KAMP settings applied."
 echo ""
 
-# echo "Applying HelixScreen settings..." ## Installing the helixscreen settings this way is not currently working, a different way is needed to find somehow
-# Updates HelixScreen's JSON config so it matches your UI and macro layout.
-# curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install%20Script/helixscreen_settings.json \
-#   -o /home/mks/helixscreen/config/settings.json
-# echo "HelixScreen settings applied."
-# echo ""
+echo "Installing HelixScreen preset..."
+# Presets are full settings templates placed in assets/config/presets/.
+# The filename (minus .json) is the preset name shown in the HelixScreen UI.
+# This preset sets the correct Q2 home screen layout, fan mappings, LED config,
+# and macros for a BunnyBox + HelixScreen install.
+# The directory is created here explicitly because the install script runs before
+# HelixScreen's first launch, which is when it would normally create the folder.
+mkdir -p /home/mks/helixscreen/assets/config/presets
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/Qidi-Q2-BunnyBox.json \
+  -o /home/mks/helixscreen/assets/config/presets/Qidi-Q2-BunnyBox.json
+echo "HelixScreen preset installed."
+echo ""
 
 echo "Install complete."
