@@ -1,5 +1,9 @@
 #!/bin/sh
 
+# Exit immediately if any command fails. This prevents the script from
+# continuing and overwriting config files if a download or install step errors.
+set -e
+
 echo "Backing up current configs..."
 # Create backup folder if missing. -p avoids errors if it already exists.
 mkdir -p /home/mks/mudstockbackups
@@ -49,9 +53,9 @@ echo "KAMP settings applied."
 echo ""
 
 # echo "Applying HelixScreen settings..." ## Installing the helixscreen settings this way is not currently working, a different way is needed to find somehow
-# Updates HelixScreen’s JSON config so it matches your UI and macro layout.
+# Updates HelixScreen's JSON config so it matches your UI and macro layout.
 # curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install%20Script/helixscreen_settings.json \
-  -o /home/mks/helixscreen/config/settings.json
+#   -o /home/mks/helixscreen/config/settings.json
 # echo "HelixScreen settings applied."
 # echo ""
 
