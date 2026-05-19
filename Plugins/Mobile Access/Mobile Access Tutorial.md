@@ -9,7 +9,7 @@ This sets up the OctoApp plugin using Docker so you can access your Qidi Q2 from
 
 ## Setup steps
 
-1. **Open the `Companion` directory** on your printer. This is the directory used by the Companion stack — typically `/home/mks/companion` or wherever your docker-compose services live.
+1. **Open the `Companion` directory** on your PC or laptop. This is the directory used by the Companion stack on your local machine — wherever you have your other docker-compose services set up.
 2. **Create a new folder** named `OctoApp` inside it.
 3. **Inside that folder**, create a file named `docker-compose.yml`.
 4. **Edit the file** in any text editor. Replace `PRINTER_IP=XXX.XXX.XXX.XXX` with your actual printer's IP address.
