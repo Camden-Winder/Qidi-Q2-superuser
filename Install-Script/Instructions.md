@@ -48,7 +48,7 @@ This is the full setup I run on my own Q2.
 ### Install command
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/BunnyBox%26HelixScreen.sh | sh
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/BunnyBox%26HelixScreen.sh | bash
 ```
 
 After installation, download and import the Orca slicer presets:
