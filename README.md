@@ -2,7 +2,7 @@
 
 Welcome — this repo is everything I use to turn a stock Qidi Q2 into a faster, cleaner, and more capable printer.
 
-Join the Discord: https://discord.gg/aZGUk69Mp
+Join the [Discord](https://discord.gg/aZGUk69Mp)
 
 ---
 

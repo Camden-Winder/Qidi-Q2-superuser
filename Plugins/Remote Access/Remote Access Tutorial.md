@@ -2,7 +2,7 @@
 
 I no longer recommend OctoEverywhere due to reliability issues and aggressive paywalling.
 
-Join the Discord for current recommendations and setup help: https://discord.gg/aZGUk69Mp
+Join the [Discord](https://discord.gg/aZGUk69Mp) for current recommendations and setup help.
 
 ## Alternatives
 
