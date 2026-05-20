@@ -2,7 +2,7 @@
 
 Welcome — this repo is everything I use to turn a stock Qidi Q2 into a faster, cleaner, and more capable printer.
 
-Join the Discord: https://discord.gg/aZGUk69Mp
+Join the [Discord](https://discord.gg/aZGUk69Mp)
 
 ---
 
@@ -15,6 +15,8 @@ This repo covers:
 - Filament tracking with Spoolman  
 - Faster, cleaner printer macros  
 - One‑line install and uninstall tools  
+- **Bunny Box** – improved multi-material firmware for the Qidi Box  
+- **HelixScreen** – touchscreen UI replacement with Bunny Box support  
 - Recommended printables for the Q2  
 
 Everything here is optional — take what you want, skip what you don’t.
@@ -54,7 +56,7 @@ Alternative: **Mobilraker**
 
 ---
 
-# Filament Tracking
+# Chapter 2 – Filament Tracking
 
 I use **Spoolman** for filament tracking.  
 This becomes especially useful once Bunny Box is installed on the Qidi Box.
@@ -63,7 +65,7 @@ This becomes especially useful once Bunny Box is installed on the Qidi Box.
 
 ---
 
-# Printer Configs
+# Chapter 3 – Printer Configs
 
 The Q2 ships with a very heavy PRINT_START macro and a lot of vendor‑specific glue code.  
 This repo documents what those macros do and provides faster, cleaner replacements.
@@ -79,7 +81,7 @@ Additional config resources:
 
 ---
 
-# Printables
+# Chapter 4 – Printables
 
 Once your Q2 is running smoothly, here are prints that actually improve the machine.
 

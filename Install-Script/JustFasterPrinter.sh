@@ -1,4 +1,9 @@
-#!/bin/sh
+#!/bin/bash
+
+# Exit immediately on any error so a failed download doesn't silently
+# overwrite config files with nothing or an HTML error page.
+set -e
+set -o pipefail
 
 # Prevent running as root — this breaks permissions on the Q2
 if [ "$(id -u)" -eq 0 ]; then
@@ -17,13 +22,13 @@ echo ""
 # Fixed: old URL used Install%20Script/ (space) and wrong filename — folder is now Install-Script/
 # and file is gcode_macro(JustFasterPrinter).cfg
 echo "Updating gcode_macro.cfg ..."
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/gcode_macro-JustFasterPrinter.cfg \
+curl -sSLf https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/gcode_macro-JustFasterPrinter.cfg \
   -o /home/mks/printer_data/config/gcode_macro.cfg
 
 # Update printer.cfg for the Just Faster setup
 # Fixed: old URL used Install%20Script/ and "Just Faster printer.cfg" — file is now JustFasterPrinter.cfg
 echo "Updating printer.cfg ..."
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/JustFasterPrinter.cfg \
+curl -sSLf https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/JustFasterPrinter.cfg \
   -o /home/mks/printer_data/config/printer.cfg
 
 # Apply KAMP settings
@@ -32,7 +37,7 @@ curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs
 # [include ./KAMP/KAMP_Settings.cfg] directive in JustFasterPrinter.cfg
 echo "Applying KAMP settings ..."
 mkdir -p /home/mks/printer_data/config/KAMP
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/KAMP_settings.cfg \
+curl -sSLf https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/KAMP_settings.cfg \
   -o /home/mks/printer_data/config/KAMP/KAMP_Settings.cfg
 
 echo ""
