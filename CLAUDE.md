@@ -4,10 +4,12 @@ Project context for Claude Code sessions. Read this first every time.
 
 ## Project Guidlines
 
-This project has two main guidlines
+This project has a few main guidlines
 1. Ensure a hands off user experience when running an install script. This means they should not be prompted any questions when running a script, and if they must, the need a recommend option.
 
 2. All other branches should remain with verbose error logs and feedback when running any commands to ensure troubleshooting is easy.
+
+3. Ensure all code is created with comments detailing what each part of it does
 
 
 ## Target Environment
