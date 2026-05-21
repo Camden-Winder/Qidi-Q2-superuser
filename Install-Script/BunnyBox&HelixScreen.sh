@@ -227,4 +227,11 @@ PYEOF
 echo "HelixScreen layout applied."
 echo ""
 
+echo "Installing Mainsail..."
+# Fetch and run the standalone Mainsail installer. It maps Mainsail to port 100
+# and detects any existing install automatically, so it is safe to call here
+# whether or not the user has run this script before.
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/install-mainsail.sh | bash
+echo ""
+
 echo "Install complete."
