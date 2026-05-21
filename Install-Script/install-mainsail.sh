@@ -56,17 +56,20 @@ MOONRAKER_PORT=7125
 banner "Step 1 — Installing dependencies"
 
 info "Running apt-get update..."
-# Allow-releaseinfo-change tolerates repos where the Release file has changed (e.g. stale
-# Qidi bullseye-backports mirror). We capture but do not hard-fail on update errors;
-# the install step below will fail explicitly if a required package is missing.
-sudo apt-get update -qq \
+# DEBIAN_FRONTEND=noninteractive prevents apt from raising interactive prompts on Debian 10.
+# -o Acquire::Check-Valid-Until=false tolerates repos with expired Release files.
+# --allow-releaseinfo-change tolerates repos whose Release metadata has changed.
+# We do not hard-fail on update errors (e.g. the missing bullseye-backports mirror on the
+# Q2); the install step below will fail explicitly if a package genuinely cannot be fetched.
+DEBIAN_FRONTEND=noninteractive sudo apt-get update -qq \
   -o Acquire::Check-Valid-Until=false \
   --allow-releaseinfo-change \
   2>&1 || warn "apt-get update had errors (possibly stale mirror) — attempting install anyway"
 
 info "Installing nginx and unzip..."
-# -y answers yes automatically (no prompts), satisfying the hands-off requirement
-sudo apt-get install -y nginx unzip curl \
+# DEBIAN_FRONTEND=noninteractive suppresses any interactive prompts during install.
+# -y answers yes automatically, satisfying the hands-off requirement.
+DEBIAN_FRONTEND=noninteractive sudo apt-get install -y nginx unzip curl \
   || err "apt-get install failed — run 'sudo apt-get install -y nginx unzip curl' manually to see the full error"
 
 ok "Dependencies installed."
@@ -86,9 +89,10 @@ info "Downloading from: ${MAINSAIL_URL}"
 curl -sSL -o "${MAINSAIL_ZIP}" "${MAINSAIL_URL}" \
   || err "Download failed — verify network connectivity and that GitHub is reachable"
 
-# Confirm the zip is a valid ZIP file (not an error HTML page saved to disk)
-file "${MAINSAIL_ZIP}" | grep -q "Zip archive" \
-  || err "Downloaded file is not a valid ZIP — got: $(file "${MAINSAIL_ZIP}"). URL may have changed."
+# Confirm the zip is valid using unzip -t (test mode) — avoids dependency on the
+# 'file' command which may not be installed on minimal Debian 10 images.
+unzip -t "${MAINSAIL_ZIP}" > /dev/null 2>&1 \
+  || err "Downloaded file is not a valid ZIP archive — it may be an HTML error page. Check network/proxy."
 
 ok "Mainsail downloaded to ${MAINSAIL_ZIP}."
 
