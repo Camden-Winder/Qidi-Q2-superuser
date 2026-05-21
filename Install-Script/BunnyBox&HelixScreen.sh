@@ -195,8 +195,10 @@ with open(SETTINGS_PATH, "r") as f:
 # Top-level appearance settings
 s["dark_mode"] = True
 s["theme"] = {"preset": 0}
-s["motion"] = {"jog_mode": 1}
-s["display"].update({
+# Use update to merge jog_mode without wiping other motion settings
+s.setdefault("motion", {})["jog_mode"] = 1
+# setdefault guards against a missing display key on fresh installs
+s.setdefault("display", {}).update({
     "bed_mesh_render_mode": 0,
     "dim_brightness": 30,
     "dim_sec": 600,
@@ -206,8 +208,9 @@ s["display"].update({
     "timezone": "America/Los_Angeles"
 })
 
-# Printer-level settings — merged into printers.default, preserving machine-specific keys
-p = s.setdefault("printers", {}).setdefault("default", {})
+# Printer-level settings — merged into printer (singular), preserving machine-specific keys.
+# HelixScreen's settings.json uses "printer" (not "printers.default") per the preset schema.
+p = s.setdefault("printer", {})
 p["panel_widgets"] = LAYOUT["panel_widgets"]
 p["fans"] = FANS
 p["default_macros"] = DEFAULT_MACROS
@@ -222,6 +225,13 @@ os.replace(tmp, SETTINGS_PATH)
 print("HelixScreen layout applied successfully.")
 PYEOF
 echo "HelixScreen layout applied."
+echo ""
+
+echo "Installing Mainsail..."
+# Fetch and run the standalone Mainsail installer. It maps Mainsail to port 100
+# and detects any existing install automatically, so it is safe to call here
+# whether or not the user has run this script before.
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/install-mainsail.sh | bash
 echo ""
 
 echo "Install complete."
