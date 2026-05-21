@@ -79,40 +79,77 @@ echo "KAMP settings applied."
 echo ""
 
 echo "Applying HelixScreen layout..."
-# The preset system only runs during the first-launch wizard. Since HelixScreen
-# sets wizard_completed=true on first run, the preset picker never appears on a
-# machine that has already booted HelixScreen — even once. Dropping a file into
-# assets/config/presets/ therefore does nothing on a fresh install after first boot.
+# The HelixScreen setup wizard runs on first boot and overwrites layout fields.
+# To prevent that, we pre-populate every field the wizard would set and mark
+# wizard_completed=true so it is skipped entirely. This gives a hands-off install
+# where the user lands directly in the configured HelixScreen UI.
 #
-# The correct approach is to merge our layout directly into settings.json.
-# We use Python to do a targeted merge so machine-specific values (IP, touch
-# calibration, Moonraker port) are preserved and only layout/appearance fields
-# are overwritten.
+# The Moonraker host IP is detected at install time via Python socket so it is
+# always correct for the machine running this script — never hardcoded.
 #
-# Fields we inject (safe to apply to any Q2 BunnyBox machine):
-#   panel_widgets.home   — home screen widget layout (the whole point of this step)
-#   dark_mode            — Ayu dark theme
-#   theme.preset         — color preset 0
-#   display.*            — brightness, sleep, timezone, time format
-#   motion.jog_mode      — jog mode preference
-#   fans                 — Q2 fan mappings (correct for all Q2s)
+# Fields we set (all Q2-specific constants or dynamically detected):
+#   wizard_completed     — true at top level and printers.default to skip wizard
+#   active_printer_id    — "default"
+#   language / telemetry — sensible defaults (en / disabled)
+#   moonraker_host/port  — detected from primary LAN interface / 7125
+#   printer_name         — "Q2"
+#   heaters/temp_sensors — Q2 Klipper object names
+#   hardware.expected    — 12-item list for Q2 BunnyBox build
+#   filament_sensors     — 8 MMU + runout sensors present on Q2 BunnyBox
+#   panel_widgets.home   — custom home screen widget layout
+#   dark_mode/theme      — Ayu dark theme, color preset 0
+#   display.*            — brightness, sleep, time format
+#   motion.jog_mode      — jog preference
+#   fans                 — Q2 fan mappings
 #   default_macros       — BunnyBox macro shortcuts
-#   leds.color_presets   — color palette
-#   leds.led_on_at_start — startup LED behavior
-#   leds.startup_brightness
+#   leds.*               — color palette and startup behaviour
 #
-# Fields we leave untouched:
-#   moonraker_host/port  — machine-specific IP and port
-#   input.calibration    — touchscreen calibration unique to each physical unit
+# Fields we leave untouched (setdefault / not assigned):
+#   input.calibration    — touchscreen calibration unique to each unit
 #   filament             — runtime spool data
 #   hardware.last_snapshot, thermal.rates, print_start_history — runtime state
+#   moonraker_api_key    — user-specific
 python3 << 'PYEOF'
-import json, os, sys
+import json, os, sys, socket
 
 SETTINGS_PATH = "/home/mks/helixscreen/config/settings.json"
 
+def get_local_ip():
+    # Opens a UDP socket toward an external address to discover which local
+    # interface the OS would use. No data is actually sent.
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+# Hardware constants — correct for every Q2 BunnyBox build (confirmed from live machine).
+HARDWARE_EXPECTED = [
+    "heater_bed", "extruder", "fan_generic cooling_fan", "heater_fan hotend_fan",
+    "output_pin caselight", "filament_switch_sensor filament_switch_sensor", "mmu",
+    "heater_fan box1_heater_fan_a", "heater_fan box1_heater_fan_b",
+    "controller_fan box1_board_fan", "controller_fan board_fan",
+    "fan_generic auxiliary_cooling_fan"
+]
+
+FILAMENT_SENSORS = {
+    "master_enabled": True,
+    "sensors": [
+        {"enabled": True, "klipper_name": "filament_switch_sensor mmu_pre_gate_0",          "role": "none",   "type": "switch"},
+        {"enabled": True, "klipper_name": "filament_switch_sensor mmu_pre_gate_1",          "role": "none",   "type": "switch"},
+        {"enabled": True, "klipper_name": "filament_switch_sensor mmu_pre_gate_2",          "role": "none",   "type": "switch"},
+        {"enabled": True, "klipper_name": "filament_switch_sensor mmu_pre_gate_3",          "role": "none",   "type": "switch"},
+        {"enabled": True, "klipper_name": "filament_switch_sensor mmu_gate_sensor",         "role": "none",   "type": "switch"},
+        {"enabled": True, "klipper_name": "filament_switch_sensor extruder_sensor",         "role": "none",   "type": "switch"},
+        {"enabled": True, "klipper_name": "filament_switch_sensor filament_tension_sensor", "role": "none",   "type": "switch"},
+        {"enabled": True, "klipper_name": "filament_switch_sensor filament_switch_sensor",  "role": "runout", "type": "switch"},
+    ]
+}
+
 # Layout and appearance values sourced from a configured Q2 BunnyBox machine.
-# Only non-machine-specific fields are included here.
 LAYOUT = {
   "panel_widgets": {
     "home": {
@@ -192,27 +229,46 @@ if not os.path.exists(SETTINGS_PATH):
 with open(SETTINGS_PATH, "r") as f:
     s = json.load(f)
 
+# Top-level wizard skip and defaults
+s["wizard_completed"]   = True
+s["active_printer_id"]  = "default"
+s.setdefault("language",          "en")
+s.setdefault("telemetry_enabled", False)
+
 # Top-level appearance settings
 s["dark_mode"] = True
-s["theme"] = {"preset": 0}
-# Use update to merge jog_mode without wiping other motion settings
+s["theme"]     = {"preset": 0}
 s.setdefault("motion", {})["jog_mode"] = 1
-# setdefault guards against a missing display key on fresh installs
 s.setdefault("display", {}).update({
     "bed_mesh_render_mode": 0,
-    "dim_brightness": 30,
-    "dim_sec": 600,
-    "gcode_render_mode": 0,
-    "sleep_sec": 1200,
-    "time_format": 1,
-    "timezone": "America/Los_Angeles"
+    "dim_brightness":       30,
+    "dim_sec":              600,
+    "gcode_render_mode":    0,
+    "sleep_sec":            1200,
+    "time_format":          1,
+    "timezone":             "America/Los_Angeles"
 })
 
-# Printer-level settings — merged into printer (singular), preserving machine-specific keys.
-# HelixScreen's settings.json uses "printer" (not "printers.default") per the preset schema.
-p = s.setdefault("printer", {})
-p["panel_widgets"] = LAYOUT["panel_widgets"]
-p["fans"] = FANS
+# Printer-level settings — printers.default confirmed as correct path from live Q2 settings.json
+p = s.setdefault("printers", {}).setdefault("default", {})
+
+# Skip the wizard for this printer entry
+p["wizard_completed"] = True
+
+# Moonraker connection — IP detected dynamically so every machine uses its own LAN address
+p.setdefault("moonraker_host", get_local_ip())
+p.setdefault("moonraker_port", 7125)
+
+# Q2 identity and hardware mappings — constant across all Q2 BunnyBox builds
+p.setdefault("printer_name",      "Q2")
+p.setdefault("heaters",           {"bed": "heater_bed", "hotend": "extruder"})
+p.setdefault("temp_sensors",      {"bed": "heater_bed", "hotend": "extruder"})
+p.setdefault("hardware",          {})["expected"] = HARDWARE_EXPECTED
+p.setdefault("filament_sensors",  FILAMENT_SENSORS)
+
+# Layout and appearance
+p["panel_widgets"]  = LAYOUT["panel_widgets"]
+p["fans"]           = FANS
 p["default_macros"] = DEFAULT_MACROS
 p.setdefault("leds", {}).update(LED_SAFE)
 
