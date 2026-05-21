@@ -56,13 +56,18 @@ MOONRAKER_PORT=7125
 banner "Step 1 — Installing dependencies"
 
 info "Running apt-get update..."
-# -qq suppresses most output but errors still show
-sudo apt-get update -qq || err "apt-get update failed — check internet connection and apt sources"
+# Allow-releaseinfo-change tolerates repos where the Release file has changed (e.g. stale
+# Qidi bullseye-backports mirror). We capture but do not hard-fail on update errors;
+# the install step below will fail explicitly if a required package is missing.
+sudo apt-get update -qq \
+  -o Acquire::Check-Valid-Until=false \
+  --allow-releaseinfo-change \
+  2>&1 || warn "apt-get update had errors (possibly stale mirror) — attempting install anyway"
 
 info "Installing nginx and unzip..."
 # -y answers yes automatically (no prompts), satisfying the hands-off requirement
 sudo apt-get install -y nginx unzip curl \
-  || err "apt-get install failed — check logs above for the specific package error"
+  || err "apt-get install failed — run 'sudo apt-get install -y nginx unzip curl' manually to see the full error"
 
 ok "Dependencies installed."
 
@@ -76,15 +81,14 @@ MAINSAIL_URL="https://github.com/mainsail-crew/mainsail/releases/latest/download
 
 info "Downloading from: ${MAINSAIL_URL}"
 
-# --write-out captures HTTP status code; printed separately so failures are obvious
-HTTP_STATUS=$(curl -sSfL \
-  --write-out "%{http_code}" \
-  --output "${MAINSAIL_ZIP}" \
-  "${MAINSAIL_URL}" \
-  || { echo "[ERR ] curl exited non-zero — HTTP status: $(curl -o /dev/null -sSL --write-out '%{http_code}' "${MAINSAIL_URL}" 2>/dev/null || echo 'unknown')" >&2; exit 1; })
+# -sSL: silent, show errors, follow redirects (GitHub releases use a 302 redirect)
+# -o: save body to file; failure exits non-zero and the err handler fires
+curl -sSL -o "${MAINSAIL_ZIP}" "${MAINSAIL_URL}" \
+  || err "Download failed — verify network connectivity and that GitHub is reachable"
 
-info "HTTP response code: ${HTTP_STATUS}"
-[[ "${HTTP_STATUS}" == "200" ]] || err "Download returned HTTP ${HTTP_STATUS} — URL may have changed or GitHub is unreachable"
+# Confirm the zip is a valid ZIP file (not an error HTML page saved to disk)
+file "${MAINSAIL_ZIP}" | grep -q "Zip archive" \
+  || err "Downloaded file is not a valid ZIP — got: $(file "${MAINSAIL_ZIP}"). URL may have changed."
 
 ok "Mainsail downloaded to ${MAINSAIL_ZIP}."
 
