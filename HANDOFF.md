@@ -12,3 +12,21 @@ What each preset is designed for
 - Just Faster Box: For users with the qidi box who wish to retain stock box and screen firmware, strictly configuration changes
 
 ## Current state (end of last section, beginning of writable section)
+
+### Branch: `claude/mainsail-install-script-D3d1z`
+
+**New file: `Install-Script/install-mainsail.sh`**
+- Standalone Mainsail installer; maps to port 100 (avoids stock Qidi lighttpd on 80)
+- Detects existing Mainsail install and exits early with the running URL
+- Clean terminal output: only prints start line, final URL, and errors
+- Debian 10 compatible: `DEBIAN_FRONTEND=noninteractive`, `unzip -t` for ZIP validation, tolerates broken bullseye-backports mirror
+- Designed to be called by the AIO installer later
+
+**Bug fix: `Install-Script/BunnyBox&HelixScreen.sh` — Python settings.json merge**
+- `printers.default` → `printer` (singular) — critical path fix; all fan/macro/layout values were being written to a key HelixScreen never reads
+- `s["display"].update()` → `s.setdefault("display", {}).update()` — prevents KeyError on fresh installs
+- `s["motion"] = {}` → merge pattern — preserves other motion settings instead of wiping them
+
+**Next steps**
+- Incorporate `install-mainsail.sh` into the Whole 9 Yards AIO installer
+- Verify HelixScreen `printer.*` paths on a live Q2 settings.json after the merge fix
