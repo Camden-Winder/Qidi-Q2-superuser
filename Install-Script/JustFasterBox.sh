@@ -20,7 +20,7 @@ echo ""
 
 # Update gcode_macro.cfg (box version — stock Qidi Box controls, no BunnyBox)
 echo "Updating gcode_macro.cfg ..."
-curl -sSLf https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/gcode_macro-JustFasterBox.cfg \
+curl -sSLf https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/testing/Install-Script/gcode_macro-JustFasterBox.cfg \
   -o /home/mks/printer_data/config/gcode_macro.cfg
 
 # Apply KAMP settings
@@ -28,7 +28,7 @@ curl -sSLf https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/ref
 # [include ./KAMP/KAMP_Settings.cfg] directive in printer.cfg
 echo "Applying KAMP settings ..."
 mkdir -p /home/mks/printer_data/config/KAMP
-curl -sSLf https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/KAMP_settings.cfg \
+curl -sSLf https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/testing/Install-Script/KAMP_settings.cfg \
   -o /home/mks/printer_data/config/KAMP/KAMP_Settings.cfg
 
 echo ""

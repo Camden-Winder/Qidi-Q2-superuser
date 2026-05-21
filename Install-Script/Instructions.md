@@ -48,7 +48,7 @@ This is the full setup I run on my own Q2.
 ### Install command
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/BunnyBox%26HelixScreen.sh | bash
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/testing/Install-Script/BunnyBox%26HelixScreen.sh | bash
 ```
 
 After installation, download and import the Orca slicer presets:
@@ -84,7 +84,7 @@ It’s the clean OEM+ setup — faster starts, cleaner macros, nothing extra.
 ### Install command
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/JustFasterPrinter.sh | bash
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/testing/Install-Script/JustFasterPrinter.sh | bash
 ```
 
 ---
@@ -113,7 +113,7 @@ This is for users who want faster, cleaner macros and full box functionality wit
 ### Install command
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/JustFasterBox.sh | bash
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/testing/Install-Script/JustFasterBox.sh | bash
 ```
 
 ---
@@ -132,7 +132,7 @@ This removes:
 ### Uninstall command
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/uninstall.sh | sh
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/testing/Install-Script/uninstall.sh | sh
 ```
 
 ---

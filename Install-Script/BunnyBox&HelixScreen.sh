@@ -48,7 +48,7 @@ echo "Updating gcode_macro.cfg..."
 # If BunnyBox's required macro structure ever changes, this file must be updated too.
 # Verified live: github.com/Camden-Winder/Qidi-Q2-superuser Install-Script/gcode_macro-BunnyBox&HelixScreen.cfg
 # Destination:   /home/mks/printer_data/config/gcode_macro.cfg
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/gcode_macro-BunnyBox%26HelixScreen.cfg \
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/testing/Install-Script/gcode_macro-BunnyBox%26HelixScreen.cfg \
   -o /home/mks/printer_data/config/gcode_macro.cfg
 echo "gcode_macro.cfg updated."
 echo ""
@@ -60,7 +60,7 @@ echo "Updating printer.cfg..."
 # on the machine from stock firmware — these are not installed by this script.
 # Verified live: github.com/Camden-Winder/Qidi-Q2-superuser Install-Script/printer-BunnyBox&HelixScreen.cfg
 # Destination:   /home/mks/printer_data/config/printer.cfg
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/printer-BunnyBox%26HelixScreen.cfg \
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/testing/Install-Script/printer-BunnyBox%26HelixScreen.cfg \
   -o /home/mks/printer_data/config/printer.cfg
 echo "printer.cfg updated."
 echo ""
@@ -73,7 +73,7 @@ mkdir -p /home/mks/printer_data/config/KAMP
 # in printer.cfg exactly. Linux is case-sensitive — wrong case = file not found at boot.
 # Verified live: github.com/Camden-Winder/Qidi-Q2-superuser Install-Script/KAMP_settings.cfg
 # Destination:   /home/mks/printer_data/config/KAMP/KAMP_Settings.cfg
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/KAMP_settings.cfg \
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/testing/Install-Script/KAMP_settings.cfg \
   -o /home/mks/printer_data/config/KAMP/KAMP_Settings.cfg
 echo "KAMP settings applied."
 echo ""
@@ -287,7 +287,7 @@ echo "Installing Mainsail..."
 # Fetch and run the standalone Mainsail installer. It maps Mainsail to port 100
 # and detects any existing install automatically, so it is safe to call here
 # whether or not the user has run this script before.
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/install-mainsail.sh | bash
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/testing/Install-Script/install-mainsail.sh | bash
 echo ""
 
 echo "Install complete."
