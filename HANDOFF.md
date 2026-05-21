@@ -28,5 +28,4 @@ What each preset is designed for
 - `s["motion"] = {}` → merge pattern — preserves other motion settings instead of wiping them
 
 **Next steps**
-- Incorporate `install-mainsail.sh` into the Whole 9 Yards AIO installer
 - Verify HelixScreen `printer.*` paths on a live Q2 settings.json after the merge fix
