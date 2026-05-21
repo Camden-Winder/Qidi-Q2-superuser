@@ -19,10 +19,7 @@ set -o pipefail
 # banner: large section header
 banner() { echo; echo "=========================================================="; echo "  $*"; echo "=========================================================="; echo; }
 
-# info: general progress message
-info()   { echo "[INFO]  $*"; }
-
-# warn: non-fatal notice
+# warn: non-fatal notice (stderr only)
 warn()   { echo "[WARN]  $*" >&2; }
 
 # ok: success confirmation
@@ -33,7 +30,7 @@ err()    { echo "[ERR ]  $*" >&2; exit 1; }
 
 # ---------------------------------------------------------------------------
 # ERR trap — fires on any command that exits non-zero.
-# Prints the failing line number and the exact command for easier debugging.
+# Prints the failing line number and the exact command for debugging.
 # ---------------------------------------------------------------------------
 trap 'echo; echo "[ERR ] Script aborted at line ${LINENO} — failed command: ${BASH_COMMAND}" >&2' ERR
 
@@ -50,76 +47,68 @@ MAINSAIL_PORT=100
 MOONRAKER_PORT=7125
 
 # ---------------------------------------------------------------------------
+# Existing install check — exit early if Mainsail is already running
+# ---------------------------------------------------------------------------
+
+# Check for mainsail files AND a matching nginx config serving them.
+# If only the files exist (no nginx config) we fall through to a full install.
+if [[ -f "${MAINSAIL_DIR}/index.html" ]]; then
+    EXISTING_CONF=$(grep -rl "root.*mainsail" /etc/nginx/sites-enabled/ 2>/dev/null | head -1)
+    if [[ -n "${EXISTING_CONF}" ]]; then
+        EXISTING_PORT=$(grep -m1 "^\s*listen" "${EXISTING_CONF}" | awk '{print $2}' | tr -d ';')
+        PRINTER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+        echo "Mainsail is already installed — http://${PRINTER_IP}:${EXISTING_PORT}"
+        exit 0
+    fi
+fi
+
+echo "Installing Mainsail..."
+
+# ---------------------------------------------------------------------------
 # Step 1: Install dependencies (nginx + unzip)
 # ---------------------------------------------------------------------------
 
-banner "Step 1 — Installing dependencies"
-
-info "Running apt-get update..."
 # DEBIAN_FRONTEND=noninteractive prevents apt from raising interactive prompts on Debian 10.
-# -o Acquire::Check-Valid-Until=false tolerates repos with expired Release files.
-# --allow-releaseinfo-change tolerates repos whose Release metadata has changed.
-# We do not hard-fail on update errors (e.g. the missing bullseye-backports mirror on the
-# Q2); the install step below will fail explicitly if a package genuinely cannot be fetched.
+# apt-get update is expected to partially fail on the Q2 (broken bullseye-backports mirror);
+# we silence it entirely and only fail hard if the package install itself fails.
 DEBIAN_FRONTEND=noninteractive sudo apt-get update -qq \
   -o Acquire::Check-Valid-Until=false \
   --allow-releaseinfo-change \
-  2>&1 || warn "apt-get update had errors (possibly stale mirror) — attempting install anyway"
+  > /dev/null 2>&1 || true
 
-info "Installing nginx and unzip..."
-# DEBIAN_FRONTEND=noninteractive suppresses any interactive prompts during install.
-# -y answers yes automatically, satisfying the hands-off requirement.
 DEBIAN_FRONTEND=noninteractive sudo apt-get install -y nginx unzip curl \
+  > /dev/null 2>&1 \
   || err "apt-get install failed — run 'sudo apt-get install -y nginx unzip curl' manually to see the full error"
-
-ok "Dependencies installed."
 
 # ---------------------------------------------------------------------------
 # Step 2: Download the latest Mainsail release zip
 # ---------------------------------------------------------------------------
 
-banner "Step 2 — Downloading Mainsail"
-
 MAINSAIL_URL="https://github.com/mainsail-crew/mainsail/releases/latest/download/mainsail.zip"
 
-info "Downloading from: ${MAINSAIL_URL}"
-
 # -sSL: silent, show errors, follow redirects (GitHub releases use a 302 redirect)
-# -o: save body to file; failure exits non-zero and the err handler fires
 curl -sSL -o "${MAINSAIL_ZIP}" "${MAINSAIL_URL}" \
   || err "Download failed — verify network connectivity and that GitHub is reachable"
 
-# Confirm the zip is valid using unzip -t (test mode) — avoids dependency on the
-# 'file' command which may not be installed on minimal Debian 10 images.
+# Confirm the download is a valid ZIP (not an HTML error page saved to disk)
 unzip -t "${MAINSAIL_ZIP}" > /dev/null 2>&1 \
   || err "Downloaded file is not a valid ZIP archive — it may be an HTML error page. Check network/proxy."
-
-ok "Mainsail downloaded to ${MAINSAIL_ZIP}."
 
 # ---------------------------------------------------------------------------
 # Step 3: Extract Mainsail files
 # ---------------------------------------------------------------------------
 
-banner "Step 3 — Extracting Mainsail"
-
-info "Creating install directory: ${MAINSAIL_DIR}"
 mkdir -p "${MAINSAIL_DIR}"
 
-info "Extracting zip..."
 # -q quiet, -o overwrite without prompting (idempotent re-runs)
 unzip -qo "${MAINSAIL_ZIP}" -d "${MAINSAIL_DIR}/" \
   || err "unzip failed — zip may be corrupt; delete ${MAINSAIL_ZIP} and re-run"
 
 rm -f "${MAINSAIL_ZIP}"
-ok "Mainsail extracted to ${MAINSAIL_DIR}."
 
 # ---------------------------------------------------------------------------
-# Step 4: Write nginx configuration
+# Step 4: Write nginx configuration (port 100, proxy to Moonraker :7125)
 # ---------------------------------------------------------------------------
-
-banner "Step 4 — Configuring nginx"
-
-info "Writing nginx site config to ${NGINX_CONF_SRC}..."
 
 # sudo tee pattern for writing a file that requires elevated permissions.
 # The heredoc is written to tee's stdin; tee writes to the privileged path.
@@ -194,34 +183,23 @@ NGINX_CONF
 
 # Disable the default nginx site to avoid conflicts on port 80 (if still enabled)
 if [[ -f /etc/nginx/sites-enabled/default ]]; then
-    info "Removing default nginx site to avoid port conflicts..."
     sudo rm -f /etc/nginx/sites-enabled/default
 fi
 
-info "Enabling Mainsail nginx site..."
 # -sf: force re-create symlink (idempotent)
 sudo ln -sf "${NGINX_CONF_SRC}" "${NGINX_CONF_DST}" \
   || err "Failed to create nginx site symlink — check permissions on /etc/nginx/sites-enabled/"
-
-ok "nginx config written and site enabled."
 
 # ---------------------------------------------------------------------------
 # Step 5: Update moonraker.conf CORS / trusted clients
 # ---------------------------------------------------------------------------
 
-banner "Step 5 — Updating Moonraker CORS config"
-
 if [[ ! -f "${MOONRAKER_CONF}" ]]; then
     warn "moonraker.conf not found at ${MOONRAKER_CONF} — skipping CORS update."
     warn "If Moonraker rejects connections from Mainsail, add cors_domains manually."
 else
-    # Append cors_domains block only if it is not already present.
-    # grep -qF exits 0 if found, 1 if not — we add only when missing.
-    if grep -qF "cors_domains" "${MOONRAKER_CONF}"; then
-        info "cors_domains already present in moonraker.conf — skipping."
-    else
-        info "Appending cors_domains to ${MOONRAKER_CONF}..."
-        # tee -a appends; redirect stdout to /dev/null to keep output clean
+    # Append cors_domains block only if not already present (idempotent)
+    if ! grep -qF "cors_domains" "${MOONRAKER_CONF}"; then
         tee -a "${MOONRAKER_CONF}" > /dev/null << 'CORS_BLOCK'
 
 # Added by install-mainsail.sh — allows Mainsail on port 100 to connect
@@ -236,7 +214,6 @@ trusted_clients:
     127.0.0.1
     ::1
 CORS_BLOCK
-        ok "cors_domains appended to moonraker.conf."
     fi
 fi
 
@@ -244,53 +221,33 @@ fi
 # Step 6: Validate nginx config syntax
 # ---------------------------------------------------------------------------
 
-banner "Step 6 — Validating nginx config"
-
-info "Running nginx -t..."
-# 2>&1 ensures nginx's stderr (where it writes test output) is visible to user
-sudo nginx -t 2>&1 \
-  || err "nginx config validation failed — review the output above for syntax errors in ${NGINX_CONF_SRC}"
-
-ok "nginx config syntax is valid."
+# Capture nginx -t output; only print it if validation fails
+NGINX_OUT=$(sudo nginx -t 2>&1) \
+  || { printf '%s\n' "${NGINX_OUT}" >&2; err "nginx config invalid — see above"; }
 
 # ---------------------------------------------------------------------------
 # Step 7: Enable and restart nginx
 # ---------------------------------------------------------------------------
 
-banner "Step 7 — Starting nginx"
+sudo systemctl enable nginx > /dev/null 2>&1 \
+  || err "systemctl enable nginx failed — run 'sudo systemctl status nginx' for details"
 
-info "Enabling nginx to start on boot..."
-sudo systemctl enable nginx \
-  || err "systemctl enable nginx failed — systemd may not be available or nginx unit is missing"
-
-info "Restarting nginx..."
-sudo systemctl restart nginx \
+sudo systemctl restart nginx > /dev/null 2>&1 \
   || err "nginx failed to restart — run 'sudo journalctl -xe -u nginx' for details"
 
-ok "nginx started and enabled."
-
 # ---------------------------------------------------------------------------
-# Step 8: Verify Mainsail is reachable
+# Step 8: Verify Mainsail is reachable and print access URL
 # ---------------------------------------------------------------------------
 
-banner "Step 8 — Verifying installation"
-
-info "Checking Mainsail responds on port ${MAINSAIL_PORT}..."
 # Give nginx a moment to fully bind the port after restart
 sleep 2
 
-# -sf: silent + show errors; -o /dev/null: discard body; --max-time 5: don't hang
-if curl -sf --max-time 5 "http://localhost:${MAINSAIL_PORT}/" -o /dev/null; then
-    PRINTER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-    ok "Mainsail is running."
-    echo
-    echo "  Access Mainsail at:  http://${PRINTER_IP}:${MAINSAIL_PORT}"
-    echo
-else
-    warn "Mainsail did not respond on port ${MAINSAIL_PORT}."
-    warn "Check nginx logs: sudo journalctl -u nginx -n 50"
-    warn "Check error log:  sudo tail -n 30 /var/log/nginx/mainsail-error.log"
-    warn "Check port in use: sudo ss -tlnp | grep :${MAINSAIL_PORT}"
-fi
+PRINTER_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 
-banner "Mainsail install complete"
+if curl -sf --max-time 5 "http://localhost:${MAINSAIL_PORT}/" -o /dev/null; then
+    ok "Mainsail installed — http://${PRINTER_IP}:${MAINSAIL_PORT}"
+else
+    warn "Mainsail did not respond on port ${MAINSAIL_PORT} — nginx may need a moment."
+    warn "Check logs: sudo journalctl -u nginx -n 50"
+    warn "Access URL: http://${PRINTER_IP}:${MAINSAIL_PORT}"
+fi
