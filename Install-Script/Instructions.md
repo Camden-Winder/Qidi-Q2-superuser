@@ -1,5 +1,7 @@
 # Install Scripts – Qidi Q2 Superuser
 
+**WARNING** Yeah so... don't use any of these. its filled wkth bugs. Join the discord and follow for updates.
+
 There are multiple install scripts in this repo. Make sure you run the one that matches what you want to install.
 
 If you run into any issues ask for help in the Discord listed at the top of the readme, or check the [FAQ](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Install-Script/FAQ-BunnyBox%26Helixscreen.md)
