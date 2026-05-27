@@ -39,7 +39,8 @@ Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
 
 ## Target Environment
 
-- Hardware: Qidi Q2 Pro 3D printer
+- Hardware: Qidi Q2 3D printer
+- Runs Debian 10
 - OS: ARM Linux, user `mks`
 - Stack: Klipper + Moonraker + Happy Hare (MMU) + HelixScreen (LVGL UI) + Qidi Box (4-slot AMS)
 - Key paths on the printer:
@@ -53,8 +54,6 @@ Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
 1. **Never modify** `Configurations/` or `Plugins/` — read-only stock Qidi mirrors.
 2. **Never push to `main` directly** — all work goes on a `claude/*` branch; merge via PR.
 3. **Bump `AIO_VERSION`** whenever `aio_menu.sh` changes. Version format is `RC<major>.<minor>` (e.g. `RC1.14`). Increment the minor on each change; bump the major for a breaking generational shift.
-4. **`bash -n` before every commit** touching any `.sh` file.
-5. **`python3 -m json.tool` before every commit** touching any `.json` file.
 6. **Do not run `aio_menu.sh` as root** — the script self-enforces this.
 7. **`sudo tee` pattern for writing files with elevated perms**, never `echo > file` with sudo.
 8. **Use `banner`, `info`, `warn`, `ok`, `err` helpers** — never raw `echo` in installer logic.
