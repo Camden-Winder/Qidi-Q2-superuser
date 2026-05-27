@@ -4,8 +4,6 @@
 
 **Repo:** `Camden-Winder/Qidi-Q2-superuser`
 **Dev branch:** `claude/hopeful-lovelace-6cJ0Q`
-**PR:** https://github.com/Camden-Winder/Qidi-Q2-superuser/pull/10
-**Main artifact:** `All_in_One_Installer/aio_menu.sh`
 
 The project is an all-in-one Bash installer menu for the **Qidi Q2 Pro 3D printer** running Klipper. It installs and manages:
 - **BunnyBox (Happy Hare)** — MMU filament switcher firmware
@@ -59,24 +57,6 @@ High-value items to port/create:
 - Sections: Quick Start (test commands), Repo layout, Critical rules, Install-function conventions, Autonomous-session policy (what Claude can do without asking)
 - Ask Claude to draft it and confirm the autonomous-session policy before committing
 
-**b) `.claude/settings.json`** — pre-approve WebFetch domains and common Bash commands to eliminate permission prompts:
-```json
-{
-  "permissions": {
-    "allow": [
-      "WebFetch(domain:github.com)",
-      "WebFetch(domain:raw.githubusercontent.com)",
-      "WebFetch(domain:www.klipper3d.org)",
-      "WebFetch(domain:moonraker.readthedocs.io)",
-      "WebFetch(domain:wiki.qidi3d.com)",
-      "WebFetch(domain:www.armoredturtle.xyz)",
-      "WebFetch(domain:code.claude.com)",
-      "Bash(bash -n:*)",
-      "Bash(python3 -m json.tool:*)",
-      "Bash(shellcheck:*)"
-    ]
-  }
-}
 ```
 
 **c) `.claude/hooks/pre-commit-check.sh`** — auto-lint on every commit:
@@ -102,7 +82,7 @@ Candidate features discussed but not yet scoped:
 
 | Path | Purpose |
 |------|---------|
-| `All_in_One_Installer/aio_menu.sh` | Main installer script — all logic lives here |
+| `All_in_One_Installer/aio_menu.sh` | Main installer script |
 | `Install-Script/helixscreen_settings.json` | Shipped to `/home/mks/.config/helixscreen/settings.json` |
 | `Install-Script/BunnyBox&HelixScreen.sh` | Legacy single-shot installer (superseded by AIO) |
 | `Configurations/` | Stock Klipper cfg reference — do not modify |
@@ -110,6 +90,3 @@ Candidate features discussed but not yet scoped:
 
 ---
 
-## GitHub Push Access Note
-
-Earlier sessions had 403 push failures. **Fixed:** reconnected GitHub in claude.ai/code settings (re-authorized the Claude GitHub App with write scope). If 403 returns in a future session, the fix is the same: reconnect GitHub at claude.ai/code → Settings → GitHub integration.
