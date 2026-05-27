@@ -1,237 +1,465 @@
 #!/bin/bash
+# =====================================================================
+# BunnyBox & HelixScreen installer for Qidi Q2
+#
+# Installs BunnyBox (Happy Hare MMU), HelixScreen, unified configs,
+# and box_drying.cfg (spool rotation during drying). Patches
+# mmu_parameters.cfg to enable the Happy Hare Environment Manager.
+#
+# Detects existing installs and offers interactive menu, or accepts
+# CLI flags for headless/scripted use:
+#   --uninstall     Uninstall both and exit (no interactive prompt)
+#   --clean         Clean reinstall (uninstall first, then install)
+#   --reinstall     Reinstall over existing (keeps MMU calibration)
+# =====================================================================
 
-# bash is used explicitly (not sh) because pipefail is bash-only and not
-# supported by dash, which is the Q2's /bin/sh. bash is available on the Q2.
+set -euo pipefail
 
-# Exit immediately if any command fails. This prevents the script from
-# continuing and overwriting config files if a download or install step errors.
+# ---------- repo bases (edit these if you fork) ----------------------
+REPO_BASE='https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script'
+BUNNYBOX_INSTALLER='https://raw.githubusercontent.com/Camden-Winder/Bunny-Box/refs/heads/main/Q2/install-bb-q2.sh'
+HELIXSCREEN_INSTALLER='https://raw.githubusercontent.com/prestonbrown/helixscreen/main/scripts/install.sh'
+
+# ---------- paths ----------------------------------------------------
+CONFIG_DIR='/home/mks/printer_data/config'
+MMU_PARAMS="${CONFIG_DIR}/mmu/base/mmu_parameters.cfg"
+BACKUP_ROOT='/home/mks/mudstockbackups'
+HELIX_DIR='/home/mks/helixscreen'
+HELIX_CONFIG_DIR="${HELIX_DIR}/config"
+HAPPY_HARE_DIR="${HOME}/happy_hare"
+
+# ---------- helpers --------------------------------------------------
+banner() {
+    echo ""
+    echo "================================================================="
+    echo "  $1"
+    echo "================================================================="
+}
+
+fetch() {
+    local url="$1"
+    local dest="$2"
+    curl --fail --silent --show-error --location "$url" --output "$dest"
+    if [ ! -s "$dest" ]; then
+        echo "ERROR: Downloaded file is empty: ${dest}"
+        echo "       URL: ${url}"
+        exit 1
+    fi
+}
+
+# ---------- detection ------------------------------------------------
+bunnybox_installed() {
+    [ -d "${CONFIG_DIR}/mmu" ] && [ -f "${CONFIG_DIR}/mmu/base/mmu_machine.cfg" ]
+}
+
+helixscreen_installed() {
+    [ -d "$HELIX_DIR" ] || systemctl is-enabled helixscreen &>/dev/null
+}
+
+# ---------- pre-flight checks ----------------------------------------
+preflight() {
+    banner "Pre-flight checks"
+
+    # Verify we can reach GitHub
+    if ! curl --fail --silent --head --max-time 10 \
+         'https://raw.githubusercontent.com' >/dev/null 2>&1; then
+        echo "ERROR: Cannot reach raw.githubusercontent.com"
+        echo "Check your network connection and try again."
+        exit 1
+    fi
+    echo "  Network connectivity:  OK"
+
+    # Verify config directory exists
+    if [ ! -d "$CONFIG_DIR" ]; then
+        echo "ERROR: Config directory not found: ${CONFIG_DIR}"
+        echo "Is this a Qidi Q2 running Klipper?"
+        exit 1
+    fi
+    echo "  Config directory:      OK"
+
+    # Verify force_move is enabled (needed for spool rotation)
+    if [ -f "${CONFIG_DIR}/printer.cfg" ]; then
+        if grep -q 'enable_force_move.*True' "${CONFIG_DIR}/printer.cfg" 2>/dev/null; then
+            echo "  force_move enabled:    OK"
+        else
+            echo "  force_move enabled:    WARN (not found — spool rotation may not work)"
+        fi
+    fi
+
+    echo "  Pre-flight complete."
+}
+
+# ---------- uninstall ------------------------------------------------
+uninstall_bunnybox() {
+    banner "Uninstalling BunnyBox / Happy Hare"
+
+    if [ -f "${HAPPY_HARE_DIR}/install.sh" ]; then
+        echo "Running Happy Hare uninstaller..."
+        bash "${HAPPY_HARE_DIR}/install.sh" -u || true
+    else
+        echo "Happy Hare uninstaller not found, removing manually..."
+        rm -rf "${CONFIG_DIR}/mmu"
+        rm -rf "${HAPPY_HARE_DIR}"
+        for f in mmu.py mmu_machine.py mmu_leds.py; do
+            rm -f "${HOME}/klipper/klippy/extras/${f}"
+        done
+        rm -f "${HOME}/moonraker/moonraker/components/mmu_server.py"
+    fi
+
+    rm -f "${CONFIG_DIR}/bunnybox_macros.cfg"
+    rm -f "${CONFIG_DIR}/box_drying.cfg"
+
+    echo ""
+    echo "BunnyBox / Happy Hare uninstalled."
+    echo ""
+    echo "  NOTE: printer.cfg still references [include mmu/base/*.cfg]"
+    echo "  and [include bunnybox_macros.cfg]. Klipper will error until you"
+    echo "  restore stock printer.cfg from backup or reinstall BunnyBox."
+    echo "  Backups: ${BACKUP_ROOT}/"
+}
+
+uninstall_helixscreen() {
+    banner "Uninstalling HelixScreen"
+
+    sudo systemctl stop helixscreen 2>/dev/null || true
+    sudo systemctl disable helixscreen 2>/dev/null || true
+    sudo rm -f /etc/systemd/system/helixscreen.service
+    sudo systemctl daemon-reload 2>/dev/null || true
+    rm -rf "$HELIX_DIR"
+
+    echo "HelixScreen uninstalled."
+}
+
+# ---------- backup ---------------------------------------------------
+do_backup() {
+    banner "Backing up current configs"
+    BACKUP_DIR="${BACKUP_ROOT}/$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$BACKUP_DIR"
+    rsync -a "${CONFIG_DIR}/" "${BACKUP_DIR}/"
+    echo "Backup written to ${BACKUP_DIR}"
+}
+
+# ---------- interactive menu -----------------------------------------
+show_menu() {
+    local has_bb has_hs
+    has_bb=$(bunnybox_installed && echo true || echo false)
+    has_hs=$(helixscreen_installed && echo true || echo false)
+
+    echo ""
+    echo "  Existing installation detected:"
+    if [ "$has_bb" = true ]; then
+        echo "    BunnyBox / Happy Hare : INSTALLED"
+    else
+        echo "    BunnyBox / Happy Hare : not found"
+    fi
+    if [ "$has_hs" = true ]; then
+        echo "    HelixScreen           : INSTALLED"
+    else
+        echo "    HelixScreen           : not found"
+    fi
+    echo ""
+    echo "  What would you like to do?"
+    echo ""
+    echo "    1) Reinstall over existing  (keeps current MMU calibration)"
+    echo "    2) Clean reinstall          (uninstall all, then reinstall)"
+
+    if [ "$has_bb" = true ] && [ "$has_hs" = true ]; then
+        echo "    3) Uninstall BunnyBox only"
+        echo "    4) Uninstall HelixScreen only"
+        echo "    5) Uninstall both           (remove all and exit)"
+        echo "    6) Cancel"
+    elif [ "$has_bb" = true ]; then
+        echo "    3) Uninstall BunnyBox only"
+        echo "    4) Cancel"
+    elif [ "$has_hs" = true ]; then
+        echo "    3) Uninstall HelixScreen only"
+        echo "    4) Cancel"
+    fi
+
+    echo ""
+    printf "  Enter choice: "
+
+    local choice
+    read -r choice </dev/tty
+
+    if [ "$has_bb" = true ] && [ "$has_hs" = true ]; then
+        case "$choice" in
+            1) ACTION="reinstall" ;;
+            2) ACTION="clean_reinstall" ;;
+            3) ACTION="uninstall_bb" ;;
+            4) ACTION="uninstall_hs" ;;
+            5) ACTION="uninstall_both" ;;
+            6) ACTION="cancel" ;;
+            *) echo "  Invalid choice '${choice}'."; exit 1 ;;
+        esac
+    elif [ "$has_bb" = true ]; then
+        case "$choice" in
+            1) ACTION="reinstall" ;;
+            2) ACTION="clean_reinstall" ;;
+            3) ACTION="uninstall_bb" ;;
+            4) ACTION="cancel" ;;
+            *) echo "  Invalid choice '${choice}'."; exit 1 ;;
+        esac
+    elif [ "$has_hs" = true ]; then
+        case "$choice" in
+            1) ACTION="reinstall" ;;
+            2) ACTION="clean_reinstall" ;;
+            3) ACTION="uninstall_hs" ;;
+            4) ACTION="cancel" ;;
+            *) echo "  Invalid choice '${choice}'."; exit 1 ;;
+        esac
+    fi
+}
+
+# ---------- post-install verification --------------------------------
+verify_install() {
+    banner "Verifying installation"
+    local ok=true
+
+    for f in printer.cfg gcode_macro.cfg box_drying.cfg KAMP_Settings.cfg; do
+        if [ -s "${CONFIG_DIR}/${f}" ]; then
+            echo "  ${f}: OK"
+        else
+            echo "  ${f}: MISSING"
+            ok=false
+        fi
+    done
+
+    if [ -f "$MMU_PARAMS" ]; then
+        if grep -q '^heater_vent_macro: _QIDI_BOX_VENT' "$MMU_PARAMS" && \
+           grep -q '^heater_vent_interval: 5' "$MMU_PARAMS"; then
+            echo "  mmu_parameters.cfg:   OK (vent macro configured)"
+        else
+            echo "  mmu_parameters.cfg:   WARN (vent macro not set)"
+            ok=false
+        fi
+    else
+        echo "  mmu_parameters.cfg:   MISSING"
+        ok=false
+    fi
+
+    if [ -s "${HELIX_CONFIG_DIR}/settings.json" ]; then
+        echo "  helixscreen settings: OK"
+    else
+        echo "  helixscreen settings: MISSING"
+        ok=false
+    fi
+
+    if [ "$ok" = true ]; then
+        echo "  All files verified."
+    else
+        echo ""
+        echo "  WARNING: Some files are missing or misconfigured."
+        echo "  The install may not work correctly."
+    fi
+}
+
+# ---------- main flow ------------------------------------------------
+banner "BunnyBox & HelixScreen Installer for Qidi Q2"
+
+ACTION="fresh_install"
+
+# Parse CLI flags for headless use
+case "${1:-}" in
+    --uninstall)  ACTION="uninstall_both" ;;
+    --clean)      ACTION="clean_reinstall" ;;
+    --reinstall)  ACTION="reinstall" ;;
+    --help|-h)
+        echo "Usage: $0 [--reinstall|--clean|--uninstall|--help]"
+        echo "  (no args)    Interactive menu"
+        echo "  --reinstall  Reinstall over existing (keeps MMU calibration)"
+        echo "  --clean      Uninstall first, then reinstall"
+        echo "  --uninstall  Uninstall both and exit"
+        exit 0
+        ;;
+    "")
+        # No flag — use interactive menu if existing install detected
+        if bunnybox_installed || helixscreen_installed; then
+            show_menu
+        else
+            echo "  No existing installation detected. Proceeding with fresh install."
+        fi
+        ;;
+    *)
+        echo "Unknown option: $1 (try --help)"
+        exit 1
+        ;;
+esac
+
+# -- handle uninstall-only actions ------------------------------------
+case "$ACTION" in
+    cancel)
+        echo "  Cancelled. Nothing changed."
+        exit 0
+        ;;
+    uninstall_bb)
+        do_backup
+        uninstall_bunnybox
+        banner "Done"
+        echo "  BunnyBox removed. HelixScreen was not changed."
+        echo "  Backup at: ${BACKUP_DIR}"
+        exit 0
+        ;;
+    uninstall_hs)
+        do_backup
+        uninstall_helixscreen
+        banner "Done"
+        echo "  HelixScreen removed. BunnyBox was not changed."
+        echo "  Backup at: ${BACKUP_DIR}"
+        exit 0
+        ;;
+    uninstall_both)
+        do_backup
+        if bunnybox_installed; then uninstall_bunnybox; fi
+        if helixscreen_installed; then uninstall_helixscreen; fi
+        banner "Done (uninstall complete)"
+        echo "  Both BunnyBox and HelixScreen removed."
+        echo "  Restore stock configs from: ${BACKUP_DIR}"
+        exit 0
+        ;;
+esac
+
+# -- pre-flight -------------------------------------------------------
+preflight
+
+# -- backup -----------------------------------------------------------
+if [ -z "${BACKUP_DIR:-}" ]; then
+    do_backup
+fi
+
+# -- start install log ------------------------------------------------
+INSTALL_LOG="${BACKUP_ROOT}/install_$(date +%Y%m%d_%H%M%S).log"
+exec > >(tee -a "$INSTALL_LOG") 2>&1
+echo "Install log: ${INSTALL_LOG}"
+
+# -- uninstall first (clean reinstall only) ---------------------------
+if [ "$ACTION" = "clean_reinstall" ]; then
+    if bunnybox_installed; then uninstall_bunnybox; fi
+    if helixscreen_installed; then uninstall_helixscreen; fi
+    echo "  Uninstall complete. Proceeding with fresh install..."
+fi
+
+# -- BunnyBox ---------------------------------------------------------
+# Third-party installers may exit non-zero for warnings (e.g. already
+# installed). Temporarily relax errexit so a warning doesn't abort us.
+banner "Installing BunnyBox (Happy Hare MMU)"
+set +e
+wget -qO - "$BUNNYBOX_INSTALLER" | bash
+BB_EXIT=$?
 set -e
-# pipefail makes the script treat a failure anywhere in a pipe as fatal.
-# Without this, `wget ... | bash` would succeed even if wget failed silently,
-# and the script would continue as if the install completed successfully.
-set -o pipefail
+if [ $BB_EXIT -ne 0 ]; then
+    echo "WARNING: BunnyBox installer exited with code ${BB_EXIT}."
+    echo "This may be normal for reinstalls. Continuing..."
+fi
+echo "BunnyBox installed."
 
-echo "Backing up current configs..."
-# Create backup folder if missing. -p avoids errors if it already exists.
-mkdir -p /home/mks/mudstockbackups
-
-# rsync -a preserves structure, permissions, timestamps, and handles nested folders.
-rsync -a /home/mks/printer_data/config/ /home/mks/mudstockbackups/
-echo "Backup complete."
-echo ""
-
-echo "Installing Bunny Box..."
-echo ">>> NOTE: The BunnyBox installer is interactive. You will be prompted to:"
-echo ">>>   - Confirm you want to install"
-echo ">>>   - Confirm or enter your serial port for the Bunny Box"
-echo ">>>   - Choose whether to install the AHT10 environment sensor module"
-echo ">>> Watch the output and respond to each prompt to continue."
-echo ""
-# wget -qO - downloads quietly and pipes directly into bash.
-# pipefail ensures wget failures are caught even when piped.
-wget -qO - https://raw.githubusercontent.com/Camden-Winder/Bunny-Box/refs/heads/main/Q2/install-bb-q2.sh | bash
-echo "Bunny Box installed."
-echo ""
-
-echo "Installing HelixScreen..."
-# curl -sSL:
-#   -s  silent (no progress meter)
-#   -S  show errors even when silent
-#   -L  follow redirects (required for GitHub raw URLs)
-curl -sSL https://raw.githubusercontent.com/prestonbrown/helixscreen/main/scripts/install.sh | bash
+# -- HelixScreen ------------------------------------------------------
+banner "Installing HelixScreen"
+set +e
+curl --fail --silent --show-error --location "$HELIXSCREEN_INSTALLER" | sh
+HS_EXIT=$?
+set -e
+if [ $HS_EXIT -ne 0 ]; then
+    echo "WARNING: HelixScreen installer exited with code ${HS_EXIT}."
+    echo "This may be normal for reinstalls. Continuing..."
+fi
 echo "HelixScreen installed."
-echo ""
 
-echo "Updating gcode_macro.cfg..."
-# BunnyBox modifies gcode_macro.cfg during its install. We overwrite it here
-# with our combined BunnyBox + HelixScreen version, which is the intended final state.
-# If BunnyBox's required macro structure ever changes, this file must be updated too.
-# Verified live: github.com/Camden-Winder/Qidi-Q2-superuser Install-Script/gcode_macro-BunnyBox&HelixScreen.cfg
-# Destination:   /home/mks/printer_data/config/gcode_macro.cfg
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/gcode_macro-BunnyBox%26HelixScreen.cfg \
-  -o /home/mks/printer_data/config/gcode_macro.cfg
-echo "gcode_macro.cfg updated."
-echo ""
+# -- unified configs --------------------------------------------------
+banner "Installing unified gcode_macro.cfg & printer.cfg"
+fetch "${REPO_BASE}/gcode_macro-BunnyBox%26HelixScreen.cfg" \
+      "${CONFIG_DIR}/gcode_macro.cfg"
+fetch "${REPO_BASE}/printer(BunnyBox%26HelixScreen).cfg" \
+      "${CONFIG_DIR}/printer.cfg"
 
-echo "Updating printer.cfg..."
-# BunnyBox modifies printer.cfg during its install. We overwrite it here with our
-# unified version that includes all required BunnyBox, HelixScreen, and KAMP includes.
-# printer.cfg also expects timelapse.cfg, plr.cfg, and MCU_ID.cfg to already exist
-# on the machine from stock firmware — these are not installed by this script.
-# Verified live: github.com/Camden-Winder/Qidi-Q2-superuser Install-Script/printer-BunnyBox&HelixScreen.cfg
-# Destination:   /home/mks/printer_data/config/printer.cfg
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/printer-BunnyBox%26HelixScreen.cfg \
-  -o /home/mks/printer_data/config/printer.cfg
-echo "printer.cfg updated."
-echo ""
+# Safety net: fix KAMP include path if it has the double-nesting bug
+if grep -q '\[include \./KAMP/KAMP_Settings\.cfg\]' "${CONFIG_DIR}/printer.cfg" 2>/dev/null; then
+    sed -i 's|\[include \./KAMP/KAMP_Settings\.cfg\]|[include KAMP_Settings.cfg]|' \
+        "${CONFIG_DIR}/printer.cfg"
+    echo "  Fixed KAMP include path."
+fi
+echo "Unified configs installed."
 
-echo "Applying KAMP settings..."
-# Creates the KAMP subdirectory if it doesn't exist, matching the path that
-# printer.cfg expects: [include ./KAMP/KAMP_Settings.cfg]
-mkdir -p /home/mks/printer_data/config/KAMP
-# Filename uses capital S (KAMP_Settings.cfg) to match the [include] directive
-# in printer.cfg exactly. Linux is case-sensitive — wrong case = file not found at boot.
-# Verified live: github.com/Camden-Winder/Qidi-Q2-superuser Install-Script/KAMP_settings.cfg
-# Destination:   /home/mks/printer_data/config/KAMP/KAMP_Settings.cfg
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/KAMP_settings.cfg \
-  -o /home/mks/printer_data/config/KAMP/KAMP_Settings.cfg
+# -- box_drying.cfg ---------------------------------------------------
+banner "Installing box_drying.cfg (spool rotation during drying)"
+fetch "${REPO_BASE}/box_drying.cfg" \
+      "${CONFIG_DIR}/box_drying.cfg"
+echo "box_drying.cfg installed."
+
+# -- patch mmu_parameters.cfg ----------------------------------------
+banner "Configuring Happy Hare Environment Manager"
+if [ -f "$MMU_PARAMS" ]; then
+    CHANGED=0
+
+    # heater_vent_macro → our rotation callback
+    if grep -q '^heater_vent_macro:' "$MMU_PARAMS"; then
+        if ! grep -q '^heater_vent_macro: _QIDI_BOX_VENT' "$MMU_PARAMS"; then
+            sed -i 's/^heater_vent_macro:.*/heater_vent_macro: _QIDI_BOX_VENT/' "$MMU_PARAMS"
+            CHANGED=1
+        fi
+    else
+        echo "heater_vent_macro: _QIDI_BOX_VENT" >> "$MMU_PARAMS"
+        CHANGED=1
+    fi
+
+    # heater_vent_interval → 5 minutes
+    if grep -q '^heater_vent_interval:' "$MMU_PARAMS"; then
+        if ! grep -q '^heater_vent_interval: 5' "$MMU_PARAMS"; then
+            sed -i 's/^heater_vent_interval:.*/heater_vent_interval: 5/' "$MMU_PARAMS"
+            CHANGED=1
+        fi
+    else
+        echo "heater_vent_interval: 5" >> "$MMU_PARAMS"
+        CHANGED=1
+    fi
+
+    if [ $CHANGED -eq 1 ]; then
+        echo "  mmu_parameters.cfg patched."
+    else
+        echo "  mmu_parameters.cfg already correct."
+    fi
+    echo "  heater_vent_macro:    _QIDI_BOX_VENT"
+    echo "  heater_vent_interval: 5 minutes"
+else
+    echo "WARNING: ${MMU_PARAMS} not found."
+    echo "Manually set heater_vent_macro: _QIDI_BOX_VENT"
+    echo "and heater_vent_interval: 5 in mmu_parameters.cfg"
+fi
+
+# -- KAMP settings ----------------------------------------------------
+banner "Applying KAMP settings"
+fetch "${REPO_BASE}/KAMP_settings.cfg" \
+      "${CONFIG_DIR}/KAMP_settings.cfg"
 echo "KAMP settings applied."
-echo ""
 
-echo "Applying HelixScreen layout..."
-# The preset system only runs during the first-launch wizard. Since HelixScreen
-# sets wizard_completed=true on first run, the preset picker never appears on a
-# machine that has already booted HelixScreen — even once. Dropping a file into
-# assets/config/presets/ therefore does nothing on a fresh install after first boot.
-#
-# The correct approach is to merge our layout directly into settings.json.
-# We use Python to do a targeted merge so machine-specific values (IP, touch
-# calibration, Moonraker port) are preserved and only layout/appearance fields
-# are overwritten.
-#
-# Fields we inject (safe to apply to any Q2 BunnyBox machine):
-#   panel_widgets.home   — home screen widget layout (the whole point of this step)
-#   dark_mode            — Ayu dark theme
-#   theme.preset         — color preset 0
-#   display.*            — brightness, sleep, timezone, time format
-#   motion.jog_mode      — jog mode preference
-#   fans                 — Q2 fan mappings (correct for all Q2s)
-#   default_macros       — BunnyBox macro shortcuts
-#   leds.color_presets   — color palette
-#   leds.led_on_at_start — startup LED behavior
-#   leds.startup_brightness
-#
-# Fields we leave untouched:
-#   moonraker_host/port  — machine-specific IP and port
-#   input.calibration    — touchscreen calibration unique to each physical unit
-#   filament             — runtime spool data
-#   hardware.last_snapshot, thermal.rates, print_start_history — runtime state
-python3 << 'PYEOF'
-import json, os, sys
+# -- HelixScreen settings ---------------------------------------------
+banner "Applying HelixScreen settings"
+mkdir -p "$HELIX_CONFIG_DIR"
+fetch "${REPO_BASE}/helixscreen_settings.json" \
+      "${HELIX_CONFIG_DIR}/settings.json"
+echo "HelixScreen settings applied."
 
-SETTINGS_PATH = "/home/mks/helixscreen/config/settings.json"
+# -- verify -----------------------------------------------------------
+verify_install
 
-# Layout and appearance values sourced from a configured Q2 BunnyBox machine.
-# Only non-machine-specific fields are included here.
-LAYOUT = {
-  "panel_widgets": {
-    "home": {
-      "main_page_index": 0,
-      "next_page_id": 1,
-      "pages": [
-        {
-          "id": "main",
-          "widgets": [
-            {"col": 2,  "colspan": 2, "enabled": True,  "id": "printer_image",     "row": 0,  "rowspan": 2},
-            {"col": 0,  "colspan": 2, "enabled": True,  "id": "print_status",      "row": 2,  "rowspan": 2},
-            {"col": 2,  "colspan": 2, "enabled": False, "id": "tips",              "row": 0,  "rowspan": 2},
-            {"col": 2,  "colspan": 1, "enabled": True,  "id": "temperature",       "row": 2,  "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "shutdown",          "row": -1, "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "lock",              "row": -1, "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "power_device",      "row": -1, "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "network",           "row": -1, "rowspan": 1},
-            {"col": 4,  "colspan": 1, "enabled": True,  "id": "firmware_restart",  "row": 1,  "rowspan": 1},
-            {"col": 4,  "colspan": 1, "enabled": True,  "id": "ams",               "row": 3,  "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "tool_switcher",     "row": -1, "rowspan": 1},
-            {"col": 5,  "colspan": 1, "enabled": True,  "id": "led",               "row": 2,  "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "led_controls",      "row": -1, "rowspan": 1},
-            {"col": 3,  "colspan": 1, "enabled": True,  "id": "fan_stack",         "row": 2,  "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "fan",               "row": -1, "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "nozzle_temps",      "row": -1, "rowspan": 2},
-            {"col": 3,  "colspan": 1, "enabled": True,  "id": "temp_stack",        "row": 3,  "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "thermistor",        "row": -1, "rowspan": 1},
-            {"col": -1, "colspan": 2, "enabled": False, "id": "temp_graph",        "row": -1, "rowspan": 2},
-            {"col": 0,  "colspan": 2, "enabled": True,  "id": "preheat",           "row": 1,  "rowspan": 1},
-            {"col": 4,  "colspan": 1, "enabled": True,  "id": "active_spool",      "row": 2,  "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "filament",          "row": -1, "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "humidity",          "row": -1, "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "width_sensor",      "row": -1, "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "favorite_macro",    "row": -1, "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "macros",            "row": -1, "rowspan": 1},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "motion",            "row": -1, "rowspan": 1},
-            {"col": 0,  "colspan": 2, "enabled": True,  "id": "clock",             "row": 0,  "rowspan": 1},
-            {"col": -1, "colspan": 2, "enabled": False, "id": "job_queue",         "row": -1, "rowspan": 2},
-            {"col": -1, "colspan": 1, "enabled": False, "id": "clog_detection",    "row": -1, "rowspan": 1},
-            {"col": -1, "colspan": 2, "enabled": False, "id": "print_stats",       "row": -1, "rowspan": 2},
-            {"col": 5,  "colspan": 1, "enabled": True,  "id": "gcode_console",     "row": 1,  "rowspan": 1},
-            {"col": -1, "colspan": 2, "enabled": False, "id": "camera",            "row": -1, "rowspan": 2},
-            {"col": 5,  "colspan": 1, "enabled": True,  "id": "notifications",     "row": 3,  "rowspan": 1},
-            {"col": 2,  "colspan": 1, "enabled": True,  "id": "bed_temperature",   "row": 3,  "rowspan": 1}
-          ]
-        }
-      ]
-    }
-  }
-}
+# -- done -------------------------------------------------------------
+banner "Install complete"
+cat <<EOF
 
-FANS = {
-  "chamber": "controller_fan chamber_fan",
-  "exhaust":  "fan_generic chamber_circulation_fan",
-  "hotend":   "heater_fan hotend_fan",
-  "part":     "fan_generic cooling_fan"
-}
+Next steps:
+  1. FIRMWARE_RESTART (Klipper console or HelixScreen)
+  2. Verify:    systemctl status klipper
+  3. First-time only — calibrate MMU gear steppers:
+        MMU_CALIBRATE_GEAR GATE=0 LENGTH=100
+     Mark filament, measure travel, re-run with MEASURED=<mm>
+  4. Start drying:
+        BOX_DRY TEMP=45 TIME=300
+     or auto-select from gate filament types:
+        MMU_HEATER DRY=1
+  5. Check status:   BOX_DRY_STATUS
+  6. Stop drying:    BOX_DRY_STOP
 
-DEFAULT_MACROS = {
-  "cooldown":       "SET_HEATER_TEMPERATURE HEATER=extruder TARGET=0\nSET_HEATER_TEMPERATURE HEATER=heater_bed TARGET=0",
-  "load_filament":  {"gcode": "LOAD_FILAMENT",           "label": "Load"},
-  "unload_filament":{"gcode": "UNLOAD_FILAMENT",         "label": "Unload"},
-  "macro_1":        {"gcode": "HELIX_CLEAN_NOZZLE",      "label": "Clean Nozzle"},
-  "macro_2":        {"gcode": "HELIX_BED_MESH_IF_NEEDED","label": "Bed Level"}
-}
+Install log: ${INSTALL_LOG}
+Config backup: ${BACKUP_DIR}
 
-LED_SAFE = {
-  "color_presets":      ["#FFFFFF","#FFD700","#FF6B35","#4FC3F7","#FF4444","#66BB6A","#9C27B0","#00BCD4"],
-  "led_on_at_start":    False,
-  "startup_brightness": 80
-}
-
-if not os.path.exists(SETTINGS_PATH):
-    print(f"ERROR: {SETTINGS_PATH} not found. HelixScreen may not have installed correctly.")
-    sys.exit(1)
-
-with open(SETTINGS_PATH, "r") as f:
-    s = json.load(f)
-
-# Top-level appearance settings
-s["dark_mode"] = True
-s["theme"] = {"preset": 0}
-# Use update to merge jog_mode without wiping other motion settings
-s.setdefault("motion", {})["jog_mode"] = 1
-# setdefault guards against a missing display key on fresh installs
-s.setdefault("display", {}).update({
-    "bed_mesh_render_mode": 0,
-    "dim_brightness": 30,
-    "dim_sec": 600,
-    "gcode_render_mode": 0,
-    "sleep_sec": 1200,
-    "time_format": 1,
-    "timezone": "America/Los_Angeles"
-})
-
-# Printer-level settings — merged into printer (singular), preserving machine-specific keys.
-# HelixScreen's settings.json uses "printer" (not "printers.default") per the preset schema.
-p = s.setdefault("printer", {})
-p["panel_widgets"] = LAYOUT["panel_widgets"]
-p["fans"] = FANS
-p["default_macros"] = DEFAULT_MACROS
-p.setdefault("leds", {}).update(LED_SAFE)
-
-# Write back atomically: write to a temp file then rename
-tmp = SETTINGS_PATH + ".tmp"
-with open(tmp, "w") as f:
-    json.dump(s, f, indent=2)
-os.replace(tmp, SETTINGS_PATH)
-
-print("HelixScreen layout applied successfully.")
-PYEOF
-echo "HelixScreen layout applied."
-echo ""
-
-echo "Installing Mainsail..."
-# Fetch and run the standalone Mainsail installer. It maps Mainsail to port 100
-# and detects any existing install automatically, so it is safe to call here
-# whether or not the user has run this script before.
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/install-mainsail.sh | bash
-echo ""
-
-echo "Install complete."
+EOF
