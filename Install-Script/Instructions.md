@@ -1,6 +1,6 @@
 # Install Scripts – Qidi Q2 Superuser
 
-**WARNING** Yeah so... don't use any of these. its filled wkth bugs. Join the discord and follow for updates.
+**WARNING** Yeah so... don't use any of these. its filled with bugs. Join the discord and follow for updates.
 
 There are multiple install scripts in this repo. Make sure you run the one that matches what you want to install.
 
