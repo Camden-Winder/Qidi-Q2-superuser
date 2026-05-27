@@ -2,7 +2,7 @@
 
 Welcome — this repo is everything I use to turn a stock Qidi Q2 into a faster, cleaner, and more capable printer.
 
-Join the [Discord](https://discord.gg/aZGUk69Mp)
+Join the Discord: https://discord.gg/aZGUk69Mp
 
 ---
 
@@ -15,8 +15,6 @@ This repo covers:
 - Filament tracking with Spoolman  
 - Faster, cleaner printer macros  
 - One‑line install and uninstall tools  
-- **Bunny Box** – improved multi-material firmware for the Qidi Box  
-- **HelixScreen** – touchscreen UI replacement with Bunny Box support  
 - Recommended printables for the Q2  
 
 Everything here is optional — take what you want, skip what you don’t.
@@ -56,7 +54,7 @@ Alternative: **Mobilraker**
 
 ---
 
-# Chapter 2 – Filament Tracking
+# Filament Tracking
 
 I use **Spoolman** for filament tracking.  
 This becomes especially useful once Bunny Box is installed on the Qidi Box.
@@ -65,23 +63,33 @@ This becomes especially useful once Bunny Box is installed on the Qidi Box.
 
 ---
 
-# Chapter 3 – Printer Configs
+# All-in-One Installer (AIO)
+
+The AIO is a single ANSI-colored bash menu that handles every supported install and uninstall path for the Q2 — no need to remember which `.sh` to run for which variant.
+
+SSH into the Q2 as `mks`, then run:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/All_in_One_Installer/aio_menu.sh | bash
+```
+
+Full documentation → [All_in_One_Installer/README.md](All_in_One_Installer/README.md)
+
+---
+
+# Printer Configs
 
 The Q2 ships with a very heavy PRINT_START macro and a lot of vendor‑specific glue code.  
 This repo documents what those macros do and provides faster, cleaner replacements.
 
-All macro adjustments are now handled by my one‑line install tool:
-
-[Install Script Instructions](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Install-Script/Instructions.md)
-
-Additional config resources:
+All macro adjustments are handled by the AIO installer above. For reference configs and additional resources:
 
 - [My Resources](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/My%20Resources.md)  
 - [Filament Configurations](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Configurations/Filamet%20Configurations.md)
 
 ---
 
-# Chapter 4 – Printables
+# Printables
 
 Once your Q2 is running smoothly, here are prints that actually improve the machine.
 

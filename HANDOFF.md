@@ -1,31 +1,115 @@
-# Session Handoff - Qidi Q2 automated insatllers
+# Session Handoff — Qidi Q2 Superuser AIO
 
-## Project - Frozen (do not edit this section)
-- Repo: https://github.com/Camden-Winder/Qidi-Q2-superuser
-- Test branch: https://github.com/Camden-Winder/Qidi-Q2-superuser/tree/testing
+## Project
 
-This project is an automated insatller of different configurations for the Qidi Q2
+**Repo:** `Camden-Winder/Qidi-Q2-superuser`
+**Dev branch:** `claude/hopeful-lovelace-6cJ0Q`
+**PR:** https://github.com/Camden-Winder/Qidi-Q2-superuser/pull/10
+**Main artifact:** `All_in_One_Installer/aio_menu.sh`
 
-What each preset is designed for
-- Whole 9 yards: Automates the install of both bunny box, helixscreen, and supporting changes needed to go along with it (ie config changes, mainsail)
-- Just Faster: For users without a qidi box who wish to retain stock box and screen firmware, strictly configuration changes
-- Just Faster Box: For users with the qidi box who wish to retain stock box and screen firmware, strictly configuration changes
+The project is an all-in-one Bash installer menu for the **Qidi Q2 Pro 3D printer** running Klipper. It installs and manages:
+- **BunnyBox (Happy Hare)** — MMU filament switcher firmware
+- **HelixScreen** — LVGL touchscreen UI (by Preston Brown, `prestonbrown/helixscreen`)
+- **Qidi Box** — 4-slot filament dry-box/AMS peripheral (RFID, slot steppers)
+- **Idle Fan Shutdown** — optional addon, turns off fans/heaters after 10 min idle
 
-## Current state (end of last section, beginning of writable section)
+---
 
-### Branch: `claude/mainsail-install-script-D3d1z`
+## Current State (end of last session)
 
-**New file: `Install-Script/install-mainsail.sh`**
-- Standalone Mainsail installer; maps to port 100 (avoids stock Qidi lighttpd on 80)
-- Detects existing Mainsail install and exits early with the running URL
-- Clean terminal output: only prints start line, final URL, and errors
-- Debian 10 compatible: `DEBIAN_FRONTEND=noninteractive`, `unzip -t` for ZIP validation, tolerates broken bullseye-backports mirror
-- Designed to be called by the AIO installer later
+### RC1 is complete and pushed
 
-**Bug fix: `Install-Script/BunnyBox&HelixScreen.sh` — Python settings.json merge**
-- `printers.default` → `printer` (singular) — critical path fix; all fan/macro/layout values were being written to a key HelixScreen never reads
-- `s["display"].update()` → `s.setdefault("display", {}).update()` — prevents KeyError on fresh installs
-- `s["motion"] = {}` → merge pattern — preserves other motion settings instead of wiping them
+Four RC1 commits on the dev branch (on top of ~14 earlier commits):
 
-**Next steps**
-- Verify HelixScreen `printer.*` paths on a live Q2 settings.json after the merge fix
+| Commit | What it does |
+|--------|-------------|
+| `8bbdd3c` | `AIO_VERSION='RC1'` constant; rendered in banner `(RC1)` and About screen |
+| `b3b9954` | `verify_qidi_box_helixscreen()` — post-install check for `box.cfg`, `[box_stepper]`, `officiall_filas_list.cfg`, HelixScreen >= v0.99.66; warns, never fails |
+| `5ff5eb9` | `install_qidi_box_write()` — writes `/etc/systemd/system/helixscreen.service.d/qidi-box-write.conf` with `HELIX_QIDI_BOX_WRITE=1`; enabled by default in BB+HS install; `uninstall_qidi_box_write()` wired into `uninstall_helixscreen` and `revert_to_backup`; `BoxWrite: on/off` added to menu header status line |
+| `d3bcb39` | `helixscreen_settings.json`: root key `"ams": { "spool_style": "3d" }` |
+
+### PR #1 — draft, no CI, no review comments yet
+
+No GitHub Actions are configured on the repo. PR is waiting for manual review and merge decision.
+
+---
+
+## Established Conventions (follow these)
+
+- **Commit messages:** one-line subjects only, no body
+- **Shell changes:** always `bash -n aio_menu.sh` before committing
+- **JSON changes:** always `python3 -m json.tool <file>` before committing
+- **New `install_*` function:** must have matching `uninstall_*`, a `*_installed()` / `*_enabled()` detection helper, be wired into `revert_to_backup`, and add a status indicator to `show_status_line()`
+- **Helpers:** use `banner`, `info`, `warn`, `ok`, `err` — never raw `echo`
+- **Write files:** use `sudo tee` pattern, never `echo >` with sudo
+- **Never touch:** `Configurations/` and `Plugins/` are stock Qidi reference files — read-only mirrors
+- **Dev branch:** all work goes to `claude/qidi-q2-aio-menu-lwyb6`, never push to `main` directly
+
+---
+
+## Next Priorities (in suggested order)
+
+### 1. Merge PR #1 into `main` (your call — review the diff first)
+
+### 2. Create `.claude/` tooling for the repo (researched last session from Preston Brown's helixscreen repo)
+
+High-value items to port/create:
+
+**a) `CLAUDE.md` at repo root** ← biggest payoff, makes every new session start with full context
+- Sections: Quick Start (test commands), Repo layout, Critical rules, Install-function conventions, Autonomous-session policy (what Claude can do without asking)
+- Ask Claude to draft it and confirm the autonomous-session policy before committing
+
+**b) `.claude/settings.json`** — pre-approve WebFetch domains and common Bash commands to eliminate permission prompts:
+```json
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.klipper3d.org)",
+      "WebFetch(domain:moonraker.readthedocs.io)",
+      "WebFetch(domain:wiki.qidi3d.com)",
+      "WebFetch(domain:www.armoredturtle.xyz)",
+      "WebFetch(domain:code.claude.com)",
+      "Bash(bash -n:*)",
+      "Bash(python3 -m json.tool:*)",
+      "Bash(shellcheck:*)"
+    ]
+  }
+}
+```
+
+**c) `.claude/hooks/pre-commit-check.sh`** — auto-lint on every commit:
+- All `*.sh` → `bash -n`
+- All `*.json` → `python3 -m json.tool`
+- Warn if `aio_menu.sh` changed but `AIO_VERSION` didn't bump
+- Warn if new `install_*` added without matching `uninstall_*`
+
+**d) `.claude/checklist.md`** — pre-flight checklists (before committing, before new install function, before changing printer.cfg)
+
+### 3. RC2 planning
+
+Candidate features discussed but not yet scoped:
+- `/release` slash command to automate version bumps + changelog + tag + push
+- `update_qidi_box_dropin` migration logic for future drop-in changes
+- Confirm-on-first-run gate for `HELIX_QIDI_BOX_WRITE` (y/N with 5s default-yes timeout for headless)
+- HelixScreen version pinning to a tagged release instead of `main`
+- "9) Run all verifiers" self-test menu item
+
+---
+
+## Key Files
+
+| Path | Purpose |
+|------|---------|
+| `All_in_One_Installer/aio_menu.sh` | Main installer script — all logic lives here |
+| `Install-Script/helixscreen_settings.json` | Shipped to `/home/mks/.config/helixscreen/settings.json` |
+| `Install-Script/BunnyBox&HelixScreen.sh` | Legacy single-shot installer (superseded by AIO) |
+| `Configurations/` | Stock Klipper cfg reference — do not modify |
+| `Plugins/` | Stock plugin reference — do not modify |
+
+---
+
+## GitHub Push Access Note
+
+Earlier sessions had 403 push failures. **Fixed:** reconnected GitHub in claude.ai/code settings (re-authorized the Claude GitHub App with write scope). If 403 returns in a future session, the fix is the same: reconnect GitHub at claude.ai/code → Settings → GitHub integration.
