@@ -2,6 +2,8 @@
 
 > **Disclaimer:** Use this tool at your own risk. The author is not responsible for any damage, malfunction, or data loss caused to your printer. Qidi states that any modifications to files on their printers may void the manufacturer warranty.
 
+**Warning** This tool is currently in a testing state. It is not recommended to install. Join the Discord to check if it is stable and wait for announcements.
+
 A single menu that handles every install, uninstall, and addon path for the Qidi Q2 community toolkit — no more tracking which script does what.
 
 ```
