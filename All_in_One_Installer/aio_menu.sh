@@ -18,7 +18,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.13'
+AIO_VERSION='RC2.14'
 
 # ---------- repo / installer URLs ------------------------------------
 REPO_REF="${AIO_REPO_REF:-main}"
@@ -1226,13 +1226,10 @@ purge_happy_hare_all() {
     info "Removing Moonraker component: mmu_server.py"
     sudo rm -f "${HOME}/moonraker/moonraker/components/mmu_server.py"
 
-    # Root-level KAMP files installed by the AIO BunnyBox flow. Removing them
-    # lets fix_printer_cfg_after_uninstall() comment out their [include] lines
-    # so Klipper can start cleanly. The KAMP/ subdir (BunnyBox's copy) was
-    # already removed above.
-    for f in KAMP_Settings.cfg Adaptive_Meshing.cfg Line_Purge.cfg Smart_Park.cfg; do
-        rm -f "${CONFIG_DIR}/${f}"
-    done
+    # KAMP subdir installed by the AIO BunnyBox / JustFasterPrinter flows.
+    # Removing it lets fix_printer_cfg_after_uninstall() comment out the
+    # [include KAMP/KAMP_Settings.cfg] line so Klipper can start cleanly.
+    rm -rf "${CONFIG_DIR}/KAMP"
 
     # Moonraker update_manager / mmu sections - delete the section and
     # its body up to the next section header or EOF.
@@ -1268,8 +1265,16 @@ fix_printer_cfg_after_uninstall() {
     banner "Fixing printer.cfg broken includes"
     local changed=0
 
-    for f in bunnybox_macros.cfg box_drying.cfg idle_fan_shutdown.cfg \
-              KAMP_Settings.cfg Adaptive_Meshing.cfg Line_Purge.cfg Smart_Park.cfg; do
+    for f in bunnybox_macros.cfg box_drying.cfg idle_fan_shutdown.cfg; do
+        if [ ! -f "${CONFIG_DIR}/${f}" ] && \
+           grep -q "^\[include ${f}\]" "$pcfg" 2>/dev/null; then
+            sed -i "s/^\[include ${f}\]/# AIO: file missing  [include ${f}]/" "$pcfg"
+            ok "Commented out missing include: ${f}"
+            changed=1
+        fi
+    done
+    # KAMP lives in the KAMP/ subdir — check for the subdir-prefixed include form.
+    for f in KAMP/KAMP_Settings.cfg KAMP/Adaptive_Meshing.cfg KAMP/Line_Purge.cfg KAMP/Smart_Park.cfg; do
         if [ ! -f "${CONFIG_DIR}/${f}" ] && \
            grep -q "^\[include ${f}\]" "$pcfg" 2>/dev/null; then
             sed -i "s/^\[include ${f}\]/# AIO: file missing  [include ${f}]/" "$pcfg"
@@ -2386,10 +2391,10 @@ fix_known_klipper_conflicts() {
     #    and KAMP_Settings.cfg (uppercase-S) as different files. Both define
     #    [gcode_macro _KAMP_Settings], causing a duplicate error. We install
     #    to uppercase-S; delete the stale lowercase copy.
-    if [ -f "${CONFIG_DIR}/KAMP_settings.cfg" ] && \
-       [ -f "${CONFIG_DIR}/KAMP_Settings.cfg" ]; then
-        rm -f "${CONFIG_DIR}/KAMP_settings.cfg"
-        ok "Removed stale KAMP_settings.cfg (case-duplicate of KAMP_Settings.cfg)"
+    if [ -f "${CONFIG_DIR}/KAMP/KAMP_settings.cfg" ] && \
+       [ -f "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg" ]; then
+        rm -f "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"
+        ok "Removed stale KAMP/KAMP_settings.cfg (case-duplicate of KAMP/KAMP_Settings.cfg)"
     fi
 
     # 2. Adaptive_Mesh.cfg is the old KAMP override that redefined
@@ -2489,11 +2494,11 @@ fix_known_klipper_conflicts() {
             ok "BED_MESH_CALIBRATE: single canonical definition in Adaptive_Meshing.cfg"
         fi
     fi
-    # Legacy: re-fetch KAMP_Settings.cfg if it still carries an inline definition.
-    if grep -q '^\[gcode_macro BED_MESH_CALIBRATE\]' "${CONFIG_DIR}/KAMP_Settings.cfg" 2>/dev/null; then
-        fetch "${REPO_BASE}/KAMP_settings.cfg" "${CONFIG_DIR}/KAMP_Settings.cfg" \
-            && ok "Re-fetched KAMP_Settings.cfg (removed stale inline BED_MESH_CALIBRATE)" \
-            || warn "Could not re-fetch KAMP_Settings.cfg — comment out [gcode_macro BED_MESH_CALIBRATE] in it manually"
+    # Legacy: re-fetch KAMP/KAMP_Settings.cfg if it still carries an inline definition.
+    if grep -q '^\[gcode_macro BED_MESH_CALIBRATE\]' "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg" 2>/dev/null; then
+        fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg" "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg" \
+            && ok "Re-fetched KAMP/KAMP_Settings.cfg (removed stale inline BED_MESH_CALIBRATE)" \
+            || warn "Could not re-fetch KAMP/KAMP_Settings.cfg — comment out [gcode_macro BED_MESH_CALIBRATE] in it manually"
     fi
 
     ok "Conflict resolution complete — FIRMWARE_RESTART to apply"
@@ -2625,13 +2630,6 @@ _install_bunnybox() {
         fetch "${REPO_BASE}/printer(BunnyBox%26HelixScreen).cfg" \
               "${CONFIG_DIR}/printer.cfg" || return 1
 
-        # Safety net: fix the KAMP double-nesting bug if it lands.
-        if grep -q '\[include \./KAMP/KAMP_Settings\.cfg\]' "${CONFIG_DIR}/printer.cfg" 2>/dev/null; then
-            sed -i 's|\[include \./KAMP/KAMP_Settings\.cfg\]|[include KAMP_Settings.cfg]|' \
-                "${CONFIG_DIR}/printer.cfg"
-            ok "Fixed KAMP include path"
-        fi
-
         # Restore box.cfg on disk (in case BunnyBox's installer removed it)
         # so Revert to Backup can recover from BACKUP_DIR if _FIRST_STOCK is
         # missing. Leave [include box.cfg] in printer.cfg commented out: the
@@ -2679,14 +2677,11 @@ _install_bunnybox() {
         fi
 
         banner "Applying KAMP settings"
-        fetch "${REPO_BASE}/KAMP_settings.cfg" "${CONFIG_DIR}/KAMP_Settings.cfg" || return 1
-        # KAMP_Settings.cfg includes ./Adaptive_Meshing.cfg, ./Line_Purge.cfg,
-        # and ./Smart_Park.cfg relative to the config root. Fetch them now so
-        # Klipper can find them. Voron_Purge.cfg is commented out in our
-        # KAMP_settings.cfg (unused on the Q2) and is intentionally not fetched.
-        fetch "${KAMP_BASE}/Adaptive_Meshing.cfg" "${CONFIG_DIR}/Adaptive_Meshing.cfg" || return 1
-        fetch "${KAMP_BASE}/Line_Purge.cfg"        "${CONFIG_DIR}/Line_Purge.cfg"       || return 1
-        fetch "${KAMP_BASE}/Smart_Park.cfg"        "${CONFIG_DIR}/Smart_Park.cfg"       || return 1
+        mkdir -p "${CONFIG_DIR}/KAMP"
+        fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || return 1
+        fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || return 1
+        fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || return 1
+        fetch "${KAMP_BASE}/Smart_Park.cfg"            "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || return 1
         ok "KAMP settings and sub-files applied"
 
         banner "Applying HelixScreen settings"
@@ -2877,8 +2872,9 @@ install_just_faster() {
 
     info "Applying KAMP settings (KAMP subdir layout)..."
     mkdir -p "${CONFIG_DIR}/KAMP"
-    fetch "${REPO_BASE}/KAMP_settings.cfg" \
-          "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg" || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
     ok "KAMP settings applied"
 
     verify_jfp_install

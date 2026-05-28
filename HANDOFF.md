@@ -3,7 +3,7 @@
 ## Project
 
 **Repo:** `Camden-Winder/Qidi-Q2-superuser`
-**Dev branch:** `claude/hopeful-lovelace-6cJ0Q`
+**Dev branch:** `claude/practical-feynman-OZEHL`
 
 The project is an all-in-one Bash installer menu for the **Qidi Q2 Pro 3D printer** running Klipper. It installs and manages:
 - **BunnyBox (Happy Hare)** — MMU filament switcher firmware
@@ -15,20 +15,37 @@ The project is an all-in-one Bash installer menu for the **Qidi Q2 Pro 3D printe
 
 ## Current State (end of last session)
 
-### RC1 is complete and pushed
-
-Four RC1 commits on the dev branch (on top of ~14 earlier commits):
+### RC2.14 — KAMP path fix complete, pushed to `claude/practical-feynman-OZEHL`
 
 | Commit | What it does |
 |--------|-------------|
-| `8bbdd3c` | `AIO_VERSION='RC1'` constant; rendered in banner `(RC1)` and About screen |
-| `b3b9954` | `verify_qidi_box_helixscreen()` — post-install check for `box.cfg`, `[box_stepper]`, `officiall_filas_list.cfg`, HelixScreen >= v0.99.66; warns, never fails |
-| `5ff5eb9` | `install_qidi_box_write()` — writes `/etc/systemd/system/helixscreen.service.d/qidi-box-write.conf` with `HELIX_QIDI_BOX_WRITE=1`; enabled by default in BB+HS install; `uninstall_qidi_box_write()` wired into `uninstall_helixscreen` and `revert_to_backup`; `BoxWrite: on/off` added to menu header status line |
-| `d3bcb39` | `helixscreen_settings.json`: root key `"ams": { "spool_style": "3d" }` |
+| `016c96f` | RC2.14: all KAMP files now installed to `${CONFIG_DIR}/KAMP/` subdir (not config root). Both BunnyBox and JustFasterPrinter flows updated. Adaptive_Meshing.cfg and Line_Purge.cfg fetched from `REPO_BASE/KAMP/`. Smart_Park.cfg still from upstream `KAMP_BASE`. Sub-file includes in `KAMP_settings.cfg` prefixed with `KAMP/`. All four printer template cfgs normalised to `[include KAMP/KAMP_Settings.cfg]`. Uninstall changed to `rm -rf ${CONFIG_DIR}/KAMP`. `fix_printer_cfg_after_uninstall()` updated for new path form. Safety-net sed (was wrongly re-rooting the path) removed. Case-sensitivity check and `fix_known_klipper_conflicts` legacy re-fetch updated. |
 
-### PR #1 — draft, no CI, no review comments yet
+**PR not yet opened** — open one targeting `main` when ready.
 
-No GitHub Actions are configured on the repo. PR is waiting for manual review and merge decision.
+### Task 2 (Happier Hare release mirror) — NOT DONE, needs manual step
+
+`HAPPIER_HARE_RELEASE_ZIP` in `aio_menu.sh` already points to the right URL. The release just doesn't exist yet. The source asset (`helixscreen-pi.zip`, 61 MB) was already downloaded to `/tmp/helixscreen-pi.zip` in the session but could not be uploaded — the execution environment has no GitHub credentials or `gh` CLI for release asset uploads.
+
+**You need to run this manually** (authenticated as Camden-Winder):
+
+```bash
+# If /tmp/helixscreen-pi.zip doesn't still exist, re-download:
+curl -L -o helixscreen-pi.zip \
+  "https://github.com/ChanceVegas/Qidi-Q2-superuser_helpinghands/releases/download/happier-hare-rc2.12/helixscreen-pi.zip"
+
+gh release create happier-hare-rc2.12 helixscreen-pi.zip \
+  --repo Camden-Winder/Qidi-Q2-superuser \
+  --title "Happier Hare RC2.12 HelixScreen" \
+  --notes "Patched HelixScreen binary for Happier Hare MMU_HEATER protocol (mirrored from ChanceVegas/Qidi-Q2-superuser_helpinghands@happier-hare-rc2.12)" \
+  --prerelease
+
+# Verify
+curl -I "https://github.com/Camden-Winder/Qidi-Q2-superuser/releases/download/happier-hare-rc2.12/helixscreen-pi.zip"
+# Expect: HTTP 302 or 200
+```
+
+No changes to `aio_menu.sh` are needed — the URL already points to the right place.
 
 ---
 
@@ -37,44 +54,12 @@ No GitHub Actions are configured on the repo. PR is waiting for manual review an
 - **Commit messages:** one-line subjects only, no body
 - **Shell changes:** always `bash -n aio_menu.sh` before committing
 - **JSON changes:** always `python3 -m json.tool <file>` before committing
+- **Version bump:** increment `AIO_VERSION` minor (e.g. RC2.14 → RC2.15) on every script change
 - **New `install_*` function:** must have matching `uninstall_*`, a `*_installed()` / `*_enabled()` detection helper, be wired into `revert_to_backup`, and add a status indicator to `show_status_line()`
 - **Helpers:** use `banner`, `info`, `warn`, `ok`, `err` — never raw `echo`
 - **Write files:** use `sudo tee` pattern, never `echo >` with sudo
 - **Never touch:** `Configurations/` and `Plugins/` are stock Qidi reference files — read-only mirrors
-- **Dev branch:** all work goes to `claude/qidi-q2-aio-menu-lwyb6`, never push to `main` directly
-
----
-
-## Next Priorities (in suggested order)
-
-### 1. Merge PR #1 into `main` (your call — review the diff first)
-
-### 2. Create `.claude/` tooling for the repo (researched last session from Preston Brown's helixscreen repo)
-
-High-value items to port/create:
-
-**a) `CLAUDE.md` at repo root** ← biggest payoff, makes every new session start with full context
-- Sections: Quick Start (test commands), Repo layout, Critical rules, Install-function conventions, Autonomous-session policy (what Claude can do without asking)
-- Ask Claude to draft it and confirm the autonomous-session policy before committing
-
-```
-
-**c) `.claude/hooks/pre-commit-check.sh`** — auto-lint on every commit:
-- All `*.sh` → `bash -n`
-- All `*.json` → `python3 -m json.tool`
-- Warn if `aio_menu.sh` changed but `AIO_VERSION` didn't bump
-- Warn if new `install_*` added without matching `uninstall_*`
-
-**d) `.claude/checklist.md`** — pre-flight checklists (before committing, before new install function, before changing printer.cfg)
-
-### 3. RC2 planning
-
-Candidate features discussed but not yet scoped:
-- `/release` slash command to automate version bumps + changelog + tag + push
-- `update_qidi_box_dropin` migration logic for future drop-in changes
-- Confirm-on-first-run gate for `HELIX_QIDI_BOX_WRITE` (y/N with 5s default-yes timeout for headless)
-- HelixScreen version pinning to a tagged release instead of `main`
-- "9) Run all verifiers" self-test menu item
+- **Dev branch:** all work goes to a `claude/*` branch, never push to `main` directly
 
 ---
 
@@ -82,9 +67,14 @@ Candidate features discussed but not yet scoped:
 
 | Path | Purpose |
 |------|---------|
-| `All_in_One_Installer/aio_menu.sh` | Main installer script |
+| `All_in_One_Installer/aio_menu.sh` | Main installer script — current version RC2.14 |
+| `Install-Script/KAMP/KAMP_settings.cfg` | Our KAMP settings (includes now use `KAMP/` prefix) |
+| `Install-Script/KAMP/Adaptive_Meshing.cfg` | Fetched by both BunnyBox and JFP installs from REPO_BASE |
+| `Install-Script/KAMP/Line_Purge.cfg` | Fetched by both BunnyBox and JFP installs from REPO_BASE |
 | `Install-Script/helixscreen_settings.json` | Shipped to `/home/mks/.config/helixscreen/settings.json` |
-| `Install-Script/BunnyBox&HelixScreen.sh` | Legacy single-shot installer (superseded by AIO) |
+| `Install-Script/printer(BunnyBox&HelixScreen).cfg` | BunnyBox printer.cfg template |
+| `Install-Script/printer-BunnyBox&HelixScreen.cfg` | Second BunnyBox printer.cfg template |
+| `Install-Script/JustFasterPrinter.cfg` | JFP printer.cfg template |
 | `Configurations/` | Stock Klipper cfg reference — do not modify |
 | `Plugins/` | Stock plugin reference — do not modify |
 
