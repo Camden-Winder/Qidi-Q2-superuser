@@ -21,7 +21,7 @@ on:
 
 jobs:
   build:
-    runs-on: self-hosted
+    runs-on: COULTONW
     permissions:
       contents: write   # required to create/update releases
 
