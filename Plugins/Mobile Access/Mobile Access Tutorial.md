@@ -1,18 +1,16 @@
 # Mobile Access with OctoApp
 
-**What this does**
+**What this does**  
 This sets up the OctoApp plugin using Docker so you can access your Qidi Q2 from your phone.
-
-**Prerequisites:** Docker must be installed on the device running this stack. If you haven't installed it yet, follow the [official Docker install guide](https://docs.docker.com/engine/install/).
 
 ---
 
 ## Setup steps
 
-1. **Open the `Companion` directory** on your PC or laptop. This is your `Companion` folder on your local machine — this is just a name to keep your docker-compose services organised.
-2. **Create a new folder** named `OctoApp` inside it.
+1. **Open the `Companion` directory** on your printer or server.
+2. **Create a new folder** named `OctoApp`.
 3. **Inside that folder**, create a file named `docker-compose.yml`.
-4. **Edit the file** in any text editor. Replace `PRINTER_IP=XXX.XXX.XXX.XXX` with your actual printer's IP address.
+4. **Edit the file** in any text editor and replace `PRINTER_IP=XXX.XXX.XXX.XXX` with your actual printer’s IP address.
 
 ```yaml
 services:
@@ -20,7 +18,7 @@ services:
     image: ghcr.io/crysxd/octoapp-plugin:latest
     environment:
         # Required - The IP address of the Klipper/Moonraker/Webserver/Printer
-        - PRINTER_IP=XXX.XXX.XXX.XXX
+        #- PRINTER_IP=XXX.XXX.XXX.XXX
        
         # Optional Settings
         - TZ=America/New_York
@@ -31,7 +29,7 @@ services:
       - ./data:/data
 ```
 
-5. **Start the container**
+5. **Start the container**  
    ```bash
    sudo docker compose up -d
    ```
@@ -42,17 +40,15 @@ services:
 
 ## Troubleshooting
 
-- **Wrong IP** → The plugin won't connect. Double-check your printer's IP in Moonraker. You can find it under System → Network in the Moonraker web UI.
-- **Wrong folder path** → Make sure the `docker-compose.yml` is inside the `Companion/OctoApp/` directory, not in the root Companion folder.
-- **Timezone errors** → Update the `TZ=` value to your actual region (e.g. `America/Chicago`, `Europe/London`). A full list of valid timezone strings is at [this IANA list](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
-- **Container exits immediately** → Run `sudo docker compose logs` from the OctoApp directory to see the error output.
-- **OctoApp can't find the printer on the phone** → Make sure your phone and printer are on the same local network, or that you have remote access configured.
+- **Wrong IP** → The plugin won’t connect. Double‑check your printer’s IP in Moonraker.  
+- **Wrong folder path** → Make sure the `docker-compose.yml` is inside `Companion/OctoApp/`.  
+- **Timezone errors** → Update the `TZ=` value to your actual region.
 
 ---
 
 ## Notes
 
-- This setup uses Docker just like your other services in the `Companion` folder.
+- This setup uses Docker just like the rest of the Companion stack.  
 - Once running, OctoApp on your phone should automatically detect the plugin.
 
 ---

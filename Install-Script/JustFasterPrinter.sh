@@ -1,9 +1,4 @@
-#!/bin/bash
-
-# Exit immediately on any error so a failed download doesn't silently
-# overwrite config files with nothing or an HTML error page.
-set -e
-set -o pipefail
+#!/bin/sh
 
 # Prevent running as root — this breaks permissions on the Q2
 if [ "$(id -u)" -eq 0 ]; then
@@ -19,26 +14,19 @@ echo "Backup complete."
 echo ""
 
 # Update gcode_macro.cfg (no box, no HelixScreen version)
-# Fixed: old URL used Install%20Script/ (space) and wrong filename — folder is now Install-Script/
-# and file is gcode_macro(JustFasterPrinter).cfg
 echo "Updating gcode_macro.cfg ..."
-curl -sSLf https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/gcode_macro-JustFasterPrinter.cfg \
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install%20Script/gcode_macro%28no.box.no.hs%29.cfg \
   -o /home/mks/printer_data/config/gcode_macro.cfg
 
 # Update printer.cfg for the Just Faster setup
-# Fixed: old URL used Install%20Script/ and "Just Faster printer.cfg" — file is now JustFasterPrinter.cfg
 echo "Updating printer.cfg ..."
-curl -sSLf https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/JustFasterPrinter.cfg \
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install%20Script/Just%20Faster%20printer.cfg \
   -o /home/mks/printer_data/config/printer.cfg
 
 # Apply KAMP settings
-# Fixed: old URL used Install%20Script/ — folder is now Install-Script/
-# Fixed: KAMP_Settings.cfg must go in a KAMP/ subdirectory to match the
-# [include ./KAMP/KAMP_Settings.cfg] directive in JustFasterPrinter.cfg
 echo "Applying KAMP settings ..."
-mkdir -p /home/mks/printer_data/config/KAMP
-curl -sSLf https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/KAMP_settings.cfg \
-  -o /home/mks/printer_data/config/KAMP/KAMP_Settings.cfg
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install%20Script/KAMP_settings.cfg \
+  -o /home/mks/printer_data/config/KAMP_Settings.cfg
 
 echo ""
 echo "Congrats — your Q2 is now running the 'Just Faster' setup."

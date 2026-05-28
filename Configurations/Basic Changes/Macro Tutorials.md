@@ -1,5 +1,3 @@
-> **Skip this if you used the install script** — macros are already configured automatically. Go to the [Install Script Instructions](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Install-Script/Instructions.md) instead.
-
 # Startup Macros
 ### For each of these changes the easiest way to do it is
 1. Control + F to the correct macro
