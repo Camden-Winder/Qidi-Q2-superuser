@@ -1,7 +1,5 @@
 name: Build Happier Hare HelixScreen
-# Trigger manually from Actions tab.
-# First run: ~45-75 min (Docker toolchain build + ARM compile).
-# Subsequent runs with warm source cache: ~15-30 min.
+
 on:
   workflow_dispatch:
     inputs:
@@ -9,70 +7,89 @@ on:
         description: 'HelixScreen git tag to build against'
         required: false
         default: 'v0.99.70'
+
       release_tag:
         description: 'GitHub release tag to create (e.g. happier-hare-rc2.12)'
         required: false
         default: 'happier-hare-rc2.12'
+
       build_jobs:
         description: 'Parallel compile jobs'
         required: false
         default: '2'
+
 jobs:
   build:
     runs-on: self-hosted
+
     permissions:
-      contents: write   # required to create/update releases
+      contents: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Debug PATH
-        shell: pwsh
+        shell: powershell
         run: |
           echo "PATH: $env:PATH"
+
           Get-Command docker -ErrorAction SilentlyContinue
+
           Test-Path "C:\Program Files\Docker\Docker\resources\bin\docker.exe"
+
           Test-Path "C:\Program Files\Docker\Desktop\Docker Desktop.exe"
+
           & "C:\Program Files\Docker\Docker\resources\bin\docker.exe" --version
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      # Cache the cloned HelixScreen source tree so subsequent runs skip the
-      # git clone + submodule init (the largest network cost).
+
       - name: Cache HelixScreen source tree
         uses: actions/cache@v4
         with:
-          path: /tmp/happier-hare-build
+          path: C:\Temp\happier-hare-build
           key: helixscreen-src-${{ inputs.helixscreen_pin }}
-          restore-keys: helixscreen-src-
+          restore-keys: |
+            helixscreen-src-
+
       - name: Build patched HelixScreen Pi archive
+        shell: bash
         env:
           HELIXSCREEN_PIN: ${{ inputs.helixscreen_pin }}
           HELIXSCREEN_BUILD_JOBS: ${{ inputs.build_jobs }}
-          # Override the macOS default path in the build script.
-          HAPPIER_HARE_BUILD_ROOT: /tmp/happier-hare-build
-        run: bash Happier_Hare/build_patched_helixscreen_zip_docker.sh
-      # Keep a copy in Actions artifacts even if the release step fails.
+          HAPPIER_HARE_BUILD_ROOT: C:\Temp\happier-hare-build
+        run: |
+          bash Happier_Hare/build_patched_helixscreen_zip_docker.sh
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: helixscreen-pi-zip
           path: Happier_Hare/dist/helixscreen-pi.zip
           retention-days: 30
+
       - name: Publish GitHub release
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ inputs.release_tag }}"
           ZIP="Happier_Hare/dist/helixscreen-pi.zip"
           PIN="${{ inputs.helixscreen_pin }}"
-          # Remove any existing release + tag so re-runs are idempotent.
+
           gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
+
           git push --delete origin "refs/tags/$TAG" 2>/dev/null || true
+
           printf 'Patched HelixScreen binary for Happier Hare MMU_HEATER protocol.\n\nBuilt from prestonbrown/helixscreen@%s with the Happier Hare patch set in Happier_Hare/patches/.\n\nInstall via the AIO menu - Option 1 (BunnyBox & HelixScreen) will detect and offer this build automatically.\n' \
-            "$PIN" > /tmp/release-notes.md
+            "$PIN" > C:/Temp/release-notes.md
+
           gh release create "$TAG" "$ZIP" \
             --repo "$GITHUB_REPOSITORY" \
             --title "Happier Hare ${TAG} HelixScreen" \
-            --notes-file /tmp/release-notes.md \
+            --notes-file C:/Temp/release-notes.md \
             --prerelease
