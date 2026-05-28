@@ -28,6 +28,11 @@ Install-Script/
   mmu/                     ← Happy Hare / BunnyBox Klipper config files
   printer(BunnyBox&HelixScreen).cfg
 
+Happier_Hare/
+  install_happier_hare.sh  ← Installer for patched HelixScreen (Happier Hare MMU_HEATER protocol)
+  build_patched_helixscreen_zip_docker.sh ← Docker ARM cross-compile script
+  patches/                 ← Patch files applied to HelixScreen source
+
 Configurations/            ← Stock Qidi reference files. DO NOT MODIFY.
 Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
 
@@ -115,6 +120,18 @@ Claude **must ask first** before:
 - Force-pushing any branch
 - Deleting branches or files not created in the same session
 - Taking actions visible to users outside this repo (posting comments, etc.)
+
+## RC2.13 — What's In It
+
+Merged via PR #13 (2026-05-28):
+
+- `AIO_VERSION='RC2.13'`
+- **Happier Hare installer** (`Happier_Hare/install_happier_hare.sh`) — full installer for a patched HelixScreen binary that speaks Happy Hare's `MMU_HEATER` gcode protocol instead of the native Qidi box commands. Surfaced via Option 1 when a hosted Happier Hare zip is available.
+- **Patched HelixScreen build pipeline** (`Happier_Hare/build_patched_helixscreen_zip_docker.sh`, `Happier_Hare/patches/`) — Docker-based ARM cross-compile that applies the Happier Hare patch to a tagged HelixScreen release and produces `helixscreen-pi.zip`.
+- **GitHub Actions workflow** (`.github/workflows/build-happier-hare.yml`) — `workflow_dispatch` job that runs the build pipeline and publishes the zip as a GitHub release. Must be triggered manually before the Happier Hare install path is functional end-to-end (~45–75 min first run, ~15–30 min with ccache).
+- **KlipperScreen install disabled** — Option 2 now shows a warning that KlipperScreen install is unavailable in this version. Removed due to reliability issues.
+- **Full MMU config suite** (`Install-Script/mmu/`) — complete Happy Hare config file set shipped with the installer.
+- **`helixscreen_settings.json` updated** — AMS/display settings updated for Qidi Box.
 
 ## RC1.26 — What's In It
 

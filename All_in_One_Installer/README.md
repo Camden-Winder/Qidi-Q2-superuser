@@ -2,8 +2,6 @@
 
 > **Disclaimer:** Use this tool at your own risk. The author is not responsible for any damage, malfunction, or data loss caused to your printer. Qidi states that any modifications to files on their printers may void the manufacturer warranty.
 
-### **Warning** This tool is currently in a testing state. It is not recommended to install for begginer users. Join the Discord to check if it is stable and wait for announcements.
-
 A single menu that handles every install, uninstall, and addon path for the Qidi Q2 community toolkit — no more tracking which script does what.
 
 ```
@@ -57,7 +55,7 @@ chmod +x aio_menu.sh
 
 | # | Option | What it does |
 |---|--------|-------------|
-| 1 | **Install BunnyBox & HelixScreen** | For Q2 owners with a Qidi Box. Installs Happy Hare MMU firmware and the HelixScreen touchscreen UI, applies optimised Klipper configs, and enables filament drying with automatic spool rotation. Drying presets (Dry PLA, Dry PETG, etc.) are pre-configured as HelixScreen macro buttons. |
+| 1 | **Install BunnyBox & HelixScreen** | For Q2 owners with a Qidi Box. Installs Happy Hare MMU firmware and the HelixScreen touchscreen UI, applies optimised Klipper configs, and enables filament drying with automatic spool rotation. Option 1 automatically installs the Happier Hare patched HelixScreen build when `/home/mks/helixscreen-pi-happier-hare.zip` is present or `HAPPIER_HARE_ZIP_URL` is set; macro buttons remain the fallback. |
 | 2 | **Install KlipperScreen** | Installs KlipperScreen Happy Hare Edition — a touchscreen UI built specifically for Happy Hare MMU setups. Configures 4-gate support for the Qidi Box. Does not install BunnyBox or modify Klipper configs. |
 | 3 | **Install Just Faster Printer** | For Q2 owners without a Box. Keeps the stock Qidi screen but adds cleaner macros, faster print start, and adaptive bed meshing. |
 | 4 | **Revert to Backup** | Fully uninstalls everything AIO has installed and restores your printer to the state it was in before the first AIO run. Runs a health check automatically at the end. |
@@ -81,28 +79,36 @@ After installing BunnyBox (option 1), the following one-tap drying macros are av
 ## After installing BunnyBox & HelixScreen (option 1)
 
 1. Run `FIRMWARE_RESTART` from the Klipper console or HelixScreen.
-2. Run **option 8 (Health Check)** to verify everything loaded correctly.
-3. **First-time only:** calibrate the MMU gear steppers:
+2. Run `sudo reboot` over SSH.
+3. Run **option 8 (Health Check)** to verify everything loaded correctly.
+4. **First-time only:** calibrate the MMU gear steppers:
    ```
    MMU_CALIBRATE_GEAR GATE=0 LENGTH=100
    ```
    Mark the filament at the entry point, measure how far it moved, then re-run with `MEASURED=<mm>`. Repeat for each gate.
-4. Load filament into each gate and start a drying preset from the HelixScreen macro buttons or console.
+5. Load filament into each gate and start a drying preset from the HelixScreen AMS environment UI when using the Happier Hare patched zip, or from the macro buttons/console as a fallback.
 
 ## After installing KlipperScreen (option 2)
 
 1. Run `FIRMWARE_RESTART` from the Klipper console or KlipperScreen.
-2. Verify KlipperScreen is running: `systemctl status KlipperScreen`
+2. Run `sudo reboot` over SSH.
+3. Verify KlipperScreen is running: `systemctl status KlipperScreen`
 
 ## After installing Just Faster Printer (option 3)
 
 1. Run `FIRMWARE_RESTART`.
-2. Run a bed level and `SCREWS_TILT_CALCULATE` before your first print.
+2. Run `sudo reboot` over SSH.
+3. Run a bed level and `SCREWS_TILT_CALCULATE` before your first print.
 
 ## Release history
 
 | Version | Notable additions |
 |---------|------------------|
+| RC2.13 | Points Option 1 at the hosted Happier Hare patched HelixScreen release asset (`happier-hare-rc2.12/helixscreen-pi.zip`) so installs no longer require SCP when the release asset is available |
+| RC2.12 | Option 1 now automatically installs the Happier Hare patched HelixScreen archive from `/home/mks/helixscreen-pi-happier-hare.zip` when present, without requiring `HAPPIER_HARE_ZIP_URL` |
+| RC2.11 | Hardened Happier Hare install verification so it scans all installed `helix-screen*` binaries and reports which binary contains the dryer and Qidi Box sensor patches |
+| RC2.10 | Updated Happier Hare Qidi Box sensor matching for the Happy Hare config names (`temperature_sensor box1_env`, `heater_generic box1_heater`) and made install/revert instructions explicitly require `FIRMWARE_RESTART` followed by `sudo reboot` |
+| RC2.9 | Hardened Revert to Backup stock display restoration: resets failed lightdm/makerbase state, restores `graphical.target`, unmasks `display-manager.service`, prints recent service logs if the stock display stack does not come back, and keeps `/home/mks/mudstockbackups/` when stock display verification fails |
 | RC1.30 | Option 2 (KlipperScreen) temporarily disabled — display not rendering despite service running; under investigation |
 | RC1.29 | Fixed KlipperScreen Xorg crash: Q2 kernel lacks `/dev/tty0` (no VT subsystem); systemd drop-in now creates the device node via `ExecStartPre` before each service start and clears the `ConditionPathExists` gate |
 | RC1.28 | Fixed KlipperScreen not launching: upstream service unit has `ConditionPathExists=/dev/tty0` which fails on the Q2; a systemd drop-in now clears this condition after install |
@@ -126,7 +132,7 @@ After installing BunnyBox (option 1), the following one-tap drying macros are av
 
 ## Known limitations
 
-- **Native Qidi Box AMS panel is unavailable while BunnyBox is installed.** Revert to Backup restores it.
+- **Native Qidi Box humidity/dryer UI requires the Happier Hare patched HelixScreen zip.** Without that zip, use the macro buttons or Klipper console.
 - **MMU gear calibration is required after a fresh install.**
 - **Camera streaming (Mainsail)** requires a USB camera connected to the printer.
 
@@ -142,11 +148,14 @@ After installing BunnyBox (option 1), the following one-tap drying macros are av
 
 **Klipper won't start after uninstall** — Use option 4 (Revert to Backup) for a clean restore.
 
+**LightDM fails after Revert to Backup** — Run option 8 (Health Check) or inspect `journalctl -u lightdm -n 80 --no-pager` and `journalctl -u makerbase-client -n 80 --no-pager`. RC2.9+ prints recent stock-display service logs during revert when either service fails.
+
 **No stock backup exists** — `/home/mks/mudstockbackups/` is created automatically on first run. If configs were already changed before the first AIO run, restore from a Qidi factory image first, then run AIO to capture a clean baseline.
 
 ## Links
 
 - Repo: https://github.com/Camden-Winder/Qidi-Q2-superuser
+- Upstream: https://github.com/Camden-Winder/Qidi-Q2-superuser
 - BunnyBox: https://github.com/Camden-Winder/Bunny-Box
 - HelixScreen: https://github.com/prestonbrown/helixscreen
 - KlipperScreen Happy Hare Edition: https://github.com/moggieuk/KlipperScreen-Happy-Hare-Edition
