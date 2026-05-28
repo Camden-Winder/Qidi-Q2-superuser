@@ -31,10 +31,10 @@ BUNNYBOX_INSTALLER='https://raw.githubusercontent.com/Camden-Winder/Bunny-Box/re
 # silently regress Q2 behavior.
 HELIXSCREEN_PIN='v0.99.70'
 HELIXSCREEN_INSTALLER="https://raw.githubusercontent.com/prestonbrown/helixscreen/${HELIXSCREEN_PIN}/scripts/install.sh"
-HELIXSCREEN_RELEASE_ZIP="https://github.com/prestonbrown/helixscreen/releases/download/${HELIXSCREEN_PIN}/helixscreen-pi.zip"
+HELIXSCREEN_RELEASE_ZIP="https://raw.githubusercontent.com/ChanceVegas/Qidi-Q2-superuser_helpinghands/refs/heads/${REPO_REF}/Happier_Hare/install_happier_hare.sh"
 HAPPIER_HARE_INSTALLER="https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/${REPO_REF}/Happier_Hare/install_happier_hare.sh"
 HAPPIER_HARE_RELEASE_TAG="${HAPPIER_HARE_RELEASE_TAG:-happier-hare-rc2.12}"
-HAPPIER_HARE_RELEASE_ZIP="https://github.com/Camden-Winder/Qidi-Q2-superuser/releases/download/${HAPPIER_HARE_RELEASE_TAG}/helixscreen-pi.zip"
+HAPPIER_HARE_RELEASE_ZIP="https://github.com/ChanceVegas/Qidi-Q2-superuser_helpinghands/releases/download/${HAPPIER_HARE_RELEASE_TAG}/helixscreen-pi.zip"
 HAPPIER_HARE_ZIP_URL="${HAPPIER_HARE_ZIP_URL:-}"
 HAPPIER_HARE_LOCAL_ZIP="${HAPPIER_HARE_LOCAL_ZIP:-/home/mks/helixscreen-pi-happier-hare.zip}"
 HELIX_UNINSTALLER='https://releases.helixscreen.org/install.sh'
