@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:www.klipper3d.org)",
+      "WebFetch(domain:moonraker.readthedocs.io)",
+      "WebFetch(domain:wiki.qidi3d.com)",
+      "WebFetch(domain:www.armoredturtle.xyz)",
+      "WebFetch(domain:releases.helixscreen.org)",
+      "WebFetch(domain:code.claude.com)",
+      "Bash(bash -n:*)",
+      "Bash(python3 -m json.tool:*)",
+      "Bash(shellcheck:*)",
+      "Bash(git log:*)",
+      "Bash(git diff:*)",
+      "Bash(git status:*)",
+      "Bash(git fetch:*)",
+      "Bash(git branch:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)"
+    ]
+  }
+}

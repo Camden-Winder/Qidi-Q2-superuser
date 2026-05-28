@@ -1,10 +1,8 @@
 # Install Scripts – Qidi Q2 Superuser
 
-**WARNING** Yeah so... don't use any of these. its filled with bugs. Join the discord and follow for updates.
-
 There are multiple install scripts in this repo. Make sure you run the one that matches what you want to install.
 
-If you run into any issues ask for help in the Discord listed at the top of the readme, or check the [FAQ](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Install-Script/FAQ-BunnyBox%26Helixscreen.md)
+**Warning** this script is actively being modified. All install scripts may not work. If you would like to see the status and get updates, join the Discord listed at top of readme
 
 All scripts will:
 
@@ -50,14 +48,12 @@ This is the full setup I run on my own Q2.
 ### Install command
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/BunnyBox%26HelixScreen.sh | bash
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/BunnyBox%26HelixScreen.sh | sh
 ```
 
 After installation, download and import the Orca slicer presets:
 
 [Presets](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Install-Script/Printer%20Presets/1.%20Presets.md)
-
-If you are having any issues, make sure to check the [FAQ](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Install-Script/FAQ-BunnyBox%26Helixscreen.md)
 
 ---
 
@@ -86,36 +82,7 @@ It’s the clean OEM+ setup — faster starts, cleaner macros, nothing extra.
 ### Install command
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/JustFasterPrinter.sh | bash
-```
-
----
-
-## Just Faster Box
-
-**Installs:** Macro and config improvements with stock Qidi Box support
-
-**Compatibility** Q2's with the Qidi Box, no BunnyBox or HelixScreen required.
-
-This is for users who want faster, cleaner macros and full box functionality without installing BunnyBox or HelixScreen. Keeps the stock screen and stock box controls.
-
-### Pros
-
-- Keeps the stock screen
-- Keeps stock Qidi Box controls
-- Faster PRINT_START with box support
-- Cleaner macros
-- No BunnyBox or HelixScreen required
-
-### Cons
-
-- You don't get BunnyBox
-- You don't get HelixScreen
-
-### Install command
-
-```sh
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/JustFasterBox.sh | bash
+curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/JustFasterPrinter.sh | sh
 ```
 
 ---
