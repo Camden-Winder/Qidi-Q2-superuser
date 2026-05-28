@@ -2,7 +2,7 @@
 # =====================================================================
 # Qidi Q2 Superuser - All-in-One (AIO) Installer / Manager
 #
-# A single entry point for the Camden-Winder/Qidi-Q2-superuser
+# A single entry point for the ChanceVegas/Qidi-Q2-superuser_helpinghands
 # toolkit. Drives every supported install path and uninstall path from
 # one ANSI-colored menu:
 #
@@ -31,8 +31,8 @@ BUNNYBOX_INSTALLER='https://raw.githubusercontent.com/Camden-Winder/Bunny-Box/re
 # silently regress Q2 behavior.
 HELIXSCREEN_PIN='v0.99.70'
 HELIXSCREEN_INSTALLER="https://raw.githubusercontent.com/prestonbrown/helixscreen/${HELIXSCREEN_PIN}/scripts/install.sh"
-HELIXSCREEN_RELEASE_ZIP="https://raw.githubusercontent.com/ChanceVegas/Qidi-Q2-superuser_helpinghands/refs/heads/${REPO_REF}/Happier_Hare/install_happier_hare.sh"
-HAPPIER_HARE_INSTALLER="https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/${REPO_REF}/Happier_Hare/install_happier_hare.sh"
+HELIXSCREEN_RELEASE_ZIP="https://github.com/prestonbrown/helixscreen/releases/download/${HELIXSCREEN_PIN}/helixscreen-pi.zip"
+HAPPIER_HARE_INSTALLER="https://raw.githubusercontent.com/ChanceVegas/Qidi-Q2-superuser_helpinghands/refs/heads/${REPO_REF}/Happier_Hare/install_happier_hare.sh"
 HAPPIER_HARE_RELEASE_TAG="${HAPPIER_HARE_RELEASE_TAG:-happier-hare-rc2.12}"
 HAPPIER_HARE_RELEASE_ZIP="https://github.com/ChanceVegas/Qidi-Q2-superuser_helpinghands/releases/download/${HAPPIER_HARE_RELEASE_TAG}/helixscreen-pi.zip"
 HAPPIER_HARE_ZIP_URL="${HAPPIER_HARE_ZIP_URL:-}"
@@ -1192,10 +1192,6 @@ purge_happy_hare_all() {
            -o -name 'backup_bunnybox_*' \) \
         -exec sudo rm -rf {} + 2>/dev/null || true
 
-    # BunnyBox's KAMP/ subdirectory. We install KAMP files at the config
-    # root (PR #8); BunnyBox's KAMP/ copy is no longer referenced.
-    sudo rm -rf "${CONFIG_DIR}/KAMP"
-
     # Config files Happy Hare / BunnyBox may have written at config root
     rm -f "${CONFIG_DIR}/bunnybox_macros.cfg"
     rm -f "${CONFIG_DIR}/box_drying.cfg"
@@ -1226,10 +1222,12 @@ purge_happy_hare_all() {
     info "Removing Moonraker component: mmu_server.py"
     sudo rm -f "${HOME}/moonraker/moonraker/components/mmu_server.py"
 
-    # KAMP subdir installed by the AIO BunnyBox / JustFasterPrinter flows.
-    # Removing it lets fix_printer_cfg_after_uninstall() comment out the
-    # [include KAMP/KAMP_Settings.cfg] line so Klipper can start cleanly.
-    rm -rf "${CONFIG_DIR}/KAMP"
+    # Root-level KAMP files installed by the AIO BunnyBox flow. Do not remove
+    # ${CONFIG_DIR}/KAMP here: Qidi stock configs may own that directory and
+    # Revert must restore it from _FIRST_STOCK.
+    for f in KAMP_Settings.cfg Adaptive_Meshing.cfg Line_Purge.cfg Smart_Park.cfg; do
+        rm -f "${CONFIG_DIR}/${f}"
+    done
 
     # Moonraker update_manager / mmu sections - delete the section and
     # its body up to the next section header or EOF.
@@ -1265,16 +1263,8 @@ fix_printer_cfg_after_uninstall() {
     banner "Fixing printer.cfg broken includes"
     local changed=0
 
-    for f in bunnybox_macros.cfg box_drying.cfg idle_fan_shutdown.cfg; do
-        if [ ! -f "${CONFIG_DIR}/${f}" ] && \
-           grep -q "^\[include ${f}\]" "$pcfg" 2>/dev/null; then
-            sed -i "s/^\[include ${f}\]/# AIO: file missing  [include ${f}]/" "$pcfg"
-            ok "Commented out missing include: ${f}"
-            changed=1
-        fi
-    done
-    # KAMP lives in the KAMP/ subdir — check for the subdir-prefixed include form.
-    for f in KAMP/KAMP_Settings.cfg KAMP/Adaptive_Meshing.cfg KAMP/Line_Purge.cfg KAMP/Smart_Park.cfg; do
+    for f in bunnybox_macros.cfg box_drying.cfg idle_fan_shutdown.cfg \
+              KAMP_Settings.cfg Adaptive_Meshing.cfg Line_Purge.cfg Smart_Park.cfg; do
         if [ ! -f "${CONFIG_DIR}/${f}" ] && \
            grep -q "^\[include ${f}\]" "$pcfg" 2>/dev/null; then
             sed -i "s/^\[include ${f}\]/# AIO: file missing  [include ${f}]/" "$pcfg"
@@ -1574,6 +1564,7 @@ capture_first_run_state() {
         "$KIAUH_UPPER_DIR" \
         "$KIAUH_UPPER_BACKUPS_DIR" \
         "$MAINSAIL_DIR" \
+        "${CONFIG_DIR}/KAMP" \
         /opt/helixscreen \
         /var/lib/helixscreen \
         /var/log/helixscreen \
@@ -1612,6 +1603,9 @@ do_backup() {
         return 1
     fi
     ok "Backup written to ${BACKUP_DIR}"
+    if [ -d "${BACKUP_DIR}/KAMP" ]; then
+        ok "KAMP directory included in backup: ${BACKUP_DIR}/KAMP"
+    fi
 
     # One-time permanent snapshot of the very first observed state. This
     # is what "Revert to Backup" should restore - assuming the user ran
@@ -1746,11 +1740,16 @@ cleanup_aio_config_residue() {
             -print0 2>/dev/null
     )
 
-    for d in "${CONFIG_DIR}/KAMP" "${CONFIG_DIR}/helixscreen"; do
-        if [ -e "$d" ]; then
-            sudo rm -rf "$d" && ok "Removed $d" || warn "Could not remove $d"
-        fi
-    done
+    # Do not blindly remove ${CONFIG_DIR}/KAMP. It may be part of the stock
+    # Qidi config tree. Revert uses rsync --delete against the selected stock
+    # snapshot, so an AIO-created KAMP directory is removed only when absent
+    # from that snapshot.
+    local helixscreen_config_dir="${CONFIG_DIR}/helixscreen"
+    if [ -e "$helixscreen_config_dir" ]; then
+        sudo rm -rf "$helixscreen_config_dir" && \
+            ok "Removed $helixscreen_config_dir" || \
+            warn "Could not remove $helixscreen_config_dir"
+    fi
 }
 
 cleanup_aio_install_artifacts() {
@@ -1925,6 +1924,7 @@ revert_to_backup() {
     info "Restoring configs from ${BACKUP_ROOT}..."
     local restore_ok=false
     local restore_can_delete=false
+    local restore_src=""
     if [ -d "$BACKUP_ROOT" ]; then
         # Prefer the one-time _FIRST_STOCK snapshot (closest to factory).
         # Fall back to the OLDEST timestamped backup - the first one
@@ -1957,6 +1957,7 @@ revert_to_backup() {
         if rsync "${rsync_args[@]}" "${src}/" "${CONFIG_DIR}/"; then
             ok "Config restore complete"
             restore_ok=true
+            restore_src="$src"
         else
             err "Restore failed"
         fi
@@ -1974,6 +1975,13 @@ revert_to_backup() {
             cleanup_aio_config_residue
         else
             cleanup_aio_config_artifacts
+        fi
+        if [ -n "$restore_src" ] && [ -d "${restore_src}/KAMP" ]; then
+            if [ -d "${CONFIG_DIR}/KAMP" ]; then
+                ok "Stock KAMP directory restored from backup"
+            else
+                warn "Backup contained KAMP/, but ${CONFIG_DIR}/KAMP is missing after restore"
+            fi
         fi
         if [ "$restore_can_delete" != true ]; then
             # Re-clean moonraker.conf Happy Hare sections
@@ -2391,10 +2399,10 @@ fix_known_klipper_conflicts() {
     #    and KAMP_Settings.cfg (uppercase-S) as different files. Both define
     #    [gcode_macro _KAMP_Settings], causing a duplicate error. We install
     #    to uppercase-S; delete the stale lowercase copy.
-    if [ -f "${CONFIG_DIR}/KAMP/KAMP_settings.cfg" ] && \
-       [ -f "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg" ]; then
-        rm -f "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"
-        ok "Removed stale KAMP/KAMP_settings.cfg (case-duplicate of KAMP/KAMP_Settings.cfg)"
+    if [ -f "${CONFIG_DIR}/KAMP_settings.cfg" ] && \
+       [ -f "${CONFIG_DIR}/KAMP_Settings.cfg" ]; then
+        rm -f "${CONFIG_DIR}/KAMP_settings.cfg"
+        ok "Removed stale KAMP_settings.cfg (case-duplicate of KAMP_Settings.cfg)"
     fi
 
     # 2. Adaptive_Mesh.cfg is the old KAMP override that redefined
@@ -2494,11 +2502,11 @@ fix_known_klipper_conflicts() {
             ok "BED_MESH_CALIBRATE: single canonical definition in Adaptive_Meshing.cfg"
         fi
     fi
-    # Legacy: re-fetch KAMP/KAMP_Settings.cfg if it still carries an inline definition.
-    if grep -q '^\[gcode_macro BED_MESH_CALIBRATE\]' "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg" 2>/dev/null; then
-        fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg" "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg" \
-            && ok "Re-fetched KAMP/KAMP_Settings.cfg (removed stale inline BED_MESH_CALIBRATE)" \
-            || warn "Could not re-fetch KAMP/KAMP_Settings.cfg — comment out [gcode_macro BED_MESH_CALIBRATE] in it manually"
+    # Legacy: re-fetch KAMP_Settings.cfg if it still carries an inline definition.
+    if grep -q '^\[gcode_macro BED_MESH_CALIBRATE\]' "${CONFIG_DIR}/KAMP_Settings.cfg" 2>/dev/null; then
+        fetch "${REPO_BASE}/KAMP_settings.cfg" "${CONFIG_DIR}/KAMP_Settings.cfg" \
+            && ok "Re-fetched KAMP_Settings.cfg (removed stale inline BED_MESH_CALIBRATE)" \
+            || warn "Could not re-fetch KAMP_Settings.cfg — comment out [gcode_macro BED_MESH_CALIBRATE] in it manually"
     fi
 
     ok "Conflict resolution complete — FIRMWARE_RESTART to apply"
@@ -2630,6 +2638,13 @@ _install_bunnybox() {
         fetch "${REPO_BASE}/printer(BunnyBox%26HelixScreen).cfg" \
               "${CONFIG_DIR}/printer.cfg" || return 1
 
+        # Safety net: fix the KAMP double-nesting bug if it lands.
+        if grep -q '\[include \./KAMP/KAMP_Settings\.cfg\]' "${CONFIG_DIR}/printer.cfg" 2>/dev/null; then
+            sed -i 's|\[include \./KAMP/KAMP_Settings\.cfg\]|[include KAMP_Settings.cfg]|' \
+                "${CONFIG_DIR}/printer.cfg"
+            ok "Fixed KAMP include path"
+        fi
+
         # Restore box.cfg on disk (in case BunnyBox's installer removed it)
         # so Revert to Backup can recover from BACKUP_DIR if _FIRST_STOCK is
         # missing. Leave [include box.cfg] in printer.cfg commented out: the
@@ -2677,11 +2692,14 @@ _install_bunnybox() {
         fi
 
         banner "Applying KAMP settings"
-        mkdir -p "${CONFIG_DIR}/KAMP"
-        fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || return 1
-        fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || return 1
-        fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || return 1
-        fetch "${KAMP_BASE}/Smart_Park.cfg"            "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || return 1
+        fetch "${REPO_BASE}/KAMP_settings.cfg" "${CONFIG_DIR}/KAMP_Settings.cfg" || return 1
+        # KAMP_Settings.cfg includes ./Adaptive_Meshing.cfg, ./Line_Purge.cfg,
+        # and ./Smart_Park.cfg relative to the config root. Fetch them now so
+        # Klipper can find them. Voron_Purge.cfg is commented out in our
+        # KAMP_settings.cfg (unused on the Q2) and is intentionally not fetched.
+        fetch "${KAMP_BASE}/Adaptive_Meshing.cfg" "${CONFIG_DIR}/Adaptive_Meshing.cfg" || return 1
+        fetch "${KAMP_BASE}/Line_Purge.cfg"        "${CONFIG_DIR}/Line_Purge.cfg"       || return 1
+        fetch "${KAMP_BASE}/Smart_Park.cfg"        "${CONFIG_DIR}/Smart_Park.cfg"       || return 1
         ok "KAMP settings and sub-files applied"
 
         banner "Applying HelixScreen settings"
@@ -2872,9 +2890,8 @@ install_just_faster() {
 
     info "Applying KAMP settings (KAMP subdir layout)..."
     mkdir -p "${CONFIG_DIR}/KAMP"
-    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP_settings.cfg" \
+          "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg" || { press_enter; return 1; }
     ok "KAMP settings applied"
 
     verify_jfp_install
@@ -2966,7 +2983,7 @@ ${C_BOLD}Known limitations:${C_RESET}
   - BunnyBox currently requires HelixScreen for MMU workflows; the
     stock Qidi screen does not yet expose the MMU UI.
 
-${C_BOLD}Repo:${C_RESET}     Camden-Winder/Qidi-Q2-superuser
+${C_BOLD}Repo:${C_RESET}     ChanceVegas/Qidi-Q2-superuser_helpinghands
 ${C_BOLD}Upstream:${C_RESET} Camden-Winder/Qidi-Q2-superuser (uninstall lineage)
 EOF
     press_enter
