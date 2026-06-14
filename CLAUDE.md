@@ -24,10 +24,11 @@ Q2/
   printer-BunnyBox.cfg     ← BunnyBox printer.cfg template
   JustFasterPrinter.cfg    ← JFP printer.cfg template
   helixscreen_settings.json← Shipped to /home/mks/.config/helixscreen/settings.json
-  KAMP_settings.cfg        ← KAMP settings (flat — installed to CONFIG_DIR/KAMP/)
-  Adaptive_Meshing.cfg     ← Vendored upstream KAMP file
-  Line_Purge.cfg           ← Vendored upstream KAMP file
-  Smart_Park.cfg           ← Vendored upstream KAMP file
+  KAMP/
+    KAMP_settings.cfg      ← KAMP settings (installed to CONFIG_DIR/KAMP/)
+    Adaptive_Meshing.cfg   ← Vendored upstream KAMP file
+    Line_Purge.cfg         ← Vendored upstream KAMP file
+    Smart_Park.cfg         ← Vendored upstream KAMP file
   idle_fan_shutdown.cfg
   box_drying.cfg
   mmu/                     ← Happy Hare / BunnyBox Klipper config files

@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.33'
+AIO_VERSION='RC2.34'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -5324,7 +5324,7 @@ fix_known_klipper_conflicts() {
     fi
     # Legacy: re-fetch KAMP_Settings.cfg if it still carries an inline definition.
     if grep -q '^\[gcode_macro BED_MESH_CALIBRATE\]' "${CONFIG_DIR}/KAMP_Settings.cfg" 2>/dev/null; then
-        fetch "${REPO_BASE}/KAMP_settings.cfg" "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg" \
+        fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg" "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg" \
             && ok "Re-fetched KAMP_Settings.cfg (removed stale inline BED_MESH_CALIBRATE)" \
             || warn "Could not re-fetch KAMP_Settings.cfg — comment out [gcode_macro BED_MESH_CALIBRATE] in it manually"
     fi
@@ -5506,10 +5506,10 @@ _install_bunnybox() {
 
         banner "Applying KAMP settings"
         mkdir -p "${CONFIG_DIR}/KAMP"
-        fetch "${REPO_BASE}/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || return 1
-        fetch "${REPO_BASE}/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || return 1
-        fetch "${REPO_BASE}/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || return 1
-        fetch "${REPO_BASE}/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || return 1
+        fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || return 1
+        fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || return 1
+        fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || return 1
+        fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || return 1
         ok "KAMP settings and sub-files applied to ${CONFIG_DIR}/KAMP/"
 
         banner "Applying HelixScreen settings"
@@ -5700,10 +5700,10 @@ install_just_faster() {
 
     info "Applying KAMP settings..."
     mkdir -p "${CONFIG_DIR}/KAMP"
-    fetch "${REPO_BASE}/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || { press_enter; return 1; }
-    fetch "${REPO_BASE}/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
-    fetch "${REPO_BASE}/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
-    fetch "${REPO_BASE}/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
     ok "KAMP settings and sub-files applied to ${CONFIG_DIR}/KAMP/"
 
     verify_jfp_install
