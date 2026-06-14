@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.32'
+AIO_VERSION='RC2.34'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -83,7 +83,7 @@ esac
 
 # ---------- repo / installer URLs ------------------------------------
 REPO_REF="${AIO_REPO_REF:-main}"
-REPO_BASE="https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/${REPO_REF}/Install-Script"
+REPO_BASE="https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/${REPO_REF}/Q2"
 BUNNYBOX_INSTALLER='https://raw.githubusercontent.com/Camden-Winder/Bunny-Box/refs/heads/main/Q2/install-bb-q2.sh'
 HELIXSCREEN_INSTALLER="https://raw.githubusercontent.com/prestonbrown/helixscreen/main/scripts/install.sh"
 HAPPIER_HARE_INSTALLER="https://raw.githubusercontent.com/ChanceVegas/Qidi-Q2-superuser_helpinghands/refs/heads/${REPO_REF}/Happier_Hare/install_happier_hare.sh"
@@ -92,13 +92,11 @@ HAPPIER_HARE_RELEASE_ZIP="https://github.com/ChanceVegas/Qidi-Q2-superuser_helpi
 HAPPIER_HARE_ZIP_URL="${HAPPIER_HARE_ZIP_URL:-}"
 HAPPIER_HARE_LOCAL_ZIP="${HAPPIER_HARE_LOCAL_ZIP:-${AIO_HOME}/helixscreen-pi-happier-hare.zip}"
 HELIX_UNINSTALLER='https://releases.helixscreen.org/install.sh'
-# KAMP sub-files. KAMP_Settings.cfg is fetched from REPO_BASE (our custom settings);
-# the actual macro files come from upstream KAMP and are installed alongside it.
-KAMP_BASE='https://raw.githubusercontent.com/kyleisah/Klipper-Adaptive-Meshing-Purging/refs/heads/main/Configuration'
+# KAMP_BASE no longer used — Adaptive_Meshing.cfg, Line_Purge.cfg, Smart_Park.cfg now served from REPO_BASE
 # Mainsail is delegated to Camden-Winder's standalone installer, which
 # installs to ${AIO_HOME}/mainsail on port 100 (Qidi's stock lighttpd owns
 # port 80) and patches moonraker.conf for CORS.
-MAINSAIL_INSTALLER='https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/install-mainsail.sh'
+MAINSAIL_INSTALLER='https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Q2/install-mainsail.sh'
 
 # ---------- paths ----------------------------------------------------
 CONFIG_DIR="${AIO_HOME}/printer_data/config"
@@ -5326,7 +5324,7 @@ fix_known_klipper_conflicts() {
     fi
     # Legacy: re-fetch KAMP_Settings.cfg if it still carries an inline definition.
     if grep -q '^\[gcode_macro BED_MESH_CALIBRATE\]' "${CONFIG_DIR}/KAMP_Settings.cfg" 2>/dev/null; then
-        fetch "${REPO_BASE}/KAMP_settings.cfg" "${CONFIG_DIR}/KAMP_Settings.cfg" \
+        fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg" "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg" \
             && ok "Re-fetched KAMP_Settings.cfg (removed stale inline BED_MESH_CALIBRATE)" \
             || warn "Could not re-fetch KAMP_Settings.cfg — comment out [gcode_macro BED_MESH_CALIBRATE] in it manually"
     fi
@@ -5448,9 +5446,9 @@ _install_bunnybox() {
         fi
 
         banner "Installing unified gcode_macro.cfg & printer.cfg"
-        fetch "${REPO_BASE}/gcode_macro-BunnyBox%26HelixScreen.cfg" \
+        fetch "${REPO_BASE}/macros/gcode_macro-BunnyBox.cfg" \
               "${CONFIG_DIR}/gcode_macro.cfg" || return 1
-        fetch "${REPO_BASE}/printer(BunnyBox%26HelixScreen).cfg" \
+        fetch "${REPO_BASE}/printer-BunnyBox.cfg" \
               "${CONFIG_DIR}/printer.cfg" || return 1
 
         # Safety net: fix the KAMP double-nesting bug if it lands.
@@ -5507,15 +5505,12 @@ _install_bunnybox() {
         fi
 
         banner "Applying KAMP settings"
-        fetch "${REPO_BASE}/KAMP_settings.cfg" "${CONFIG_DIR}/KAMP_Settings.cfg" || return 1
-        # KAMP_Settings.cfg includes ./Adaptive_Meshing.cfg, ./Line_Purge.cfg,
-        # and ./Smart_Park.cfg relative to the config root. Fetch them now so
-        # Klipper can find them. Voron_Purge.cfg is commented out in our
-        # KAMP_settings.cfg (unused on the Q2) and is intentionally not fetched.
-        fetch "${KAMP_BASE}/Adaptive_Meshing.cfg" "${CONFIG_DIR}/Adaptive_Meshing.cfg" || return 1
-        fetch "${KAMP_BASE}/Line_Purge.cfg"        "${CONFIG_DIR}/Line_Purge.cfg"       || return 1
-        fetch "${KAMP_BASE}/Smart_Park.cfg"        "${CONFIG_DIR}/Smart_Park.cfg"       || return 1
-        ok "KAMP settings and sub-files applied"
+        mkdir -p "${CONFIG_DIR}/KAMP"
+        fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || return 1
+        fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || return 1
+        fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || return 1
+        fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || return 1
+        ok "KAMP settings and sub-files applied to ${CONFIG_DIR}/KAMP/"
 
         banner "Applying HelixScreen settings"
         mkdir -p "$HELIX_CONFIG_DIR"
@@ -5694,7 +5689,7 @@ install_just_faster() {
     cleanup_aio_install_artifacts
 
     info "Updating gcode_macro.cfg..."
-    fetch "${REPO_BASE}/gcode_macro(JustFasterPrinter).cfg" \
+    fetch "${REPO_BASE}/macros/gcode_macro-JustFasterPrinter.cfg" \
           "${CONFIG_DIR}/gcode_macro.cfg" || { press_enter; return 1; }
     ok "gcode_macro.cfg installed"
 
@@ -5703,11 +5698,13 @@ install_just_faster() {
           "${CONFIG_DIR}/printer.cfg" || { press_enter; return 1; }
     ok "printer.cfg installed"
 
-    info "Applying KAMP settings (KAMP subdir layout)..."
+    info "Applying KAMP settings..."
     mkdir -p "${CONFIG_DIR}/KAMP"
-    fetch "${REPO_BASE}/KAMP_settings.cfg" \
-          "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg" || { press_enter; return 1; }
-    ok "KAMP settings applied"
+    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
+    ok "KAMP settings and sub-files applied to ${CONFIG_DIR}/KAMP/"
 
     verify_jfp_install
 

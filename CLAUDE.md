@@ -8,7 +8,7 @@ Always run these before committing:
 
 ```bash
 bash -n All_in_One_Installer/aio_menu.sh          # shell syntax check
-python3 -m json.tool Install-Script/helixscreen_settings.json  # JSON lint
+python3 -m json.tool Q2/helixscreen_settings.json  # JSON lint
 shellcheck -S warning All_in_One_Installer/aio_menu.sh         # style (advisory)
 ```
 
@@ -20,13 +20,20 @@ All_in_One_Installer/
   README.md
   WHAT_WAS_DONE.md
 
-Install-Script/
-  BunnyBox&HelixScreen.sh  ← Legacy single-shot installer (superseded by AIO)
+Q2/
+  printer-BunnyBox.cfg     ← BunnyBox printer.cfg template
+  JustFasterPrinter.cfg    ← JFP printer.cfg template
   helixscreen_settings.json← Shipped to /home/mks/.config/helixscreen/settings.json
+  KAMP/
+    KAMP_settings.cfg      ← KAMP settings (installed to CONFIG_DIR/KAMP/)
+    Adaptive_Meshing.cfg   ← Vendored upstream KAMP file
+    Line_Purge.cfg         ← Vendored upstream KAMP file
+    Smart_Park.cfg         ← Vendored upstream KAMP file
   idle_fan_shutdown.cfg
   box_drying.cfg
   mmu/                     ← Happy Hare / BunnyBox Klipper config files
-  printer(BunnyBox&HelixScreen).cfg
+  macros/                  ← gcode_macro cfg templates
+  Printer Presets/         ← OrcaSlicer printer profiles
 
 Happier_Hare/
   install_happier_hare.sh  ← Installer for patched HelixScreen (Happier Hare MMU_HEATER protocol)
@@ -130,7 +137,7 @@ Merged via PR #13 (2026-05-28):
 - **Patched HelixScreen build pipeline** (`Happier_Hare/build_patched_helixscreen_zip_docker.sh`, `Happier_Hare/patches/`) — Docker-based ARM cross-compile that applies the Happier Hare patch to a tagged HelixScreen release and produces `helixscreen-pi.zip`.
 - **GitHub Actions workflow** (`.github/workflows/build-happier-hare.yml`) — `workflow_dispatch` job that runs the build pipeline and publishes the zip as a GitHub release. Must be triggered manually before the Happier Hare install path is functional end-to-end (~45–75 min first run, ~15–30 min with ccache).
 - **KlipperScreen install disabled** — Option 2 now shows a warning that KlipperScreen install is unavailable in this version. Removed due to reliability issues.
-- **Full MMU config suite** (`Install-Script/mmu/`) — complete Happy Hare config file set shipped with the installer.
+- **Full MMU config suite** (`Q2/mmu/`) — complete Happy Hare config file set shipped with the installer.
 - **`helixscreen_settings.json` updated** — AMS/display settings updated for Qidi Box.
 
 ## RC1.26 — What's In It
