@@ -34,7 +34,7 @@ Features:
 - Per-action `[OK] / [INFO] / [WARN] / [ERR]` status lines (green / cyan / yellow / red)
 - Live status header showing BunnyBox / HelixScreen installed-state
 - Y/N confirmation on every uninstall action
-- Post-install verification: confirms all key files landed and `mmu_parameters.cfg` was patched correctly
+- Post-install verification: confirms all key files landed and `mmu_parameters.cfg` was configured correctly
 - "Revert to Backup" mirrors the upstream Camden-Winder `uninstall.sh`: removes HelixScreen via its official releases-server uninstaller, re-enables `lightdm` + `makerbase-client`, calls BunnyBox `--revert`, then rsyncs the newest timestamped stock backup back over `${CONFIG_DIR}`.
 
 ### `Install-Script/BunnyBox&HelixScreen.sh` (hardened)
@@ -118,7 +118,7 @@ Original Camden-Winder revert script. Reverts BunnyBox, removes HelixScreen, re-
 
 ## Known Limitations
 
-- **HelixScreen has no native UI panel for Happy Hare's dryer yet.** Use the `BOX_DRY` macro or the Klipper console as a workaround.
+- Use the `BOX_DRY` macro or the Klipper console to start drying.
 - **`MMU_CALIBRATE_GEAR` is required after clean installs.** Mark filament, run `MMU_CALIBRATE_GEAR GATE=0 LENGTH=100`, measure travel, re-run with `MEASURED=<mm>`.
 - **BunnyBox currently requires HelixScreen for MMU workflows** - the stock Qidi screen does not yet expose the MMU UI.
 

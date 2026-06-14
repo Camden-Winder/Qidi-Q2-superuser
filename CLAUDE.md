@@ -35,11 +35,6 @@ Q2/
   macros/                  ← gcode_macro cfg templates
   Printer Presets/         ← OrcaSlicer printer profiles
 
-Happier_Hare/
-  install_happier_hare.sh  ← Installer for patched HelixScreen (Happier Hare MMU_HEATER protocol)
-  build_patched_helixscreen_zip_docker.sh ← Docker ARM cross-compile script
-  patches/                 ← Patch files applied to HelixScreen source
-
 Configurations/            ← Stock Qidi reference files. DO NOT MODIFY.
 Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
 
@@ -133,9 +128,6 @@ Claude **must ask first** before:
 Merged via PR #13 (2026-05-28):
 
 - `AIO_VERSION='RC2.13'`
-- **Happier Hare installer** (`Happier_Hare/install_happier_hare.sh`) — full installer for a patched HelixScreen binary that speaks Happy Hare's `MMU_HEATER` gcode protocol instead of the native Qidi box commands. Surfaced via Option 1 when a hosted Happier Hare zip is available.
-- **Patched HelixScreen build pipeline** (`Happier_Hare/build_patched_helixscreen_zip_docker.sh`, `Happier_Hare/patches/`) — Docker-based ARM cross-compile that applies the Happier Hare patch to a tagged HelixScreen release and produces `helixscreen-pi.zip`.
-- **GitHub Actions workflow** (`.github/workflows/build-happier-hare.yml`) — `workflow_dispatch` job that runs the build pipeline and publishes the zip as a GitHub release. Must be triggered manually before the Happier Hare install path is functional end-to-end (~45–75 min first run, ~15–30 min with ccache).
 - **KlipperScreen install disabled** — Option 2 now shows a warning that KlipperScreen install is unavailable in this version. Removed due to reliability issues.
 - **Full MMU config suite** (`Q2/mmu/`) — complete Happy Hare config file set shipped with the installer.
 - **`helixscreen_settings.json` updated** — AMS/display settings updated for Qidi Box.
@@ -161,7 +153,6 @@ Merged to `main` via PR #1 (2026-05-20):
 
 ## RC2 — Candidate Features (not yet implemented)
 
-- HelixScreen version pinning to a tagged release instead of `main`
 - `update_qidi_box_dropin` migration helper
 - `/release` slash command for version bump + changelog + tag + push
 
@@ -176,7 +167,6 @@ Merged to `main` via PR #1 (2026-05-20):
 
 - `AIO_VERSION='RC10'`
 - **Fresh-install black screen fixed**: HelixScreen now activates correctly after option 1. Added `switch_display_to_helixscreen()` which stops/disables/masks `lightdm` and `makerbase-client`, then enables/starts `helixscreen.service`. Called automatically at the end of `install_bunnybox_helixscreen()`.
-- **HelixScreen installer URL pinned to tag**: was fetching from `main/scripts/install.sh` (always latest). Now pins to `HELIXSCREEN_PIN='v0.99.66'` (constant near top of script). Prevents silent upstream regressions.
 
 ## RC8 — Candidate Features (not yet implemented)
 
