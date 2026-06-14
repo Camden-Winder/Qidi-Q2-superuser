@@ -68,13 +68,13 @@ No changes to `aio_menu.sh` are needed — the URL already points to the right p
 | Path | Purpose |
 |------|---------|
 | `All_in_One_Installer/aio_menu.sh` | Main installer script — current version RC2.14 |
-| `Install-Script/KAMP/KAMP_settings.cfg` | Our KAMP settings (includes now use `KAMP/` prefix) |
-| `Install-Script/KAMP/Adaptive_Meshing.cfg` | Fetched by both BunnyBox and JFP installs from REPO_BASE |
-| `Install-Script/KAMP/Line_Purge.cfg` | Fetched by both BunnyBox and JFP installs from REPO_BASE |
-| `Install-Script/helixscreen_settings.json` | Shipped to `/home/mks/.config/helixscreen/settings.json` |
-| `Install-Script/printer(BunnyBox&HelixScreen).cfg` | BunnyBox printer.cfg template |
-| `Install-Script/printer-BunnyBox&HelixScreen.cfg` | Second BunnyBox printer.cfg template |
-| `Install-Script/JustFasterPrinter.cfg` | JFP printer.cfg template |
+| `Q2/KAMP_settings.cfg` | Our KAMP settings — flat in Q2/ |
+| `Q2/Adaptive_Meshing.cfg` | Vendored from upstream KAMP — flat in Q2/ |
+| `Q2/Line_Purge.cfg` | Vendored from upstream KAMP — flat in Q2/ |
+| `Q2/Smart_Park.cfg` | Vendored from upstream KAMP — flat in Q2/ |
+| `Q2/helixscreen_settings.json` | Shipped to `/home/mks/.config/helixscreen/settings.json` |
+| `Q2/printer-BunnyBox.cfg` | BunnyBox printer.cfg template |
+| `Q2/JustFasterPrinter.cfg` | JFP printer.cfg template |
 | `Configurations/` | Stock Klipper cfg reference — do not modify |
 | `Plugins/` | Stock plugin reference — do not modify |
 
