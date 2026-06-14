@@ -11,53 +11,109 @@
 #   * Revert to Backup                 (uninstall both + restore stock)
 #   * About
 #
-# Target: Qidi Q2, ARM Linux, user 'mks', running Klipper. Do NOT run
-# as root - this script will refuse to.
+# Target: Qidi Q2, ARM Linux, running Klipper. Legacy mks firmware is
+# supported for mutating actions; 1.1.2/qidi firmware is detected and
+# blocked until the compatibility lane is complete. Do NOT run as root.
 # =====================================================================
 
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.14'
+AIO_VERSION='RC2.32'
+
+# ---------- firmware layout ------------------------------------------
+detect_q2_firmware_layout() {
+    local mks_target
+    mks_target=$(readlink -f /home/mks 2>/dev/null || true)
+
+    if [ "$mks_target" = "/home/qidi" ] || \
+       [ -d /home/qidi/QIDI_Client ] || \
+       systemctl cat qidi-client.service >/dev/null 2>&1; then
+        printf '%s\n' "q2_112"
+        return 0
+    fi
+
+    if [ -d /home/mks/printer_data/config ]; then
+        printf '%s\n' "legacy_mks"
+        return 0
+    fi
+
+    printf '%s\n' "unknown"
+}
+
+AIO_LAYOUT="${AIO_LAYOUT_OVERRIDE:-$(detect_q2_firmware_layout)}"
+case "$AIO_LAYOUT" in
+    q2_112)
+        AIO_USER='qidi'
+        AIO_HOME='/home/qidi'
+        AIO_LAYOUT_NAME='Q2 firmware 1.1.2 / qidi layout'
+        AIO_LAYOUT_SUPPORTS_MUTATION=false
+        STOCK_UI_SERVICE='qidi-client'
+        STOCK_UI_LABEL='QIDIClient stock UI'
+        STOCK_DISPLAY_SERVICE=''
+        STOCK_DISPLAY_LABEL='none'
+        MACRO_LAYOUT='klipper-macros-qd'
+        CAMERA_STACK='crowsnest'
+        ;;
+    legacy_mks)
+        AIO_USER='mks'
+        AIO_HOME='/home/mks'
+        AIO_LAYOUT_NAME='legacy mks layout'
+        AIO_LAYOUT_SUPPORTS_MUTATION=true
+        STOCK_UI_SERVICE='makerbase-client'
+        STOCK_UI_LABEL='Makerbase stock UI'
+        STOCK_DISPLAY_SERVICE='lightdm'
+        STOCK_DISPLAY_LABEL='LightDM'
+        MACRO_LAYOUT='root'
+        CAMERA_STACK='ustreamer'
+        ;;
+    *)
+        AIO_USER="${USER:-mks}"
+        AIO_HOME="${HOME:-/home/mks}"
+        AIO_LAYOUT_NAME='unknown layout'
+        AIO_LAYOUT_SUPPORTS_MUTATION=false
+        STOCK_UI_SERVICE='makerbase-client'
+        STOCK_UI_LABEL='Makerbase stock UI'
+        STOCK_DISPLAY_SERVICE='lightdm'
+        STOCK_DISPLAY_LABEL='LightDM'
+        MACRO_LAYOUT='unknown'
+        CAMERA_STACK='unknown'
+        ;;
+esac
 
 # ---------- repo / installer URLs ------------------------------------
 REPO_REF="${AIO_REPO_REF:-main}"
 REPO_BASE="https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/${REPO_REF}/Install-Script"
 BUNNYBOX_INSTALLER='https://raw.githubusercontent.com/Camden-Winder/Bunny-Box/refs/heads/main/Q2/install-bb-q2.sh'
-# Pinned to the minimum required release (>= v0.99.66 for Qidi Box support).
-# Update HELIXSCREEN_PIN when a newer stable release ships.
-# Both the installer script AND the binary are pinned to the same tag so
-# upstream installer changes (e.g. generalization for other printers) don't
-# silently regress Q2 behavior.
-HELIXSCREEN_PIN='v0.99.70'
-HELIXSCREEN_INSTALLER="https://raw.githubusercontent.com/prestonbrown/helixscreen/${HELIXSCREEN_PIN}/scripts/install.sh"
-HELIXSCREEN_RELEASE_ZIP="https://github.com/prestonbrown/helixscreen/releases/download/${HELIXSCREEN_PIN}/helixscreen-pi.zip"
+HELIXSCREEN_INSTALLER="https://raw.githubusercontent.com/prestonbrown/helixscreen/main/scripts/install.sh"
 HAPPIER_HARE_INSTALLER="https://raw.githubusercontent.com/ChanceVegas/Qidi-Q2-superuser_helpinghands/refs/heads/${REPO_REF}/Happier_Hare/install_happier_hare.sh"
-HAPPIER_HARE_RELEASE_TAG="${HAPPIER_HARE_RELEASE_TAG:-happier-hare-rc2.12}"
+HAPPIER_HARE_RELEASE_TAG="${HAPPIER_HARE_RELEASE_TAG:-happier-hare-rc2.17}"
 HAPPIER_HARE_RELEASE_ZIP="https://github.com/ChanceVegas/Qidi-Q2-superuser_helpinghands/releases/download/${HAPPIER_HARE_RELEASE_TAG}/helixscreen-pi.zip"
 HAPPIER_HARE_ZIP_URL="${HAPPIER_HARE_ZIP_URL:-}"
-HAPPIER_HARE_LOCAL_ZIP="${HAPPIER_HARE_LOCAL_ZIP:-/home/mks/helixscreen-pi-happier-hare.zip}"
+HAPPIER_HARE_LOCAL_ZIP="${HAPPIER_HARE_LOCAL_ZIP:-${AIO_HOME}/helixscreen-pi-happier-hare.zip}"
 HELIX_UNINSTALLER='https://releases.helixscreen.org/install.sh'
 # KAMP sub-files. KAMP_Settings.cfg is fetched from REPO_BASE (our custom settings);
 # the actual macro files come from upstream KAMP and are installed alongside it.
 KAMP_BASE='https://raw.githubusercontent.com/kyleisah/Klipper-Adaptive-Meshing-Purging/refs/heads/main/Configuration'
 # Mainsail is delegated to Camden-Winder's standalone installer, which
-# installs to /home/mks/mainsail on port 100 (Qidi's stock lighttpd owns
+# installs to ${AIO_HOME}/mainsail on port 100 (Qidi's stock lighttpd owns
 # port 80) and patches moonraker.conf for CORS.
 MAINSAIL_INSTALLER='https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/install-mainsail.sh'
 
 # ---------- paths ----------------------------------------------------
-CONFIG_DIR='/home/mks/printer_data/config'
-BACKUP_ROOT='/home/mks/mudstockbackups'
-HELIX_DIR='/home/mks/helixscreen'
-HELIX_PRINT_DIR='/home/mks/helix_print'
+CONFIG_DIR="${AIO_HOME}/printer_data/config"
+BACKUP_ROOT="${AIO_HOME}/mudstockbackups"
+HELIX_DIR="${AIO_HOME}/helixscreen"
+HELIX_PRINT_DIR="${AIO_HOME}/helix_print"
 HELIX_CONFIG_DIR="${HELIX_DIR}/config"
-HAPPY_HARE_DIR='/home/mks/Happy-Hare'
-KIAUH_DIR='/home/mks/kiauh'
-KIAUH_BACKUPS_DIR='/home/mks/kiauh-backups'
-KIAUH_UPPER_DIR='/home/mks/KIAUH'
-KIAUH_UPPER_BACKUPS_DIR='/home/mks/KIAUH-backups'
-MAINSAIL_DIR='/home/mks/mainsail'
+HAPPY_HARE_DIR="${AIO_HOME}/Happy-Hare"
+KIAUH_DIR="${AIO_HOME}/kiauh"
+KIAUH_BACKUPS_DIR="${AIO_HOME}/kiauh-backups"
+KIAUH_UPPER_DIR="${AIO_HOME}/KIAUH"
+KIAUH_UPPER_BACKUPS_DIR="${AIO_HOME}/KIAUH-backups"
+MAINSAIL_DIR="${AIO_HOME}/mainsail"
+KLIPPER_DIR="${AIO_HOME}/klipper"
+MOONRAKER_DIR="${AIO_HOME}/moonraker"
 MAINSAIL_NGINX_SITE_AVAIL='/etc/nginx/sites-available/mainsail'
 MAINSAIL_NGINX_SITE_ENABLED='/etc/nginx/sites-enabled/mainsail'
 MAINSAIL_PORT=100
@@ -72,9 +128,33 @@ CAMERA_MARKER="${BACKUP_ROOT}/.aio_camera_installed"
 USTREAMER_PACKAGE_MARKER="${BACKUP_ROOT}/.aio_ustreamer_installed"
 MOONRAKER_PORT=7125
 KLIPPERSCREEN_REPO_URL='https://github.com/moggieuk/KlipperScreen-Happy-Hare-Edition.git'
-KLIPPERSCREEN_DIR='/home/mks/KlipperScreen'
-KLIPPERSCREEN_VENV='/home/mks/.KlipperScreen-env'
+KLIPPERSCREEN_DIR="${AIO_HOME}/KlipperScreen"
+KLIPPERSCREEN_VENV="${AIO_HOME}/.KlipperScreen-env"
 KLIPPERSCREEN_SERVICE='KlipperScreen'
+Q2_112_PROBE_STATE_DIR="${BACKUP_ROOT}/_Q2_112_PROBE_STATE"
+Q2_112_PROBE_ORIGINAL="${Q2_112_PROBE_STATE_DIR}/printer.cfg.original"
+Q2_112_PROBE_MODIFIED="${Q2_112_PROBE_STATE_DIR}/printer.cfg.probe"
+Q2_112_PROBE_MANIFEST="${Q2_112_PROBE_STATE_DIR}/manifest"
+Q2_112_PROBE_CFG="${CONFIG_DIR}/aio_q2_112_compat_probe.cfg"
+Q2_112_PROBE_INCLUDE='[include aio_q2_112_compat_probe.cfg]'
+Q2_112_CONTRACT_DIR="${BACKUP_ROOT}/_Q2_112_RESTORE_CONTRACT"
+Q2_112_CONTRACT_PATH_STATES="${Q2_112_CONTRACT_DIR}/path_states"
+Q2_112_CONTRACT_SERVICES="${Q2_112_CONTRACT_DIR}/services"
+Q2_112_REHEARSAL_DIR="${BACKUP_ROOT}/_Q2_112_RESTORE_REHEARSAL"
+Q2_112_LIVE_PROOF_DIR="${BACKUP_ROOT}/_Q2_112_LIVE_RESTORE_PROOF"
+Q2_112_LIVE_PROOF_CFG="${CONFIG_DIR}/aio_q2_112_live_restore_proof.cfg"
+Q2_112_LIVE_PROOF_EXTERNAL_DIR="${HELIX_PRINT_DIR}"
+Q2_112_LIVE_PROOF_EXTERNAL_MARKER="${Q2_112_LIVE_PROOF_EXTERNAL_DIR}/.aio_q2_112_live_restore_proof"
+Q2_112_PRESENT_PROOF_DIR="${BACKUP_ROOT}/_Q2_112_PRESENT_PATH_RESTORE_PROOF"
+Q2_112_PRESENT_PROOF_TARGET="/etc/systemd/system/${STOCK_UI_SERVICE}.service.d"
+Q2_112_PRESENT_PROOF_SOURCE="${Q2_112_CONTRACT_DIR}/external${Q2_112_PRESENT_PROOF_TARGET}"
+Q2_112_PRESENT_PROOF_MARKER="${Q2_112_PRESENT_PROOF_TARGET}/aio-q2-112-restore-proof.marker"
+Q2_112_KLIPPER_EXTRAS_PROOF_DIR="${BACKUP_ROOT}/_Q2_112_KLIPPER_EXTRAS_RESTORE_PROOF"
+Q2_112_KLIPPER_EXTRAS_PROOF_TARGET="${KLIPPER_DIR}/klippy/extras"
+Q2_112_KLIPPER_EXTRAS_PROOF_MARKER="${Q2_112_KLIPPER_EXTRAS_PROOF_TARGET}/.aio-q2-112-restore-proof.marker"
+Q2_112_MOONRAKER_COMPONENTS_PROOF_DIR="${BACKUP_ROOT}/_Q2_112_MOONRAKER_COMPONENTS_RESTORE_PROOF"
+Q2_112_MOONRAKER_COMPONENTS_PROOF_TARGET="${MOONRAKER_DIR}/moonraker/components"
+Q2_112_MOONRAKER_COMPONENTS_PROOF_MARKER="${Q2_112_MOONRAKER_COMPONENTS_PROOF_TARGET}/.aio-q2-112-restore-proof.marker"
 
 # Returns the installed HelixScreen version string (e.g. "0.99.66") or
 # empty if it can't be determined. Tries the binary, then a VERSION file.
@@ -91,9 +171,6 @@ helixscreen_version() {
     if [ -z "$v" ] && [ -f "${HELIX_DIR}/VERSION" ]; then
         v=$(head -n 1 "${HELIX_DIR}/VERSION" 2>/dev/null | \
             grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
-    fi
-    if [ -z "$v" ] && [ -x "${HELIX_DIR}/bin/helix-screen" ]; then
-        v="${HELIXSCREEN_PIN#v}"
     fi
     echo "$v"
 }
@@ -117,6 +194,79 @@ moonraker_get() {
     local path="$1"
     curl --fail --silent --show-error --max-time 3 \
         "http://127.0.0.1:${MOONRAKER_PORT}${path}" 2>/dev/null
+}
+
+q2_firmware_layout() {
+    printf '%s\n' "$AIO_LAYOUT"
+}
+
+q2_firmware_layout_label() {
+    case "$AIO_LAYOUT" in
+        q2_112) printf '%s\n' "${AIO_LAYOUT_NAME} (unsupported)" ;;
+        legacy_mks) printf '%s\n' "$AIO_LAYOUT_NAME" ;;
+        *) printf '%s\n' "${AIO_LAYOUT_NAME} (unsupported)" ;;
+    esac
+}
+
+layout_supports_mutation() {
+    [ "$AIO_LAYOUT_SUPPORTS_MUTATION" = true ]
+}
+
+unsupported_mutation_layout() {
+    ! layout_supports_mutation
+}
+
+stock_display_stack_label() {
+    if [ -n "$STOCK_DISPLAY_SERVICE" ] && [ -n "$STOCK_UI_SERVICE" ]; then
+        printf '%s + %s\n' "$STOCK_DISPLAY_LABEL" "$STOCK_UI_LABEL"
+    elif [ -n "$STOCK_UI_SERVICE" ]; then
+        printf '%s\n' "$STOCK_UI_LABEL"
+    elif [ -n "$STOCK_DISPLAY_SERVICE" ]; then
+        printf '%s\n' "$STOCK_DISPLAY_LABEL"
+    else
+        printf '%s\n' "no separate stock display service"
+    fi
+}
+
+require_supported_firmware_layout() {
+    local action="${1:-this action}"
+
+    if unsupported_mutation_layout; then
+        banner "Unsupported Qidi Q2 firmware layout"
+        err "AIO ${AIO_VERSION} is paused for the detected firmware layout."
+        warn "Blocked action: ${action}"
+        warn "Detected layout: ${AIO_LAYOUT_NAME}"
+        if [ "$AIO_LAYOUT" = "q2_112" ]; then
+            warn "Detected /home/mks -> /home/qidi, qidi-client.service, or /home/qidi/QIDI_Client."
+        fi
+        warn "AIO paths are now layout-aware, but install/revert/addon mutations"
+        warn "still need a dedicated compatibility pass for ${STOCK_UI_SERVICE} and ${MACRO_LAYOUT}."
+        warn "Do not run install, revert, addon, or repair paths until the 1.1.2"
+        warn "compatibility lane is implemented."
+        return 1
+    fi
+
+    return 0
+}
+
+show_layout_report() {
+    local mks_target
+    banner "Detected firmware layout"
+    info "Layout: ${AIO_LAYOUT_NAME} (${AIO_LAYOUT})"
+    info "Mutation support: ${AIO_LAYOUT_SUPPORTS_MUTATION}"
+    info "AIO user/home: ${AIO_USER} / ${AIO_HOME}"
+    info "Config dir: ${CONFIG_DIR}"
+    info "Backup root: ${BACKUP_ROOT}"
+    info "Klipper dir: ${KLIPPER_DIR}"
+    info "Moonraker dir: ${MOONRAKER_DIR}"
+    info "Stock UI service: ${STOCK_UI_SERVICE:-none}"
+    info "Stock display service: ${STOCK_DISPLAY_SERVICE:-none}"
+    info "Macro layout: ${MACRO_LAYOUT}"
+    info "Camera stack: ${CAMERA_STACK}"
+    if [ -L /home/mks ]; then
+        mks_target=$(readlink -f /home/mks 2>/dev/null || printf 'unknown')
+        info "/home/mks target: ${mks_target}"
+    fi
 }
 
 helixscreen_binary_candidates() {
@@ -169,6 +319,35 @@ verify_systemd_service_health() {
     fi
     if [ "$restarts" -gt 0 ]; then
         warn "${label}: systemd restart count=${restarts}"
+    fi
+}
+
+verify_qidi_tuning_service_health() {
+    local active enabled restart_policy restarts
+
+    if ! systemctl cat qidi-tuning >/dev/null 2>&1; then
+        info "Qidi tuning service: systemd unit not installed"
+        return 0
+    fi
+
+    active=$(systemctl is-active qidi-tuning 2>/dev/null || true)
+    enabled=$(systemctl is-enabled qidi-tuning 2>/dev/null || true)
+    restart_policy=$(systemctl show qidi-tuning -p Restart --value 2>/dev/null || true)
+    restarts=$(systemctl show qidi-tuning -p NRestarts --value 2>/dev/null || true)
+
+    case "$active" in
+        active|activating)
+            ok "Qidi tuning service: ${active} (enabled=${enabled:-unknown})"
+            ;;
+        *)
+            warn "Qidi tuning service: ${active:-unknown} (enabled=${enabled:-unknown})"
+            ;;
+    esac
+
+    if [ "$restart_policy" = "always" ]; then
+        info "Qidi tuning service uses Restart=always; restart count=${restarts:-unknown} is expected stock behavior"
+    elif [ -n "$restarts" ] && [ "$restarts" != "0" ]; then
+        warn "Qidi tuning service: systemd restart count=${restarts}"
     fi
 }
 
@@ -247,14 +426,24 @@ verify_helixscreen_runtime_health() {
 verify_stock_display_runtime_health() {
     banner "Qidi stock display runtime health"
 
-    verify_systemd_service_health lightdm "LightDM" true
-    verify_systemd_service_health makerbase-client "Makerbase stock UI" true
-
-    if ! systemctl is-active --quiet lightdm 2>/dev/null; then
-        show_systemd_journal_tail lightdm "LightDM"
+    if [ -n "$STOCK_DISPLAY_SERVICE" ]; then
+        verify_systemd_service_health "$STOCK_DISPLAY_SERVICE" "$STOCK_DISPLAY_LABEL" true
+    else
+        info "Stock display manager: none for ${AIO_LAYOUT_NAME}"
     fi
-    if ! systemctl is-active --quiet makerbase-client 2>/dev/null; then
-        show_systemd_journal_tail makerbase-client "Makerbase stock UI"
+    if [ -n "$STOCK_UI_SERVICE" ]; then
+        verify_systemd_service_health "$STOCK_UI_SERVICE" "$STOCK_UI_LABEL" true
+    else
+        info "Stock UI service: none"
+    fi
+
+    if [ -n "$STOCK_DISPLAY_SERVICE" ] && \
+       ! systemctl is-active --quiet "$STOCK_DISPLAY_SERVICE" 2>/dev/null; then
+        show_systemd_journal_tail "$STOCK_DISPLAY_SERVICE" "$STOCK_DISPLAY_LABEL"
+    fi
+    if [ -n "$STOCK_UI_SERVICE" ] && \
+       ! systemctl is-active --quiet "$STOCK_UI_SERVICE" 2>/dev/null; then
+        show_systemd_journal_tail "$STOCK_UI_SERVICE" "$STOCK_UI_LABEL"
     fi
 }
 
@@ -268,16 +457,16 @@ verify_happy_hare_runtime_health() {
         return 0
     fi
 
-    if [ -d "${HOME}/klipper/klippy/extras/mmu" ]; then
+    if [ -d "${KLIPPER_DIR}/klippy/extras/mmu" ]; then
         ok "Happy Hare Klipper extras package linked"
     else
-        warn "Happy Hare Klipper extras package missing: ${HOME}/klipper/klippy/extras/mmu"
+        warn "Happy Hare Klipper extras package missing: ${KLIPPER_DIR}/klippy/extras/mmu"
     fi
 
-    if [ -f "${HOME}/moonraker/moonraker/components/mmu_server.py" ]; then
+    if [ -f "${MOONRAKER_DIR}/moonraker/components/mmu_server.py" ]; then
         ok "Happy Hare Moonraker component linked"
     else
-        warn "Happy Hare Moonraker component missing: ${HOME}/moonraker/moonraker/components/mmu_server.py"
+        warn "Happy Hare Moonraker component missing: ${MOONRAKER_DIR}/moonraker/components/mmu_server.py"
     fi
 
     if grep -q '^\[mmu_server\]' "${CONFIG_DIR}/moonraker.conf" 2>/dev/null; then
@@ -322,6 +511,75 @@ print(", ".join(parts) if parts else "mmu object reachable")
     else
         warn "Could not query Moonraker mmu object"
     fi
+
+    verify_qidi_box_runtime_sensors
+}
+
+verify_qidi_box_runtime_sensors() {
+    banner "Qidi Box live sensor health"
+
+    local response summary level message
+    if ! response=$(moonraker_get "/printer/objects/query?aht10%20box1_env=temperature,humidity&temperature_sensor%20box1_env=temperature,humidity&heater_generic%20box1_heater=temperature,target,power&aht20_f%20heater_box1=temperature,humidity&heater_generic%20heater_box1=temperature,target,power&temperature_sensor%20heater_temp_a_box1=temperature&temperature_sensor%20heater_temp_b_box1=temperature"); then
+        warn "Could not query Qidi Box sensor objects through Moonraker"
+        return 0
+    fi
+
+    summary=$(printf '%s' "$response" | python3 -c '
+import json
+import sys
+
+status = json.load(sys.stdin).get("result", {}).get("status", {})
+aht = status.get("aht10 box1_env", {})
+env = status.get("temperature_sensor box1_env", {})
+heater = status.get("heater_generic box1_heater", {})
+stock_aht = status.get("aht20_f heater_box1", {})
+stock_heater = status.get("heater_generic heater_box1", {})
+stock_temp_a = status.get("temperature_sensor heater_temp_a_box1", {})
+stock_temp_b = status.get("temperature_sensor heater_temp_b_box1", {})
+
+def emit(level, label, value, suffix=""):
+    if isinstance(value, (int, float)):
+        print(f"{level}|{label}: {value}{suffix}")
+    else:
+        print(f"WARN|{label}: not published")
+
+if isinstance(aht.get("temperature"), (int, float)) or isinstance(aht.get("humidity"), (int, float)):
+    print("INFO|BunnyBox/AIO sensor namespace detected")
+    emit("OK", "Box environment temperature", aht.get("temperature"), " C")
+    emit("OK", "Box environment humidity", aht.get("humidity"), " %")
+    emit("OK", "Box heater temperature", heater.get("temperature"), " C")
+    emit("OK", "Box heater target", heater.get("target"), " C")
+    emit("OK", "Box heater power", heater.get("power"), "")
+
+if isinstance(stock_aht.get("temperature"), (int, float)) or isinstance(stock_aht.get("humidity"), (int, float)):
+    print("INFO|Stock Qidi Box sensor namespace detected")
+    emit("OK", "Stock Box environment temperature", stock_aht.get("temperature"), " C")
+    emit("OK", "Stock Box environment humidity", stock_aht.get("humidity"), " %")
+    emit("OK", "Stock Box heater temperature", stock_heater.get("temperature"), " C")
+    emit("OK", "Stock Box heater target", stock_heater.get("target"), " C")
+    emit("OK", "Stock Box heater power", stock_heater.get("power"), "")
+    emit("OK", "Stock Box heater temp A", stock_temp_a.get("temperature"), " C")
+    emit("OK", "Stock Box heater temp B", stock_temp_b.get("temperature"), " C")
+
+if not any(isinstance(obj.get(key), (int, float)) for obj in (aht, heater, stock_aht, stock_heater) for key in ("temperature", "humidity", "target", "power")):
+    print("WARN|No live Qidi Box temperature/heater values are currently published")
+
+if isinstance(aht.get("temperature"), (int, float)) and not isinstance(env.get("humidity"), (int, float)):
+    print("INFO|temperature_sensor box1_env wrapper does not publish humidity; HelixScreen must read aht10 box1_env")
+' 2>/dev/null || true)
+
+    if [ -z "$summary" ]; then
+        warn "Qidi Box sensor query returned, but status could not be parsed"
+        return 0
+    fi
+
+    while IFS='|' read -r level message; do
+        case "$level" in
+            OK) ok "$message" ;;
+            INFO) info "$message" ;;
+            *) warn "$message" ;;
+        esac
+    done <<< "$summary"
 }
 
 verify_runtime_health() {
@@ -382,7 +640,7 @@ verify_qidi_box_helixscreen() {
         warn "HelixScreen version ${v} is older than v0.99.66 - Qidi Box AMS may not be detected"
     fi
 
-    local timer_patched=0 stop_patched=0 env_sensor_patch=0 seen_binary=0
+    local timer_patched=0 stop_patched=0 env_sensor_patch=0 aht10_sensor_patch=0 seen_binary=0
     local target
     while IFS= read -r target; do
         [ -f "$target" ] || continue
@@ -397,6 +655,9 @@ verify_qidi_box_helixscreen() {
         elif LC_ALL=C grep -aFq 'MMU_HEATER DRY=0' "$target"; then
             warn "$(basename "$target") still uses DRY=0 for Happy Hare dryer stop - native stop may be ignored"
         fi
+        if LC_ALL=C grep -aFq 'aht10 box' "$target"; then
+            aht10_sensor_patch=1
+        fi
         if LC_ALL=C grep -aFq 'temperature_sensor box' "$target" || \
            LC_ALL=C grep -aFq 'aht20_f heater_box' "$target"; then
             env_sensor_patch=1
@@ -410,6 +671,12 @@ verify_qidi_box_helixscreen() {
     fi
     if [ "$stop_patched" -eq 1 ]; then
         ok "HelixScreen Happy Hare dryer stop command uses STOP=1"
+    fi
+    if [ "$aht10_sensor_patch" -eq 1 ]; then
+        ok "HelixScreen binary has BunnyBox AHT10 humidity sensor support"
+    elif bunnybox_installed; then
+        warn "HelixScreen binary does not show BunnyBox AHT10 humidity support"
+        warn "Native Box humidity may stay blank; install the RC2.15+ Happier Hare zip."
     fi
     if [ "$env_sensor_patch" -eq 1 ]; then
         ok "HelixScreen binary has Happier Hare Qidi Box environment sensor support"
@@ -1432,10 +1699,10 @@ detect_bunnybox_artifacts() {
         "${CONFIG_DIR}/mmu"
         "${CONFIG_DIR}/bunnybox_macros.cfg"
         "${CONFIG_DIR}/box_drying.cfg"
-        "${HOME}/klipper/klippy/extras/mmu.py"
-        "${HOME}/klipper/klippy/extras/mmu_machine.py"
-        "${HOME}/klipper/klippy/extras/mmu_leds.py"
-        "${HOME}/moonraker/moonraker/components/mmu_server.py"
+        "${KLIPPER_DIR}/klippy/extras/mmu.py"
+        "${KLIPPER_DIR}/klippy/extras/mmu_machine.py"
+        "${KLIPPER_DIR}/klippy/extras/mmu_leds.py"
+        "${MOONRAKER_DIR}/moonraker/components/mmu_server.py"
     )
     for p in "${paths[@]}"; do
         if [ -e "$p" ]; then
@@ -1458,18 +1725,25 @@ klipperscreen_installed() {
     [ -d /etc/systemd/system/KlipperScreen.service.d ]
 }
 
-# Mask the stock Qidi display services so KlipperScreen can own the screen.
+# Mask the stock Qidi display service so KlipperScreen can own the screen.
 # The upstream KlipperScreen-install.sh handles X server setup (xinit),
 # service creation, and display configuration — we just clear the way.
 prepare_display_for_klipperscreen() {
     banner "Preparing display for KlipperScreen"
-    sudo systemctl stop    makerbase-client       2>/dev/null || true
-    sudo systemctl disable makerbase-client       2>/dev/null || true
-    sudo systemctl mask    makerbase-client       2>/dev/null || true
+    if [ -n "$STOCK_UI_SERVICE" ]; then
+        sudo systemctl stop    "$STOCK_UI_SERVICE" 2>/dev/null || true
+        sudo systemctl disable "$STOCK_UI_SERVICE" 2>/dev/null || true
+        sudo systemctl mask    "$STOCK_UI_SERVICE" 2>/dev/null || true
+    fi
+    if [ -n "$STOCK_DISPLAY_SERVICE" ]; then
+        sudo systemctl stop    "$STOCK_DISPLAY_SERVICE" 2>/dev/null || true
+        sudo systemctl disable "$STOCK_DISPLAY_SERVICE" 2>/dev/null || true
+        sudo systemctl mask    "$STOCK_DISPLAY_SERVICE" 2>/dev/null || true
+    fi
     sudo systemctl stop    helixscreen            2>/dev/null || true
     sudo systemctl disable helixscreen            2>/dev/null || true
     sudo systemctl mask    helixscreen            2>/dev/null || true
-    ok "Stock display services masked — KlipperScreen owns the screen"
+    ok "$(stock_display_stack_label) masked — KlipperScreen owns the screen"
 }
 
 uninstall_klipperscreen() {
@@ -1500,6 +1774,8 @@ verify_klipperscreen() {
 
 preflight() {
     banner "Pre-flight checks"
+
+    require_supported_firmware_layout "pre-flight install/addon checks" || return 1
 
     if ! curl --fail --silent --head --max-time 10 \
          'https://raw.githubusercontent.com' >/dev/null 2>&1; then
@@ -1695,6 +1971,7 @@ cleanup_aio_config_residue() {
         box_drying.cfg \
         idle_fan_shutdown.cfg \
         KlipperScreen.conf \
+        aio_q2_112_live_restore_proof.cfg \
         KAMP_Settings.cfg \
         KAMP_settings.cfg \
         Adaptive_Meshing.cfg \
@@ -1758,40 +2035,58 @@ cleanup_aio_install_artifacts() {
 }
 
 restore_stock_display_services() {
-    info "Re-enabling Qidi stock display services..."
+    info "Re-enabling Qidi stock display services: $(stock_display_stack_label)"
 
     # HelixScreen owns the framebuffer directly, so installs mask the stock
     # display stack. Revert must undo both service masking and the boot target.
     sudo systemctl daemon-reload                     2>/dev/null || true
     sudo systemctl set-default graphical.target      2>/dev/null || true
-    sudo systemctl reset-failed lightdm makerbase-client display-manager.service \
-                                                   2>/dev/null || true
-
-    sudo systemctl unmask  lightdm                   2>/dev/null || true
-    sudo systemctl unmask  display-manager.service   2>/dev/null || true
-    sudo systemctl unmask  makerbase-client          2>/dev/null || true
-    sudo systemctl enable  lightdm                   2>/dev/null || true
-    sudo systemctl enable  makerbase-client          2>/dev/null || true
+    if [ -n "$STOCK_DISPLAY_SERVICE" ]; then
+        sudo systemctl reset-failed "$STOCK_DISPLAY_SERVICE" 2>/dev/null || true
+        sudo systemctl unmask       "$STOCK_DISPLAY_SERVICE" 2>/dev/null || true
+        sudo systemctl enable       "$STOCK_DISPLAY_SERVICE" 2>/dev/null || true
+    fi
+    if [ -n "$STOCK_UI_SERVICE" ]; then
+        sudo systemctl reset-failed "$STOCK_UI_SERVICE"      2>/dev/null || true
+        sudo systemctl unmask       "$STOCK_UI_SERVICE"      2>/dev/null || true
+        sudo systemctl enable       "$STOCK_UI_SERVICE"      2>/dev/null || true
+    fi
+    sudo systemctl reset-failed display-manager.service      2>/dev/null || true
+    sudo systemctl unmask  display-manager.service           2>/dev/null || true
 
     sudo systemctl stop helixscreen KlipperScreen    2>/dev/null || true
-    sudo systemctl start lightdm                     2>/dev/null || true
-    if ! systemctl is-active --quiet lightdm 2>/dev/null; then
+    if [ -n "$STOCK_DISPLAY_SERVICE" ]; then
+        sudo systemctl start "$STOCK_DISPLAY_SERVICE" 2>/dev/null || true
+    fi
+    if [ -n "$STOCK_DISPLAY_SERVICE" ] && \
+       ! systemctl is-active --quiet "$STOCK_DISPLAY_SERVICE" 2>/dev/null; then
         sudo systemctl start display-manager.service 2>/dev/null || true
     fi
     sleep 2
-    sudo systemctl start makerbase-client            2>/dev/null || true
+    if [ -n "$STOCK_UI_SERVICE" ]; then
+        sudo systemctl start "$STOCK_UI_SERVICE" 2>/dev/null || true
+    fi
 
-    if systemctl is-active --quiet lightdm 2>/dev/null && \
-       systemctl is-active --quiet makerbase-client 2>/dev/null; then
+    local display_ok=true ui_ok=true
+    if [ -n "$STOCK_DISPLAY_SERVICE" ] && \
+       ! systemctl is-active --quiet "$STOCK_DISPLAY_SERVICE" 2>/dev/null; then
+        display_ok=false
+    fi
+    if [ -n "$STOCK_UI_SERVICE" ] && \
+       ! systemctl is-active --quiet "$STOCK_UI_SERVICE" 2>/dev/null; then
+        ui_ok=false
+    fi
+
+    if [ "$display_ok" = true ] && [ "$ui_ok" = true ]; then
         ok "Qidi stock display services are active"
     else
         warn "Qidi stock display services were requested but one is not active"
-        warn "Run Option 8 or check: systemctl status lightdm makerbase-client"
-        if ! systemctl is-active --quiet lightdm 2>/dev/null; then
-            show_systemd_journal_tail lightdm "LightDM"
+        warn "Run Option 8 or check: systemctl status ${STOCK_DISPLAY_SERVICE:-display-manager.service} ${STOCK_UI_SERVICE:-}"
+        if [ "$display_ok" != true ]; then
+            show_systemd_journal_tail "$STOCK_DISPLAY_SERVICE" "$STOCK_DISPLAY_LABEL"
         fi
-        if ! systemctl is-active --quiet makerbase-client 2>/dev/null; then
-            show_systemd_journal_tail makerbase-client "Makerbase stock UI"
+        if [ "$ui_ok" != true ]; then
+            show_systemd_journal_tail "$STOCK_UI_SERVICE" "$STOCK_UI_LABEL"
         fi
         return 1
     fi
@@ -1818,13 +2113,2199 @@ remove_backup_root_after_revert() {
     ok "Removed ${BACKUP_ROOT}/ after successful stock restore"
 }
 
-# Switch the Q2's active display from the stock Qidi services
-# (lightdm + makerbase-client) to HelixScreen. Inverse of the
-# unmask/enable/restart block in uninstall_helixscreen().
+dry_run_path_state() {
+    local label="$1"
+    local path="$2"
+
+    if [ -L "$path" ]; then
+        ok "${label}: present symlink (${path} -> $(readlink "$path" 2>/dev/null || printf 'unknown'))"
+    elif [ -e "$path" ]; then
+        if [ -d "$path" ]; then
+            ok "${label}: present directory (${path})"
+        else
+            ok "${label}: present file (${path})"
+        fi
+    else
+        info "${label}: absent (${path})"
+    fi
+}
+
+dry_run_removal_state() {
+    local path="$1"
+
+    if [ ! -e "$path" ] && [ ! -L "$path" ]; then
+        info "Absent: ${path}"
+    elif path_was_preexisting "$path"; then
+        info "Would keep pre-existing path: ${path}"
+    else
+        warn "Would remove AIO-created path: ${path}"
+    fi
+}
+
+select_revert_backup_source() {
+    if [ ! -d "$BACKUP_ROOT" ]; then
+        return 1
+    fi
+
+    if [ -d "${BACKUP_ROOT}/_FIRST_STOCK" ] && \
+       [ -n "$(ls -A "${BACKUP_ROOT}/_FIRST_STOCK" 2>/dev/null)" ]; then
+        printf '%s|%s|%s\n' "first-run stock snapshot" "${BACKUP_ROOT}/_FIRST_STOCK" "true"
+        return 0
+    fi
+
+    local oldest
+    oldest=$(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d \
+             -not -name '_*' 2>/dev/null | sort | head -n 1)
+    if [ -n "$oldest" ]; then
+        printf '%s|%s|%s\n' "oldest timestamped backup" "$oldest" "true"
+        return 0
+    fi
+
+    printf '%s|%s|%s\n' "flat backup root" "$BACKUP_ROOT" "false"
+    return 0
+}
+
+backup_missing_active_stock_essentials() {
+    local selected_path="$1"
+    local missing=false
+    local rel active_path backup_path
+
+    for rel in \
+        klipper-macros-qd \
+        crowsnest.conf \
+        timelapse.cfg \
+        printer.cfg \
+        box.cfg \
+        MCU_ID.cfg; do
+        active_path="${CONFIG_DIR}/${rel}"
+        backup_path="${selected_path}/${rel}"
+        if [ -e "$active_path" ] || [ -L "$active_path" ]; then
+            if [ ! -e "$backup_path" ] && [ ! -L "$backup_path" ]; then
+                missing=true
+            fi
+        fi
+    done
+
+    [ "$missing" = true ]
+}
+
+report_revert_backup_dry_run() {
+    banner "Dry-run backup selection"
+
+    local selected selected_label selected_path selected_delete
+    if ! selected=$(select_revert_backup_source); then
+        warn "No ${BACKUP_ROOT}/ folder found - real revert would have nothing to restore"
+        return 0
+    fi
+
+    IFS='|' read -r selected_label selected_path selected_delete <<< "$selected"
+    ok "Would restore from ${selected_label}: ${selected_path}"
+    info "Would restore into: ${CONFIG_DIR}"
+    if [ "$selected_delete" = true ]; then
+        info "Would use rsync -a --no-owner --no-group --delete"
+    else
+        warn "Would use rsync without --delete because no precise snapshot was found"
+    fi
+
+    dry_run_path_state "Selected backup source" "$selected_path"
+    dry_run_path_state "Backup KAMP directory" "${selected_path}/KAMP"
+    dry_run_path_state "Backup klipper-macros-qd directory" "${selected_path}/klipper-macros-qd"
+    dry_run_path_state "Backup crowsnest.conf" "${selected_path}/crowsnest.conf"
+    dry_run_path_state "Backup timelapse.cfg" "${selected_path}/timelapse.cfg"
+
+    banner "Dry-run backup safety validation"
+    local missing_critical=false
+    local rel active_path backup_path
+    for rel in \
+        klipper-macros-qd \
+        crowsnest.conf \
+        timelapse.cfg \
+        printer.cfg \
+        box.cfg \
+        MCU_ID.cfg; do
+        active_path="${CONFIG_DIR}/${rel}"
+        backup_path="${selected_path}/${rel}"
+        if [ -e "$active_path" ] || [ -L "$active_path" ]; then
+            if [ -e "$backup_path" ] || [ -L "$backup_path" ]; then
+                ok "Backup contains active stock item: ${rel}"
+            else
+                err "Backup is missing active stock item: ${rel}"
+                missing_critical=true
+            fi
+        else
+            info "Active stock item absent, not required in backup: ${rel}"
+        fi
+    done
+
+    if [ "$missing_critical" = true ]; then
+        err "Real 1.1.2 revert is NOT safe with this backup source."
+        warn "A real rsync --delete restore would remove stock files that exist now."
+        warn "Do not enable real 1.1.2 Revert until backup capture/repair preserves these items."
+    else
+        ok "Selected backup contains the active stock essentials checked for this layout"
+    fi
+}
+
+q2_112_stock_essentials_present() {
+    banner "Checking 1.1.2 stock essentials"
+
+    local missing=false
+    local rel
+    for rel in \
+        printer.cfg \
+        box.cfg \
+        MCU_ID.cfg \
+        crowsnest.conf \
+        timelapse.cfg \
+        klipper-macros-qd; do
+        if [ -e "${CONFIG_DIR}/${rel}" ] || [ -L "${CONFIG_DIR}/${rel}" ]; then
+            ok "Stock essential present: ${rel}"
+        else
+            err "Stock essential missing: ${rel}"
+            missing=true
+        fi
+    done
+
+    if [ "$missing" = true ]; then
+        err "Cannot capture 1.1.2 baseline because stock essentials are missing."
+        return 1
+    fi
+    return 0
+}
+
+q2_112_aio_artifacts_absent() {
+    banner "Checking AIO artifact slate"
+
+    local found=false
+    local path
+
+    for path in \
+        "$HAPPY_HARE_DIR" \
+        "$HELIX_DIR" \
+        "$HELIX_PRINT_DIR" \
+        "$KLIPPERSCREEN_DIR" \
+        "$KLIPPERSCREEN_VENV" \
+        "$KIAUH_DIR" \
+        "$KIAUH_BACKUPS_DIR" \
+        "$KIAUH_UPPER_DIR" \
+        "$KIAUH_UPPER_BACKUPS_DIR" \
+        "$MAINSAIL_DIR" \
+        "$Q2_112_PROBE_STATE_DIR" \
+        "${CONFIG_DIR}/bunnybox_macros.cfg" \
+        "${CONFIG_DIR}/box_drying.cfg" \
+        "${CONFIG_DIR}/idle_fan_shutdown.cfg" \
+        "${CONFIG_DIR}/KlipperScreen.conf" \
+        "${CONFIG_DIR}/KAMP_Settings.cfg" \
+        "${CONFIG_DIR}/KAMP_settings.cfg" \
+        "${CONFIG_DIR}/Adaptive_Meshing.cfg" \
+        "${CONFIG_DIR}/Adaptive_Mesh.cfg" \
+        "${CONFIG_DIR}/Line_Purge.cfg" \
+        "${CONFIG_DIR}/Smart_Park.cfg" \
+        "${CONFIG_DIR}/moonraker.conf.aio-bak" \
+        "$Q2_112_LIVE_PROOF_CFG" \
+        "$Q2_112_PRESENT_PROOF_MARKER" \
+        "$Q2_112_KLIPPER_EXTRAS_PROOF_MARKER" \
+        "$Q2_112_MOONRAKER_COMPONENTS_PROOF_MARKER" \
+        "$Q2_112_PROBE_CFG"; do
+        if [ -e "$path" ] || [ -L "$path" ]; then
+            warn "AIO artifact present: ${path}"
+            found=true
+        fi
+    done
+
+    while IFS= read -r -d '' path; do
+        warn "AIO/MMU residue present: ${path}"
+        found=true
+    done < <(
+        find "$CONFIG_DIR" -maxdepth 1 \
+            \( -name 'mmu' -o -name 'mmu-*' -o -name 'mmu_*' -o -name 'mmu[0-9]*' \
+               -o -name 'backup_hh_*' -o -name 'backup_revert_*' -o -name 'backup_mmu_*' \
+               -o -name 'backup_bunnybox_*' -o -name 'mmu_klipperscreen.*' \
+               -o -name 'moonraker.conf.aio-bak' -o -name 'moonraker.conf.bak.helixscreen*' \) \
+            -print0 2>/dev/null
+    )
+
+    if [ "$found" = true ]; then
+        err "Cannot capture 1.1.2 baseline while AIO artifacts are present."
+        return 1
+    fi
+
+    ok "No AIO install artifacts detected in the guarded capture checks"
+    return 0
+}
+
+capture_q2_112_stock_baseline() {
+    banner "Capture 1.1.2 stock baseline"
+
+    if [ "$AIO_LAYOUT" != "q2_112" ]; then
+        err "This capture flow is only for Q2 firmware 1.1.2 / qidi layout."
+        return 1
+    fi
+    q2_112_stock_essentials_present || return 1
+    q2_112_aio_artifacts_absent || return 1
+
+    warn "This will quarantine the current ${BACKUP_ROOT}/_FIRST_STOCK"
+    warn "and capture a fresh baseline from ${CONFIG_DIR}."
+    warn "It does not modify active printer configs or services."
+    if ! confirm "Capture a fresh 1.1.2 stock baseline now?"; then
+        info "Baseline capture cancelled."
+        return 1
+    fi
+
+    sudo mkdir -p "$BACKUP_ROOT"
+    if [ -e "${BACKUP_ROOT}/_FIRST_STOCK" ] || [ -L "${BACKUP_ROOT}/_FIRST_STOCK" ]; then
+        local quarantine
+        quarantine="${BACKUP_ROOT}/_FIRST_STOCK.unsafe-q2-112.$(date +%Y%m%d_%H%M%S)"
+        if sudo mv "${BACKUP_ROOT}/_FIRST_STOCK" "$quarantine"; then
+            ok "Quarantined old _FIRST_STOCK to ${quarantine}"
+        else
+            err "Could not quarantine existing _FIRST_STOCK"
+            return 1
+        fi
+    fi
+
+    sudo mkdir -p "${BACKUP_ROOT}/_FIRST_STOCK"
+    if sudo rsync -a "${CONFIG_DIR}/" "${BACKUP_ROOT}/_FIRST_STOCK/"; then
+        ok "Captured fresh 1.1.2 stock baseline: ${BACKUP_ROOT}/_FIRST_STOCK"
+    else
+        err "Could not capture fresh _FIRST_STOCK baseline"
+        return 1
+    fi
+
+    local selected selected_label selected_path selected_delete
+    if selected=$(select_revert_backup_source); then
+        IFS='|' read -r selected_label selected_path selected_delete <<< "$selected"
+        if backup_missing_active_stock_essentials "$selected_path"; then
+            err "Fresh baseline capture completed, but safety validation still fails."
+            return 1
+        fi
+        ok "Fresh baseline contains active stock essentials"
+        info "Selected backup source is now ${selected_label}: ${selected_path}"
+    fi
+    return 0
+}
+
+q2_112_restore_contract_paths() {
+    printf '%s\n' \
+        "${KLIPPER_DIR}/klippy/extras" \
+        "${MOONRAKER_DIR}/moonraker/components" \
+        "$HAPPY_HARE_DIR" \
+        "$HELIX_DIR" \
+        "$HELIX_PRINT_DIR" \
+        "${AIO_HOME}/.config/helixscreen" \
+        /opt/helixscreen \
+        /var/lib/helixscreen \
+        /var/log/helixscreen \
+        /root/.helixscreen \
+        /etc/systemd/system/default.target \
+        "/etc/systemd/system/${STOCK_UI_SERVICE}.service" \
+        "/etc/systemd/system/${STOCK_UI_SERVICE}.service.d" \
+        /etc/systemd/system/helixscreen.service \
+        /etc/systemd/system/helixscreen.service.d \
+        /etc/systemd/system/helixscreen-update.path \
+        /etc/systemd/system/helixscreen-update.service \
+        /etc/systemd/system/KlipperScreen.service \
+        /etc/systemd/system/KlipperScreen.service.d \
+        /etc/udev/rules.d/99-helixscreen-backlight.rules \
+        /etc/polkit-1/localauthority/50-local.d/helixscreen-network.pkla \
+        /etc/polkit-1/rules.d/49-helixscreen-network.rules \
+        /etc/polkit-1/rules.d/50-helixscreen-network.rules
+}
+
+q2_112_restore_contract_services() {
+    printf '%s\n' \
+        "$STOCK_UI_SERVICE" \
+        crowsnest \
+        klipper \
+        moonraker \
+        qidi-tuning \
+        helixscreen \
+        KlipperScreen
+}
+
+q2_112_contract_path_state_line() {
+    local path="$1"
+    local kind mode uid gid target=""
+
+    if [ -L "$path" ]; then
+        kind="symlink"
+        target=$(sudo readlink "$path" 2>/dev/null || printf 'unknown')
+    elif [ -d "$path" ]; then
+        kind="directory"
+    elif [ -f "$path" ]; then
+        kind="file"
+    elif [ -e "$path" ]; then
+        kind="other"
+    else
+        printf 'absent|||||%s|\n' "$path"
+        return 0
+    fi
+
+    IFS='|' read -r mode uid gid < <(
+        sudo stat -c '%a|%u|%g' "$path" 2>/dev/null || printf 'unknown|unknown|unknown\n'
+    )
+    printf 'present|%s|%s|%s|%s|%s|%s\n' \
+        "$kind" "$mode" "$uid" "$gid" "$path" "$target"
+}
+
+q2_112_contract_service_state_line() {
+    local service="$1"
+    local exists="false" enabled active fragment
+
+    if systemctl cat "$service" >/dev/null 2>&1; then
+        exists="true"
+    fi
+    enabled=$(systemctl is-enabled "$service" 2>/dev/null || true)
+    active=$(systemctl is-active "$service" 2>/dev/null || true)
+    enabled="${enabled:-not-found}"
+    active="${active:-inactive}"
+    fragment=$(systemctl show "$service" -p FragmentPath --value 2>/dev/null || true)
+    printf '%s|%s|%s|%s|%s\n' "$service" "$exists" "$enabled" "$active" "$fragment"
+}
+
+write_q2_112_contract_tree_hashes() {
+    local tree="$1"
+    local output="$2"
+
+    sudo sh -c '
+        cd "$1" || exit 1
+        find . -type f -print0 | sort -z | xargs -0 -r sha256sum > "$2"
+    ' sh "$tree" "$output"
+}
+
+write_q2_112_contract_tree_inventory() {
+    local tree="$1"
+    local output="$2"
+
+    sudo sh -c '
+        cd "$1" || exit 1
+        find . -printf "%y|%m|%U|%G|%s|%T@|%p|%l\n" | LC_ALL=C sort > "$2"
+    ' sh "$tree" "$output"
+}
+
+verify_q2_112_contract_tree_inventory() {
+    local tree="$1"
+    local inventory="$2"
+
+    sudo sh -c '
+        cd "$1" || exit 1
+        find . -printf "%y|%m|%U|%G|%s|%T@|%p|%l\n" | LC_ALL=C sort | cmp -s - "$2"
+    ' sh "$tree" "$inventory"
+}
+
+validate_q2_112_restore_contract() {
+    local contract_dir="${1:-$Q2_112_CONTRACT_DIR}"
+    local manifest="${contract_dir}/manifest"
+    local path_states="${contract_dir}/path_states"
+    local services="${contract_dir}/services"
+    local config_hashes="${contract_dir}/config.sha256"
+    local external_hashes="${contract_dir}/external.sha256"
+    local config_inventory="${contract_dir}/config.inventory"
+    local external_inventory="${contract_dir}/external.inventory"
+    local packages="${contract_dir}/packages"
+    local contract_hashes="${contract_dir}/contract.sha256"
+    local complete="${contract_dir}/COMPLETE"
+    local config_tree="${contract_dir}/config"
+    local external_tree="${contract_dir}/external"
+
+    [ -f "$complete" ] || return 1
+    [ -f "$manifest" ] || return 1
+    [ -f "$path_states" ] || return 1
+    [ -f "$services" ] || return 1
+    [ -f "$config_hashes" ] || return 1
+    [ -f "$external_hashes" ] || return 1
+    [ -f "$config_inventory" ] || return 1
+    [ -f "$external_inventory" ] || return 1
+    [ -s "$packages" ] || return 1
+    [ -s "$contract_hashes" ] || return 1
+    [ -d "$config_tree" ] || return 1
+    [ -d "$external_tree" ] || return 1
+    grep -Fqx 'CONTRACT_SCHEMA=1' "$manifest" 2>/dev/null || return 1
+    grep -Fqx 'AIO_LAYOUT=q2_112' "$manifest" 2>/dev/null || return 1
+    grep -Fqx "CONFIG_DIR=${CONFIG_DIR}" "$manifest" 2>/dev/null || return 1
+    [ -s "$path_states" ] || return 1
+    [ -s "$services" ] || return 1
+    [ -s "$config_hashes" ] || return 1
+
+    sudo sh -c 'cd "$1" && sha256sum -c contract.sha256 >/dev/null' \
+        sh "$contract_dir" || return 1
+    sudo sh -c 'cd "$1" && sha256sum -c "$2" >/dev/null' \
+        sh "$config_tree" "$config_hashes" || return 1
+    if [ -s "$external_hashes" ]; then
+        sudo sh -c 'cd "$1" && sha256sum -c "$2" >/dev/null' \
+            sh "$external_tree" "$external_hashes" || return 1
+    fi
+    verify_q2_112_contract_tree_inventory "$config_tree" "$config_inventory" || return 1
+    verify_q2_112_contract_tree_inventory "$external_tree" "$external_inventory" || return 1
+
+    local rel
+    for rel in printer.cfg box.cfg MCU_ID.cfg crowsnest.conf timelapse.cfg klipper-macros-qd; do
+        if [ ! -e "${config_tree}/${rel}" ] && [ ! -L "${config_tree}/${rel}" ]; then
+            return 1
+        fi
+    done
+    return 0
+}
+
+capture_q2_112_restore_contract() {
+    banner "Capture 1.1.2 restore contract"
+
+    if [ "$AIO_LAYOUT" != "q2_112" ]; then
+        err "The restore contract is only available on Q2 firmware 1.1.2 / qidi layout."
+        return 1
+    fi
+    q2_112_stock_essentials_present || return 1
+    q2_112_aio_artifacts_absent || return 1
+    q2_112_baseline_safe || return 1
+
+    if validate_q2_112_restore_contract; then
+        ok "A complete, verified 1.1.2 restore contract already exists."
+        info "Contract: ${Q2_112_CONTRACT_DIR}"
+        return 0
+    fi
+
+    warn "This captures recovery material for every currently mapped Option 1 mutation surface:"
+    warn "  exact Klipper config tree; Klipper extras; Moonraker components;"
+    warn "  display/runtime paths; system integration paths; and service states."
+    warn "  It also records the installed Debian package inventory for later comparison."
+    warn "It records both present and absent paths so a future restore can remove only AIO additions."
+    warn "It does not modify active printer configs or service states."
+    if ! confirm "Capture the guarded 1.1.2 restore contract now?"; then
+        info "Restore contract capture cancelled."
+        return 1
+    fi
+
+    local staging="${Q2_112_CONTRACT_DIR}.staging.$$"
+    local quarantine path service default_target
+    sudo rm -rf "$staging"
+    sudo mkdir -p "${staging}/config" "${staging}/external" || {
+        err "Could not create restore contract staging directory."
+        return 1
+    }
+
+    if [ -e "$Q2_112_CONTRACT_DIR" ] || [ -L "$Q2_112_CONTRACT_DIR" ]; then
+        quarantine="${Q2_112_CONTRACT_DIR}.invalid.$(date +%Y%m%d_%H%M%S)"
+        if sudo mv "$Q2_112_CONTRACT_DIR" "$quarantine"; then
+            warn "Quarantined incomplete restore contract: ${quarantine}"
+        else
+            err "Could not quarantine incomplete restore contract."
+            sudo rm -rf "$staging"
+            return 1
+        fi
+    fi
+
+    if ! sudo rsync -aHAX --numeric-ids "${CONFIG_DIR}/" "${staging}/config/"; then
+        err "Could not capture exact stock config tree."
+        sudo rm -rf "$staging"
+        return 1
+    fi
+
+    sudo tee "${staging}/path_states" >/dev/null < /dev/null
+    while IFS= read -r path; do
+        q2_112_contract_path_state_line "$path" | sudo tee -a "${staging}/path_states" >/dev/null
+        if [ -e "$path" ] || [ -L "$path" ]; then
+            if ! sudo rsync -aHAX --numeric-ids --relative "$path" "${staging}/external/"; then
+                err "Could not capture mapped path: ${path}"
+                sudo rm -rf "$staging"
+                return 1
+            fi
+        fi
+    done < <(q2_112_restore_contract_paths)
+
+    sudo tee "${staging}/services" >/dev/null < /dev/null
+    while IFS= read -r service; do
+        q2_112_contract_service_state_line "$service" | sudo tee -a "${staging}/services" >/dev/null
+    done < <(q2_112_restore_contract_services)
+
+    if ! dpkg-query -W -f='${binary:Package}|${Version}|${db:Status-Abbrev}\n' 2>/dev/null | \
+        LC_ALL=C sort | sudo tee "${staging}/packages" >/dev/null; then
+        err "Could not capture installed Debian package inventory."
+        sudo rm -rf "$staging"
+        return 1
+    fi
+
+    default_target=$(systemctl get-default 2>/dev/null || printf 'unknown')
+    if ! sudo tee "${staging}/manifest" >/dev/null <<EOF
+CONTRACT_SCHEMA=1
+AIO_VERSION=${AIO_VERSION}
+AIO_LAYOUT=${AIO_LAYOUT}
+AIO_HOME=${AIO_HOME}
+CONFIG_DIR=${CONFIG_DIR}
+STOCK_UI_SERVICE=${STOCK_UI_SERVICE}
+DEFAULT_TARGET=${default_target}
+CAPTURED_AT=$(date -Iseconds)
+EOF
+    then
+        err "Could not write restore contract manifest."
+        sudo rm -rf "$staging"
+        return 1
+    fi
+
+    write_q2_112_contract_tree_hashes "${staging}/config" "${staging}/config.sha256" || {
+        err "Could not hash captured stock config tree."
+        sudo rm -rf "$staging"
+        return 1
+    }
+    write_q2_112_contract_tree_hashes "${staging}/external" "${staging}/external.sha256" || {
+        err "Could not hash captured external recovery files."
+        sudo rm -rf "$staging"
+        return 1
+    }
+    write_q2_112_contract_tree_inventory "${staging}/config" "${staging}/config.inventory" || {
+        err "Could not inventory captured stock config metadata."
+        sudo rm -rf "$staging"
+        return 1
+    }
+    write_q2_112_contract_tree_inventory "${staging}/external" "${staging}/external.inventory" || {
+        err "Could not inventory captured external recovery metadata."
+        sudo rm -rf "$staging"
+        return 1
+    }
+    sudo tee "${staging}/COMPLETE" >/dev/null <<EOF
+Q2 1.1.2 restore contract capture complete
+EOF
+    if ! sudo sh -c '
+        cd "$1" || exit 1
+        sha256sum manifest path_states services packages config.sha256 external.sha256 \
+            config.inventory external.inventory COMPLETE > contract.sha256
+    ' sh "$staging"; then
+        err "Could not seal restore contract metadata."
+        sudo rm -rf "$staging"
+        return 1
+    fi
+
+    if ! validate_q2_112_restore_contract "$staging"; then
+        err "Restore contract integrity validation failed; staging data was kept for inspection."
+        warn "Inspect: ${staging}"
+        return 1
+    fi
+    if ! sudo mv "$staging" "$Q2_112_CONTRACT_DIR"; then
+        err "Could not activate verified restore contract."
+        return 1
+    fi
+
+    ok "Verified 1.1.2 restore contract captured atomically."
+    info "Contract: ${Q2_112_CONTRACT_DIR}"
+    info "Full install and general real revert remain blocked while the 1.1.2 compatibility lane is tested."
+    return 0
+}
+
+report_q2_112_restore_contract() {
+    banner "1.1.2 restore contract"
+
+    if ! validate_q2_112_restore_contract; then
+        warn "No complete, verified 1.1.2 restore contract is available."
+        info "Option 4 can capture one after the guarded stock baseline passes."
+        return 1
+    fi
+
+    ok "Restore contract integrity verified: ${Q2_112_CONTRACT_DIR}"
+    info "Exact config restore source: ${Q2_112_CONTRACT_DIR}/config"
+    info "Config restore would use rsync -aHAX --numeric-ids --delete"
+    info "Captured Debian package count: $(wc -l < "${Q2_112_CONTRACT_DIR}/packages" | tr -d ' ')"
+    local package_diff
+    package_diff=$(comm -13 "${Q2_112_CONTRACT_DIR}/packages" <(
+        dpkg-query -W -f='${binary:Package}|${Version}|${db:Status-Abbrev}\n' 2>/dev/null | LC_ALL=C sort
+    ) || true)
+    if [ -n "$package_diff" ]; then
+        warn "Current package entries not present in the stock contract:"
+        local package_entry
+        while IFS= read -r package_entry; do
+            warn "  ${package_entry}"
+        done <<< "$package_diff"
+    else
+        ok "Current Debian package inventory matches the captured stock contract"
+    fi
+
+    local current_default captured_default
+    current_default=$(systemctl get-default 2>/dev/null || printf 'unknown')
+    captured_default=$(sed -n 's/^DEFAULT_TARGET=//p' "${Q2_112_CONTRACT_DIR}/manifest" | head -n 1)
+    if [ "$current_default" = "$captured_default" ]; then
+        ok "Default boot target matches capture: ${captured_default}"
+    else
+        warn "Would restore default boot target from ${current_default} to ${captured_default}"
+    fi
+
+    banner "Restore contract service-state preview"
+    local service exists captured_enabled captured_active fragment current_enabled current_active
+    while IFS='|' read -r service exists captured_enabled captured_active fragment; do
+        current_enabled=$(systemctl is-enabled "$service" 2>/dev/null || true)
+        current_active=$(systemctl is-active "$service" 2>/dev/null || true)
+        current_enabled="${current_enabled:-not-found}"
+        current_active="${current_active:-inactive}"
+        if [ "$service" = "qidi-tuning" ] && \
+           { [ "$captured_active" = "active" ] || [ "$captured_active" = "activating" ]; } && \
+           { [ "$current_active" = "active" ] || [ "$current_active" = "activating" ]; } && \
+           [ "$captured_enabled" = "$current_enabled" ]; then
+            ok "${service}: captured/current healthy (enabled=${captured_enabled}, active=${captured_active}/${current_active})"
+        elif [ "$captured_enabled" = "$current_enabled" ] && [ "$captured_active" = "$current_active" ]; then
+            ok "${service}: captured/current enabled=${captured_enabled}, active=${captured_active}"
+        else
+            warn "${service}: captured enabled=${captured_enabled}, active=${captured_active}; current enabled=${current_enabled}, active=${current_active}"
+        fi
+    done < "$Q2_112_CONTRACT_SERVICES"
+
+    banner "Restore contract path-state preview"
+    local captured kind mode uid gid target
+    while IFS='|' read -r captured kind mode uid gid path target; do
+        if [ "$captured" = "absent" ]; then
+            if [ -e "$path" ] || [ -L "$path" ]; then
+                warn "Would remove path absent at capture: ${path}"
+            else
+                ok "Still absent as captured: ${path}"
+            fi
+        elif [ -e "$path" ] || [ -L "$path" ]; then
+            info "Would restore captured ${kind}: ${path}"
+        else
+            warn "Would restore missing captured ${kind}: ${path}"
+        fi
+    done < "$Q2_112_CONTRACT_PATH_STATES"
+    return 0
+}
+
+report_q2_112_external_restore_audit() {
+    banner "Q2 1.1.2 external restore audit (read-only)"
+
+    if [ "$AIO_LAYOUT" != "q2_112" ]; then
+        err "The external restore audit is only available on Q2 firmware 1.1.2 / qidi layout."
+        return 1
+    fi
+    if ! validate_q2_112_restore_contract; then
+        err "No complete, verified restore contract is available."
+        info "Run option 4 to capture and validate the restore contract first."
+        return 1
+    fi
+
+    warn "This compares live external paths with the sealed stock contract."
+    warn "It uses rsync --dry-run only; no files, packages, services, or boot targets are changed."
+
+    local captured kind mode uid gid path target source destination changes change
+    local exact=0 drift=0 absent_ok=0 unexpected=0 missing=0 errors=0 shown total
+    while IFS='|' read -r captured kind mode uid gid path target; do
+        source="${Q2_112_CONTRACT_DIR}/external${path}"
+        if [ "$captured" = "absent" ]; then
+            if [ -e "$path" ] || [ -L "$path" ]; then
+                warn "Captured absent but currently present: ${path}"
+                unexpected=$((unexpected + 1))
+            else
+                ok "Still absent as captured: ${path}"
+                absent_ok=$((absent_ok + 1))
+            fi
+            continue
+        fi
+
+        if [ ! -e "$path" ] && [ ! -L "$path" ]; then
+            warn "Captured ${kind} is currently missing: ${path}"
+            missing=$((missing + 1))
+            continue
+        fi
+        if [ ! -e "$source" ] && [ ! -L "$source" ]; then
+            err "Contract source is missing for captured ${kind}: ${source}"
+            errors=$((errors + 1))
+            continue
+        fi
+
+        case "$kind" in
+            directory)
+                if [ ! -d "$path" ] || [ -L "$path" ] || \
+                   [ ! -d "$source" ] || [ -L "$source" ]; then
+                    warn "Captured directory changed type or contract source is invalid: ${path}"
+                    errors=$((errors + 1))
+                    continue
+                fi
+                if ! changes=$(sudo rsync -aHAX --numeric-ids --checksum --delete --dry-run --itemize-changes \
+                    "${source}/" "${path}/" 2>&1); then
+                    err "Could not audit captured directory: ${path}"
+                    errors=$((errors + 1))
+                    continue
+                fi
+                ;;
+            file)
+                if [ ! -f "$path" ] || [ -L "$path" ] || \
+                   [ ! -f "$source" ] || [ -L "$source" ]; then
+                    warn "Captured file changed type or contract source is invalid: ${path}"
+                    errors=$((errors + 1))
+                    continue
+                fi
+                destination=$(dirname "$path")
+                if ! changes=$(sudo rsync -aHAX --numeric-ids --checksum --dry-run --itemize-changes \
+                    "$source" "${destination}/" 2>&1); then
+                    err "Could not audit captured file: ${path}"
+                    errors=$((errors + 1))
+                    continue
+                fi
+                ;;
+            symlink)
+                if [ ! -L "$path" ] || [ ! -L "$source" ]; then
+                    warn "Captured symlink changed type or contract source is invalid: ${path}"
+                    errors=$((errors + 1))
+                    continue
+                fi
+                destination=$(dirname "$path")
+                if ! changes=$(sudo rsync -aHAX --numeric-ids --checksum --dry-run --itemize-changes \
+                    "$source" "${destination}/" 2>&1); then
+                    err "Could not audit captured symlink: ${path}"
+                    errors=$((errors + 1))
+                    continue
+                fi
+                ;;
+            *)
+                warn "Captured path kind requires manual review (${kind}): ${path}"
+                errors=$((errors + 1))
+                continue
+                ;;
+        esac
+
+        if [ -z "$changes" ]; then
+            ok "Exact external contract match: ${path}"
+            exact=$((exact + 1))
+            continue
+        fi
+
+        total=$(printf '%s\n' "$changes" | wc -l | tr -d ' ')
+        warn "External contract drift: ${path} (${total} rsync change item(s))"
+        shown=0
+        while IFS= read -r change; do
+            [ -n "$change" ] || continue
+            warn "  ${change}"
+            shown=$((shown + 1))
+            [ "$shown" -ge 8 ] && break
+        done <<< "$changes"
+        if [ "$total" -gt "$shown" ]; then
+            warn "  ... $((total - shown)) additional change item(s)"
+        fi
+        drift=$((drift + 1))
+    done < "$Q2_112_CONTRACT_PATH_STATES"
+
+    banner "External restore audit summary"
+    info "Exact captured-present paths: ${exact}"
+    info "Drifted captured-present paths: ${drift}"
+    info "Missing captured-present paths: ${missing}"
+    info "Captured-absent paths still absent: ${absent_ok}"
+    info "Captured-absent paths now present: ${unexpected}"
+    info "Audit errors/manual-review paths: ${errors}"
+    if [ "$drift" -eq 0 ] && [ "$missing" -eq 0 ] && \
+       [ "$unexpected" -eq 0 ] && [ "$errors" -eq 0 ]; then
+        ok "All mapped external paths exactly match the sealed stock contract"
+    else
+        warn "Do not enable general real revert until every reported external-path change is classified."
+    fi
+    return 0
+}
+
+menu_q2_112_external_restore_audit() {
+    report_q2_112_external_restore_audit
+    press_enter
+}
+
+q2_112_external_paths_match_contract() {
+    local captured kind mode uid gid path target source destination changes
+
+    while IFS='|' read -r captured kind mode uid gid path target; do
+        source="${Q2_112_CONTRACT_DIR}/external${path}"
+        if [ "$captured" = "absent" ]; then
+            [ ! -e "$path" ] && [ ! -L "$path" ] || return 1
+            continue
+        fi
+        [ -e "$path" ] || [ -L "$path" ] || return 1
+        [ -e "$source" ] || [ -L "$source" ] || return 1
+
+        case "$kind" in
+            directory)
+                [ -d "$path" ] && [ ! -L "$path" ] || return 1
+                [ -d "$source" ] && [ ! -L "$source" ] || return 1
+                changes=$(sudo rsync -aHAX --numeric-ids --checksum --delete --dry-run --itemize-changes \
+                    "${source}/" "${path}/" 2>/dev/null) || return 1
+                ;;
+            file)
+                [ -f "$path" ] && [ ! -L "$path" ] || return 1
+                [ -f "$source" ] && [ ! -L "$source" ] || return 1
+                destination=$(dirname "$path")
+                changes=$(sudo rsync -aHAX --numeric-ids --checksum --dry-run --itemize-changes \
+                    "$source" "${destination}/" 2>/dev/null) || return 1
+                ;;
+            symlink)
+                [ -L "$path" ] && [ -L "$source" ] || return 1
+                destination=$(dirname "$path")
+                changes=$(sudo rsync -aHAX --numeric-ids --checksum --dry-run --itemize-changes \
+                    "$source" "${destination}/" 2>/dev/null) || return 1
+                ;;
+            *)
+                return 1
+                ;;
+        esac
+        [ -z "$changes" ] || return 1
+    done < "$Q2_112_CONTRACT_PATH_STATES"
+    return 0
+}
+
+write_q2_112_service_restore_plan() {
+    local output="$1"
+    local service exists enabled active fragment
+
+    sudo tee "$output" >/dev/null < /dev/null
+    while IFS='|' read -r service exists enabled active fragment; do
+        if [ "$exists" = "false" ]; then
+            printf 'REMOVE_IF_AIO_CREATED|%s|captured unit absent\n' "$service"
+            continue
+        fi
+
+        case "$enabled" in
+            enabled|enabled-runtime|linked|linked-runtime)
+                printf 'ENABLE|%s|captured enabled=%s\n' "$service" "$enabled"
+                ;;
+            masked|masked-runtime)
+                printf 'MASK|%s|captured enabled=%s\n' "$service" "$enabled"
+                ;;
+            disabled)
+                printf 'DISABLE|%s|captured disabled\n' "$service"
+                ;;
+            static|indirect|generated|transient|alias)
+                printf 'PRESERVE_ENABLEMENT|%s|captured enabled=%s\n' "$service" "$enabled"
+                ;;
+            *)
+                printf 'REVIEW_ENABLEMENT|%s|captured enabled=%s\n' "$service" "$enabled"
+                ;;
+        esac
+
+        case "$active" in
+            active|activating|reloading)
+                printf 'START|%s|captured active=%s\n' "$service" "$active"
+                ;;
+            *)
+                printf 'STOP|%s|captured active=%s\n' "$service" "$active"
+                ;;
+        esac
+        printf 'FRAGMENT|%s|%s\n' "$service" "$fragment"
+    done < "$Q2_112_CONTRACT_SERVICES" | sudo tee -a "$output" >/dev/null
+}
+
+write_q2_112_path_restore_plan() {
+    local output="$1"
+    local captured kind mode uid gid path target source
+
+    printf 'RESTORE_CONFIG_TREE|%s|source=%s|rsync=-aHAX --numeric-ids --delete\n' \
+        "$CONFIG_DIR" "${Q2_112_CONTRACT_DIR}/config" | sudo tee "$output" >/dev/null
+    while IFS='|' read -r captured kind mode uid gid path target; do
+        if [ "$captured" = "absent" ]; then
+            printf 'REMOVE_IF_PRESENT|%s|captured absent\n' "$path"
+            continue
+        fi
+
+        source="${Q2_112_CONTRACT_DIR}/external${path}"
+        printf 'RESTORE|%s|%s|mode=%s|uid=%s|gid=%s|source=%s|target=%s\n' \
+            "$kind" "$path" "$mode" "$uid" "$gid" "$source" "$target"
+    done < "$Q2_112_CONTRACT_PATH_STATES" | sudo tee -a "$output" >/dev/null
+}
+
+write_q2_112_rehearsal_live_guard() {
+    local output_dir="$1"
+
+    write_q2_112_contract_tree_hashes "$CONFIG_DIR" "${output_dir}/active-config.sha256" || return 1
+    write_q2_112_contract_tree_inventory "$CONFIG_DIR" "${output_dir}/active-config.inventory" || return 1
+    q2_112_restore_contract_services | while IFS= read -r service; do
+        local enabled fragment
+        enabled=$(systemctl is-enabled "$service" 2>/dev/null || true)
+        enabled="${enabled:-not-found}"
+        fragment=$(systemctl show "$service" -p FragmentPath --value 2>/dev/null || true)
+        printf '%s|%s|%s\n' "$service" "$enabled" "$fragment"
+    done | sudo tee "${output_dir}/service-enablements" >/dev/null
+    systemctl get-default 2>/dev/null | sudo tee "${output_dir}/default-target" >/dev/null
+    dpkg-query -W -f='${binary:Package}|${Version}|${db:Status-Abbrev}\n' 2>/dev/null | \
+        LC_ALL=C sort | sudo tee "${output_dir}/packages" >/dev/null
+}
+
+q2_112_restore_rehearsal_passed() {
+    local pass_file="${Q2_112_REHEARSAL_DIR}/PASS"
+    local expected_seal current_seal
+    local rehearsal_config="${Q2_112_REHEARSAL_DIR}/reconstructed/config"
+    local rehearsal_external="${Q2_112_REHEARSAL_DIR}/reconstructed/external"
+    local rehearsal_plans="${Q2_112_REHEARSAL_DIR}/plans"
+    local before_dir="${Q2_112_REHEARSAL_DIR}/checks/before"
+    local after_dir="${Q2_112_REHEARSAL_DIR}/checks/after"
+
+    [ -f "$pass_file" ] || return 1
+    validate_q2_112_restore_contract || return 1
+    expected_seal=$(sed -n 's/^CONTRACT_SEAL_SHA256=//p' "$pass_file" 2>/dev/null | head -n 1)
+    current_seal=$(file_sha256 "${Q2_112_CONTRACT_DIR}/contract.sha256")
+    [ -n "$expected_seal" ] && [ "$expected_seal" = "$current_seal" ] || return 1
+    [ -s "${rehearsal_plans}/services.plan" ] || return 1
+    [ -s "${rehearsal_plans}/paths.plan" ] || return 1
+    [ -s "${rehearsal_plans}/packages.stock" ] || return 1
+    [ -s "${rehearsal_plans}/plans.sha256" ] || return 1
+    sudo sh -c 'cd "$1" && sha256sum -c plans.sha256 >/dev/null' \
+        sh "$rehearsal_plans" || return 1
+    sudo sh -c 'cd "$1" && sha256sum -c "$2" >/dev/null' \
+        sh "$rehearsal_config" "${Q2_112_CONTRACT_DIR}/config.sha256" || return 1
+    if [ -s "${Q2_112_CONTRACT_DIR}/external.sha256" ]; then
+        sudo sh -c 'cd "$1" && sha256sum -c "$2" >/dev/null' \
+            sh "$rehearsal_external" "${Q2_112_CONTRACT_DIR}/external.sha256" || return 1
+    fi
+    verify_q2_112_contract_tree_inventory \
+        "$rehearsal_config" "${Q2_112_CONTRACT_DIR}/config.inventory" || return 1
+    verify_q2_112_contract_tree_inventory \
+        "$rehearsal_external" "${Q2_112_CONTRACT_DIR}/external.inventory" || return 1
+    verify_q2_112_rehearsal_live_guard "$before_dir" "$after_dir"
+}
+
+verify_q2_112_rehearsal_live_guard() {
+    local before_dir="$1"
+    local after_dir="$2"
+    local item
+
+    for item in active-config.sha256 active-config.inventory service-enablements default-target packages; do
+        if ! sudo cmp -s "${before_dir}/${item}" "${after_dir}/${item}"; then
+            err "Restore rehearsal live-state guard changed: ${item}"
+            return 1
+        fi
+    done
+    return 0
+}
+
+run_q2_112_restore_rehearsal() {
+    banner "Q2 1.1.2 contract-backed restore rehearsal"
+
+    if [ "$AIO_LAYOUT" != "q2_112" ]; then
+        err "The restore rehearsal is only available on Q2 firmware 1.1.2 / qidi layout."
+        return 1
+    fi
+    if ! validate_q2_112_restore_contract; then
+        err "No complete, verified restore contract is available."
+        info "Run option 4 to capture and validate the restore contract first."
+        return 1
+    fi
+
+    warn "This reconstructs the sealed contract only under:"
+    warn "  ${Q2_112_REHEARSAL_DIR}"
+    warn "It will not write to active configs, /home/qidi runtime trees, /etc, packages, or services."
+    if ! confirm "Run the isolated restore rehearsal now?"; then
+        info "Restore rehearsal cancelled."
+        return 1
+    fi
+
+    local before_dir="${Q2_112_REHEARSAL_DIR}/checks/before"
+    local after_dir="${Q2_112_REHEARSAL_DIR}/checks/after"
+    local rehearsal_config="${Q2_112_REHEARSAL_DIR}/reconstructed/config"
+    local rehearsal_external="${Q2_112_REHEARSAL_DIR}/reconstructed/external"
+    local rehearsal_plans="${Q2_112_REHEARSAL_DIR}/plans"
+
+    sudo rm -rf "$Q2_112_REHEARSAL_DIR"
+    sudo mkdir -p "$before_dir" "$after_dir" "$rehearsal_plans" \
+        "${Q2_112_REHEARSAL_DIR}/reconstructed" || {
+        err "Could not create isolated restore rehearsal workspace."
+        return 1
+    }
+
+    banner "Sealing live-state guard"
+    write_q2_112_rehearsal_live_guard "$before_dir" || {
+        err "Could not capture the pre-rehearsal live-state guard."
+        return 1
+    }
+    ok "Pre-rehearsal active config, service enablement, target, and package state sealed"
+
+    banner "Reconstructing contract in isolation"
+    if ! sudo rsync -aHAX --numeric-ids "${Q2_112_CONTRACT_DIR}/config" \
+        "${Q2_112_REHEARSAL_DIR}/reconstructed/"; then
+        err "Could not reconstruct the config contract tree."
+        return 1
+    fi
+    if ! sudo rsync -aHAX --numeric-ids "${Q2_112_CONTRACT_DIR}/external" \
+        "${Q2_112_REHEARSAL_DIR}/reconstructed/"; then
+        err "Could not reconstruct the external contract tree."
+        return 1
+    fi
+    ok "Contract trees reconstructed under isolated rehearsal workspace"
+
+    banner "Verifying reconstructed contract"
+    sudo sh -c 'cd "$1" && sha256sum -c "$2" >/dev/null' \
+        sh "$rehearsal_config" "${Q2_112_CONTRACT_DIR}/config.sha256" || {
+        err "Reconstructed config file hashes do not match the sealed contract."
+        return 1
+    }
+    if [ -s "${Q2_112_CONTRACT_DIR}/external.sha256" ]; then
+        sudo sh -c 'cd "$1" && sha256sum -c "$2" >/dev/null' \
+            sh "$rehearsal_external" "${Q2_112_CONTRACT_DIR}/external.sha256" || {
+            err "Reconstructed external file hashes do not match the sealed contract."
+            return 1
+        }
+    fi
+    verify_q2_112_contract_tree_inventory \
+        "$rehearsal_config" "${Q2_112_CONTRACT_DIR}/config.inventory" || {
+        err "Reconstructed config metadata does not match the sealed contract."
+        return 1
+    }
+    verify_q2_112_contract_tree_inventory \
+        "$rehearsal_external" "${Q2_112_CONTRACT_DIR}/external.inventory" || {
+        err "Reconstructed external metadata does not match the sealed contract."
+        return 1
+    }
+    ok "Reconstructed file contents, ownership, permissions, timestamps, and symlinks match"
+
+    banner "Generating non-executing restore plans"
+    write_q2_112_service_restore_plan "${rehearsal_plans}/services.plan" || return 1
+    write_q2_112_path_restore_plan "${rehearsal_plans}/paths.plan" || return 1
+    sudo tee "${rehearsal_plans}/packages.stock" >/dev/null < "${Q2_112_CONTRACT_DIR}/packages" || return 1
+    if [ ! -s "${rehearsal_plans}/services.plan" ] || \
+       [ ! -s "${rehearsal_plans}/paths.plan" ] || \
+       [ ! -s "${rehearsal_plans}/packages.stock" ]; then
+        err "One or more generated restore plans are empty."
+        return 1
+    fi
+    if ! sudo sh -c '
+        cd "$1" || exit 1
+        sha256sum services.plan paths.plan packages.stock > plans.sha256
+    ' sh "$rehearsal_plans"; then
+        err "Could not seal generated restore plans."
+        return 1
+    fi
+    ok "Service, path, absent-path, and stock-package plans generated"
+    info "Plans: ${rehearsal_plans}"
+
+    banner "Verifying live printer was untouched"
+    write_q2_112_rehearsal_live_guard "$after_dir" || {
+        err "Could not capture the post-rehearsal live-state guard."
+        return 1
+    }
+    if ! verify_q2_112_rehearsal_live_guard "$before_dir" "$after_dir"; then
+        err "Restore rehearsal failed: live printer state changed during the rehearsal."
+        return 1
+    fi
+
+    ok "Restore rehearsal passed: reconstructed contract exactly matches the sealed source"
+    ok "Live active config, service enablement, default target, and package inventory are unchanged"
+    sudo tee "${Q2_112_REHEARSAL_DIR}/PASS" >/dev/null <<EOF
+AIO_VERSION=${AIO_VERSION}
+CONTRACT_DIR=${Q2_112_CONTRACT_DIR}
+CONTRACT_SEAL_SHA256=$(file_sha256 "${Q2_112_CONTRACT_DIR}/contract.sha256")
+REHEARSED_AT=$(date -Iseconds)
+EOF
+    info "Full install and general real revert remain blocked."
+    return 0
+}
+
+menu_q2_112_restore_rehearsal() {
+    run_q2_112_restore_rehearsal
+    press_enter
+}
+
+verify_q2_112_active_config_matches_contract() {
+    sudo sh -c 'cd "$1" && sha256sum -c "$2" >/dev/null' \
+        sh "$CONFIG_DIR" "${Q2_112_CONTRACT_DIR}/config.sha256" || return 1
+    verify_q2_112_contract_tree_inventory \
+        "$CONFIG_DIR" "${Q2_112_CONTRACT_DIR}/config.inventory"
+}
+
+q2_112_contract_path_was_absent() {
+    local path="$1"
+    awk -F'|' -v wanted="$path" '$1 == "absent" && $6 == wanted { found=1 } END { exit !found }' \
+        "$Q2_112_CONTRACT_PATH_STATES"
+}
+
+q2_112_contract_path_was_present_directory() {
+    local path="$1"
+    awk -F'|' -v wanted="$path" \
+        '$1 == "present" && $2 == "directory" && $6 == wanted { found=1 } END { exit !found }' \
+        "$Q2_112_CONTRACT_PATH_STATES"
+}
+
+remove_q2_112_live_proof_external_path() {
+    local expected_token="${1:-}"
+    local marker_token=""
+
+    q2_112_contract_path_was_absent "$Q2_112_LIVE_PROOF_EXTERNAL_DIR" || return 1
+    [ ! -L "$Q2_112_LIVE_PROOF_EXTERNAL_DIR" ] || return 1
+    [ -d "$Q2_112_LIVE_PROOF_EXTERNAL_DIR" ] || return 0
+    if [ -f "$Q2_112_LIVE_PROOF_EXTERNAL_MARKER" ]; then
+        marker_token=$(sudo cat "$Q2_112_LIVE_PROOF_EXTERNAL_MARKER" 2>/dev/null || true)
+        [ -z "$expected_token" ] || [ "$marker_token" = "$expected_token" ] || return 1
+    elif [ -n "$expected_token" ]; then
+        sudo rmdir "$Q2_112_LIVE_PROOF_EXTERNAL_DIR" 2>/dev/null
+        return $?
+    fi
+    if sudo find "$Q2_112_LIVE_PROOF_EXTERNAL_DIR" -mindepth 1 \
+        ! -path "$Q2_112_LIVE_PROOF_EXTERNAL_MARKER" -print -quit | grep -q .; then
+        return 1
+    fi
+    sudo rm -rf "$Q2_112_LIVE_PROOF_EXTERNAL_DIR"
+}
+
+rollback_q2_112_live_restore_proof() {
+    local emergency_config="${Q2_112_LIVE_PROOF_DIR}/emergency/config"
+    local expected_token="${1:-}"
+
+    warn "Rolling back the controlled live restore proof"
+    if [ -d "$emergency_config" ]; then
+        sudo rsync -aHAX --numeric-ids --delete "${emergency_config}/" "${CONFIG_DIR}/" || \
+            err "Emergency config rollback failed; inspect ${emergency_config}"
+    fi
+    if [ -e "$Q2_112_LIVE_PROOF_EXTERNAL_DIR" ] || [ -L "$Q2_112_LIVE_PROOF_EXTERNAL_DIR" ]; then
+        remove_q2_112_live_proof_external_path "$expected_token" || \
+            warn "External proof path contains unexpected state; inspect ${Q2_112_LIVE_PROOF_EXTERNAL_DIR}"
+    fi
+}
+
+q2_112_live_restore_proof_passed() {
+    local pass_file="${Q2_112_LIVE_PROOF_DIR}/PASS"
+    local expected_seal current_seal
+    local before_dir="${Q2_112_LIVE_PROOF_DIR}/checks/before"
+    local after_dir="${Q2_112_LIVE_PROOF_DIR}/checks/after"
+
+    [ -f "$pass_file" ] || return 1
+    validate_q2_112_restore_contract || return 1
+    q2_112_restore_rehearsal_passed || return 1
+    expected_seal=$(sed -n 's/^CONTRACT_SEAL_SHA256=//p' "$pass_file" 2>/dev/null | head -n 1)
+    current_seal=$(file_sha256 "${Q2_112_CONTRACT_DIR}/contract.sha256")
+    [ -n "$expected_seal" ] && [ "$expected_seal" = "$current_seal" ] || return 1
+    [ ! -e "$Q2_112_LIVE_PROOF_CFG" ] || return 1
+    [ ! -e "$Q2_112_LIVE_PROOF_EXTERNAL_MARKER" ] || return 1
+    verify_q2_112_rehearsal_live_guard "$before_dir" "$after_dir"
+}
+
+run_q2_112_live_restore_proof() {
+    banner "Q2 1.1.2 controlled live restore proof"
+
+    if [ "$AIO_LAYOUT" != "q2_112" ]; then
+        err "The controlled live restore proof is only available on Q2 firmware 1.1.2 / qidi layout."
+        return 1
+    fi
+    if ! validate_q2_112_restore_contract; then
+        err "No complete, verified restore contract is available."
+        return 1
+    fi
+    if ! q2_112_restore_rehearsal_passed; then
+        err "The isolated restore rehearsal has not passed for the current contract."
+        info "Run option 10 before attempting the controlled live restore proof."
+        return 1
+    fi
+    if ! verify_q2_112_active_config_matches_contract; then
+        err "Active config does not exactly match the sealed stock contract."
+        warn "Refusing the live proof to avoid overwriting unrelated config changes."
+        return 1
+    fi
+    if ! q2_112_contract_path_was_absent "$Q2_112_LIVE_PROOF_EXTERNAL_DIR"; then
+        err "External proof path was not captured absent: ${Q2_112_LIVE_PROOF_EXTERNAL_DIR}"
+        return 1
+    fi
+    if [ -e "$Q2_112_LIVE_PROOF_CFG" ] || [ -L "$Q2_112_LIVE_PROOF_CFG" ] || \
+       [ -e "$Q2_112_LIVE_PROOF_EXTERNAL_DIR" ] || [ -L "$Q2_112_LIVE_PROOF_EXTERNAL_DIR" ]; then
+        err "Controlled proof artifacts already exist; refusing to overwrite them."
+        return 1
+    fi
+
+    warn "This is the first controlled live contract-backed restore test."
+    warn "It will create exactly two harmless, non-active proof artifacts:"
+    warn "  ${Q2_112_LIVE_PROOF_CFG}"
+    warn "  ${Q2_112_LIVE_PROOF_EXTERNAL_MARKER}"
+    warn "It will then restore the exact sealed stock config tree with rsync --delete"
+    warn "and remove only the external proof directory that was captured absent."
+    warn "No includes, packages, service states, boot targets, or stock runtime files are changed."
+    if ! confirm "Run the controlled live restore proof now?"; then
+        info "Controlled live restore proof cancelled."
+        return 1
+    fi
+
+    local before_dir="${Q2_112_LIVE_PROOF_DIR}/checks/before"
+    local after_dir="${Q2_112_LIVE_PROOF_DIR}/checks/after"
+    local emergency_config="${Q2_112_LIVE_PROOF_DIR}/emergency/config"
+    local proof_token
+    proof_token="AIO_Q2_112_LIVE_RESTORE_PROOF_$(date +%Y%m%d_%H%M%S)"
+
+    sudo rm -rf "$Q2_112_LIVE_PROOF_DIR"
+    sudo mkdir -p "$before_dir" "$after_dir" "$emergency_config" || {
+        err "Could not create controlled live restore proof state."
+        return 1
+    }
+
+    banner "Capturing emergency rollback and live-state guard"
+    if ! sudo rsync -aHAX --numeric-ids "${CONFIG_DIR}/" "${emergency_config}/"; then
+        err "Could not capture emergency config rollback."
+        return 1
+    fi
+    write_q2_112_rehearsal_live_guard "$before_dir" || {
+        err "Could not capture pre-proof live-state guard."
+        return 1
+    }
+    ok "Emergency rollback and pre-proof live-state guard captured"
+
+    banner "Creating controlled proof artifacts"
+    if ! sudo tee "$Q2_112_LIVE_PROOF_CFG" >/dev/null <<EOF
+# ${proof_token}
+# Harmless, non-included marker for the Q2 1.1.2 contract-backed restore proof.
+EOF
+    then
+        err "Could not create controlled config proof artifact."
+        rollback_q2_112_live_restore_proof "$proof_token"
+        return 1
+    fi
+    if ! sudo mkdir -p "$Q2_112_LIVE_PROOF_EXTERNAL_DIR" || \
+       ! printf '%s\n' "$proof_token" | sudo tee "$Q2_112_LIVE_PROOF_EXTERNAL_MARKER" >/dev/null; then
+        err "Could not create controlled external proof artifact."
+        rollback_q2_112_live_restore_proof "$proof_token"
+        return 1
+    fi
+    ok "Controlled proof artifacts created"
+
+    banner "Executing sealed contract-backed config restore"
+    if ! sudo rsync -aHAX --numeric-ids --delete \
+        "${Q2_112_CONTRACT_DIR}/config/" "${CONFIG_DIR}/"; then
+        err "Contract-backed config restore failed."
+        rollback_q2_112_live_restore_proof "$proof_token"
+        return 1
+    fi
+    if [ -e "$Q2_112_LIVE_PROOF_CFG" ] || [ -L "$Q2_112_LIVE_PROOF_CFG" ]; then
+        err "Config proof artifact survived contract-backed rsync --delete."
+        rollback_q2_112_live_restore_proof "$proof_token"
+        return 1
+    fi
+    ok "Contract-backed config restore removed the controlled config artifact"
+
+    banner "Applying controlled captured-absent path restore"
+    if [ ! -f "$Q2_112_LIVE_PROOF_EXTERNAL_MARKER" ] || \
+       [ "$(sudo cat "$Q2_112_LIVE_PROOF_EXTERNAL_MARKER" 2>/dev/null)" != "$proof_token" ]; then
+        err "External proof marker identity could not be verified; refusing removal."
+        rollback_q2_112_live_restore_proof "$proof_token"
+        return 1
+    fi
+    if ! remove_q2_112_live_proof_external_path "$proof_token"; then
+        err "Could not safely remove controlled external proof path."
+        rollback_q2_112_live_restore_proof "$proof_token"
+        return 1
+    fi
+    ok "Controlled external path restored to its captured absent state"
+
+    banner "Verifying exact restoration and unchanged system state"
+    if ! verify_q2_112_active_config_matches_contract; then
+        err "Restored active config does not exactly match the sealed stock contract."
+        rollback_q2_112_live_restore_proof "$proof_token"
+        return 1
+    fi
+    write_q2_112_rehearsal_live_guard "$after_dir" || {
+        err "Could not capture post-proof live-state guard."
+        rollback_q2_112_live_restore_proof "$proof_token"
+        return 1
+    }
+    if ! verify_q2_112_rehearsal_live_guard "$before_dir" "$after_dir"; then
+        err "Live system state differs after the controlled restore proof."
+        rollback_q2_112_live_restore_proof "$proof_token"
+        return 1
+    fi
+    if [ -e "$Q2_112_LIVE_PROOF_CFG" ] || [ -e "$Q2_112_LIVE_PROOF_EXTERNAL_DIR" ]; then
+        err "Controlled proof artifacts remain after restoration."
+        rollback_q2_112_live_restore_proof "$proof_token"
+        return 1
+    fi
+
+    if ! sudo tee "${Q2_112_LIVE_PROOF_DIR}/PASS" >/dev/null <<EOF
+AIO_VERSION=${AIO_VERSION}
+CONTRACT_DIR=${Q2_112_CONTRACT_DIR}
+CONTRACT_SEAL_SHA256=$(file_sha256 "${Q2_112_CONTRACT_DIR}/contract.sha256")
+PROVED_AT=$(date -Iseconds)
+EOF
+    then
+        err "Restore succeeded, but the controlled proof PASS record could not be written."
+        return 1
+    fi
+    sudo rm -rf "${Q2_112_LIVE_PROOF_DIR}/emergency"
+    ok "Controlled live restore proof passed"
+    ok "Active config exactly matches stock contract; proof artifacts are absent"
+    ok "Service enablement, default target, and package inventory are unchanged"
+    info "Run option 8 to verify Klipper, Moonraker, QIDIClient, Crowsnest, and Qidi Box health."
+    info "Full install and general real revert remain blocked."
+    return 0
+}
+
+menu_q2_112_live_restore_proof() {
+    run_q2_112_live_restore_proof
+    press_enter
+}
+
+write_q2_112_present_proof_guard() {
+    local output_dir="$1"
+    local active
+
+    write_q2_112_rehearsal_live_guard "$output_dir" || return 1
+    active=$(systemctl is-active "$STOCK_UI_SERVICE" 2>/dev/null || true)
+    printf '%s\n' "${active:-inactive}" | sudo tee "${output_dir}/stock-ui-active" >/dev/null
+}
+
+verify_q2_112_present_proof_guard() {
+    local before_dir="$1"
+    local after_dir="$2"
+
+    verify_q2_112_rehearsal_live_guard "$before_dir" "$after_dir" || return 1
+    if ! sudo cmp -s "${before_dir}/stock-ui-active" "${after_dir}/stock-ui-active"; then
+        err "Present-path restore proof changed stock UI active state"
+        return 1
+    fi
+    return 0
+}
+
+rollback_q2_112_present_path_restore_proof() {
+    local emergency_target="${Q2_112_PRESENT_PROOF_DIR}/emergency/target"
+
+    warn "Rolling back the controlled captured-present path restore proof"
+    if [ -d "$emergency_target" ]; then
+        sudo rsync -aHAX --numeric-ids --checksum --delete \
+            "${emergency_target}/" "${Q2_112_PRESENT_PROOF_TARGET}/" || \
+            err "Emergency target rollback failed; inspect ${emergency_target}"
+    else
+        err "Emergency target rollback is unavailable; inspect ${Q2_112_PRESENT_PROOF_TARGET}"
+    fi
+}
+
+remove_q2_112_present_proof_marker() {
+    local expected_token="$1"
+    local marker_token
+
+    [ -f "$Q2_112_PRESENT_PROOF_MARKER" ] && [ ! -L "$Q2_112_PRESENT_PROOF_MARKER" ] || return 1
+    marker_token=$(sudo cat "$Q2_112_PRESENT_PROOF_MARKER" 2>/dev/null || true)
+    [ "$marker_token" = "$expected_token" ] || return 1
+    sudo rm -f "$Q2_112_PRESENT_PROOF_MARKER"
+}
+
+q2_112_present_path_restore_proof_passed() {
+    local pass_file="${Q2_112_PRESENT_PROOF_DIR}/PASS"
+    local expected_seal current_seal
+    local before_dir="${Q2_112_PRESENT_PROOF_DIR}/checks/before"
+    local after_dir="${Q2_112_PRESENT_PROOF_DIR}/checks/after"
+
+    [ -f "$pass_file" ] || return 1
+    validate_q2_112_restore_contract || return 1
+    q2_112_live_restore_proof_passed || return 1
+    expected_seal=$(sed -n 's/^CONTRACT_SEAL_SHA256=//p' "$pass_file" 2>/dev/null | head -n 1)
+    current_seal=$(file_sha256 "${Q2_112_CONTRACT_DIR}/contract.sha256")
+    [ -n "$expected_seal" ] && [ "$expected_seal" = "$current_seal" ] || return 1
+    [ ! -e "$Q2_112_PRESENT_PROOF_MARKER" ] && [ ! -L "$Q2_112_PRESENT_PROOF_MARKER" ] || return 1
+    verify_q2_112_present_proof_guard "$before_dir" "$after_dir"
+}
+
+run_q2_112_present_path_restore_proof() {
+    banner "Q2 1.1.2 captured-present path restore proof"
+
+    if [ "$AIO_LAYOUT" != "q2_112" ] || [ "$STOCK_UI_SERVICE" != "qidi-client" ]; then
+        err "This proof is only available on Q2 firmware 1.1.2 with qidi-client."
+        return 1
+    fi
+    if ! validate_q2_112_restore_contract; then
+        err "No complete, verified restore contract is available."
+        return 1
+    fi
+    if ! q2_112_restore_rehearsal_passed || ! q2_112_live_restore_proof_passed; then
+        err "The isolated rehearsal and controlled live restore proof must pass first."
+        return 1
+    fi
+    if ! q2_112_external_paths_match_contract; then
+        err "One or more external paths no longer exactly match the sealed contract."
+        info "Run option 12 and review every reported change before continuing."
+        return 1
+    fi
+    if ! q2_112_contract_path_was_present_directory "$Q2_112_PRESENT_PROOF_TARGET"; then
+        err "Target was not captured as a present directory: ${Q2_112_PRESENT_PROOF_TARGET}"
+        return 1
+    fi
+    if [ ! -d "$Q2_112_PRESENT_PROOF_TARGET" ] || [ -L "$Q2_112_PRESENT_PROOF_TARGET" ] || \
+       [ ! -d "$Q2_112_PRESENT_PROOF_SOURCE" ] || [ -L "$Q2_112_PRESENT_PROOF_SOURCE" ]; then
+        err "Live target or sealed contract source directory is missing."
+        return 1
+    fi
+    if [ -e "$Q2_112_PRESENT_PROOF_MARKER" ] || [ -L "$Q2_112_PRESENT_PROOF_MARKER" ]; then
+        err "Controlled proof marker already exists; refusing to overwrite it."
+        return 1
+    fi
+    if ! systemctl is-active --quiet "$STOCK_UI_SERVICE"; then
+        err "Stock QIDIClient UI is not active; refusing the controlled proof."
+        return 1
+    fi
+
+    warn "This tests restoration of one captured-present system directory:"
+    warn "  ${Q2_112_PRESENT_PROOF_TARGET}"
+    warn "It creates one uniquely identified marker without a .conf extension,"
+    warn "so systemd ignores it, then restores the directory from the sealed contract."
+    warn "It does not run daemon-reload, restart services, or touch Klipper code/configs."
+    if ! confirm "Run the controlled captured-present path restore proof now?"; then
+        info "Captured-present path restore proof cancelled."
+        return 1
+    fi
+
+    local before_dir="${Q2_112_PRESENT_PROOF_DIR}/checks/before"
+    local after_dir="${Q2_112_PRESENT_PROOF_DIR}/checks/after"
+    local emergency_target="${Q2_112_PRESENT_PROOF_DIR}/emergency/target"
+    local proof_token proof_marker_name changes
+    proof_token="AIO_Q2_112_PRESENT_PATH_PROOF_$(date +%Y%m%d_%H%M%S)"
+    proof_marker_name="${Q2_112_PRESENT_PROOF_MARKER##*/}"
+
+    sudo rm -rf "$Q2_112_PRESENT_PROOF_DIR"
+    sudo mkdir -p "$before_dir" "$after_dir" "$emergency_target" || {
+        err "Could not create captured-present proof state."
+        return 1
+    }
+
+    banner "Capturing emergency rollback and live-state guard"
+    if ! sudo rsync -aHAX --numeric-ids \
+        "${Q2_112_PRESENT_PROOF_TARGET}/" "${emergency_target}/"; then
+        err "Could not capture emergency target rollback."
+        return 1
+    fi
+    write_q2_112_present_proof_guard "$before_dir" || {
+        err "Could not capture pre-proof live-state guard."
+        return 1
+    }
+    ok "Emergency target rollback and pre-proof live-state guard captured"
+
+    banner "Creating ignored systemd proof marker"
+    if ! printf '%s\n' "$proof_token" | sudo tee "$Q2_112_PRESENT_PROOF_MARKER" >/dev/null; then
+        err "Could not create controlled proof marker."
+        rollback_q2_112_present_path_restore_proof
+        return 1
+    fi
+    if [ "$(sudo cat "$Q2_112_PRESENT_PROOF_MARKER" 2>/dev/null || true)" != "$proof_token" ]; then
+        err "Controlled proof marker identity could not be verified."
+        warn "The ignored marker was left for inspection: ${Q2_112_PRESENT_PROOF_MARKER}"
+        return 1
+    fi
+    changes=$(sudo rsync -aHAX --numeric-ids --checksum --delete --dry-run --itemize-changes \
+        --omit-dir-times --exclude="/${proof_marker_name}" \
+        "${Q2_112_PRESENT_PROOF_SOURCE}/" "${Q2_112_PRESENT_PROOF_TARGET}/" 2>/dev/null) || {
+        err "Could not verify target safety immediately before restore."
+        remove_q2_112_present_proof_marker "$proof_token" || \
+            warn "The ignored marker was left for inspection: ${Q2_112_PRESENT_PROOF_MARKER}"
+        return 1
+    }
+    if [ -n "$changes" ]; then
+        err "Target changed after the initial safety gate; refusing rsync --delete."
+        remove_q2_112_present_proof_marker "$proof_token" || \
+            warn "The ignored marker was left for inspection: ${Q2_112_PRESENT_PROOF_MARKER}"
+        return 1
+    fi
+    ok "Ignored proof marker created; no daemon-reload or service restart performed"
+
+    banner "Executing sealed captured-present directory restore"
+    if ! sudo rsync -aHAX --numeric-ids --checksum --delete \
+        "${Q2_112_PRESENT_PROOF_SOURCE}/" "${Q2_112_PRESENT_PROOF_TARGET}/"; then
+        err "Contract-backed captured-present directory restore failed."
+        rollback_q2_112_present_path_restore_proof
+        return 1
+    fi
+    if [ -e "$Q2_112_PRESENT_PROOF_MARKER" ] || [ -L "$Q2_112_PRESENT_PROOF_MARKER" ]; then
+        err "Proof marker survived contract-backed rsync --delete."
+        rollback_q2_112_present_path_restore_proof
+        return 1
+    fi
+    changes=$(sudo rsync -aHAX --numeric-ids --checksum --delete --dry-run --itemize-changes \
+        "${Q2_112_PRESENT_PROOF_SOURCE}/" "${Q2_112_PRESENT_PROOF_TARGET}/" 2>/dev/null) || {
+        err "Could not verify restored target against the sealed contract."
+        rollback_q2_112_present_path_restore_proof
+        return 1
+    }
+    if [ -n "$changes" ]; then
+        err "Restored target does not exactly match the sealed contract."
+        rollback_q2_112_present_path_restore_proof
+        return 1
+    fi
+    ok "Captured-present target exactly matches the sealed contract"
+
+    banner "Verifying unchanged printer state"
+    write_q2_112_present_proof_guard "$after_dir" || {
+        err "Could not capture post-proof live-state guard."
+        rollback_q2_112_present_path_restore_proof
+        return 1
+    }
+    if ! verify_q2_112_present_proof_guard "$before_dir" "$after_dir"; then
+        err "Guarded printer state differs after the captured-present proof."
+        rollback_q2_112_present_path_restore_proof
+        return 1
+    fi
+    if ! systemctl is-active --quiet "$STOCK_UI_SERVICE"; then
+        err "QIDIClient stock UI is not active after the captured-present proof."
+        rollback_q2_112_present_path_restore_proof
+        return 1
+    fi
+
+    if ! sudo tee "${Q2_112_PRESENT_PROOF_DIR}/PASS" >/dev/null <<EOF
+AIO_VERSION=${AIO_VERSION}
+CONTRACT_DIR=${Q2_112_CONTRACT_DIR}
+CONTRACT_SEAL_SHA256=$(file_sha256 "${Q2_112_CONTRACT_DIR}/contract.sha256")
+TARGET=${Q2_112_PRESENT_PROOF_TARGET}
+PROVED_AT=$(date -Iseconds)
+EOF
+    then
+        err "Restore succeeded, but the captured-present proof PASS record could not be written."
+        return 1
+    fi
+    sudo rm -rf "${Q2_112_PRESENT_PROOF_DIR}/emergency"
+    ok "Controlled captured-present path restore proof passed"
+    ok "QIDIClient remained active; no service reload or restart was performed"
+    ok "Config, service enablement, default target, and package inventory are unchanged"
+    info "Run option 8 to verify full printer runtime health."
+    info "Full install and general real revert remain blocked."
+    return 0
+}
+
+menu_q2_112_present_path_restore_proof() {
+    run_q2_112_present_path_restore_proof
+    press_enter
+}
+
+q2_112_runtime_proof_services() {
+    printf '%s\n' klipper moonraker "$STOCK_UI_SERVICE" crowsnest
+}
+
+q2_112_runtime_services_active() {
+    local service
+
+    while IFS= read -r service; do
+        systemctl is-active --quiet "$service" || return 1
+    done < <(q2_112_runtime_proof_services)
+    return 0
+}
+
+write_q2_112_runtime_proof_guard() {
+    local output_dir="$1"
+    local service active
+
+    write_q2_112_present_proof_guard "$output_dir" || return 1
+    while IFS= read -r service; do
+        active=$(systemctl is-active "$service" 2>/dev/null || true)
+        printf '%s|%s\n' "$service" "${active:-inactive}"
+    done < <(q2_112_runtime_proof_services) | sudo tee "${output_dir}/runtime-services-active" >/dev/null
+}
+
+verify_q2_112_runtime_proof_guard() {
+    local before_dir="$1"
+    local after_dir="$2"
+
+    verify_q2_112_present_proof_guard "$before_dir" "$after_dir" || return 1
+    if ! sudo cmp -s "${before_dir}/runtime-services-active" "${after_dir}/runtime-services-active"; then
+        err "Runtime-path restore proof changed a guarded service active state"
+        return 1
+    fi
+    return 0
+}
+
+remove_q2_112_runtime_proof_marker() {
+    local marker="$1"
+    local expected_token="$2"
+    local marker_token
+
+    [ -f "$marker" ] && [ ! -L "$marker" ] || return 1
+    marker_token=$(sudo cat "$marker" 2>/dev/null || true)
+    [ "$marker_token" = "$expected_token" ] || return 1
+    sudo rm -f "$marker"
+}
+
+rollback_q2_112_runtime_path_restore_proof() {
+    local proof_dir="$1"
+    local target="$2"
+    local emergency_target="${proof_dir}/emergency/target"
+
+    warn "Rolling back the controlled runtime-path restore proof"
+    if [ -d "$emergency_target" ] && [ ! -L "$emergency_target" ] && \
+       [ -d "$target" ] && [ ! -L "$target" ]; then
+        sudo rsync -aHAX --numeric-ids --checksum --delete "${emergency_target}/" "${target}/" || \
+            err "Emergency runtime-path rollback failed; inspect ${emergency_target}"
+    else
+        err "Emergency runtime-path rollback is unavailable; inspect ${target}"
+    fi
+}
+
+q2_112_runtime_path_restore_proof_passed() {
+    local proof_dir="$1"
+    local target="$2"
+    local marker="$3"
+    local pass_file="${proof_dir}/PASS"
+    local expected_seal current_seal expected_target
+    local before_dir="${proof_dir}/checks/before"
+    local after_dir="${proof_dir}/checks/after"
+
+    [ -f "$pass_file" ] || return 1
+    validate_q2_112_restore_contract || return 1
+    q2_112_present_path_restore_proof_passed || return 1
+    expected_seal=$(sed -n 's/^CONTRACT_SEAL_SHA256=//p' "$pass_file" 2>/dev/null | head -n 1)
+    current_seal=$(file_sha256 "${Q2_112_CONTRACT_DIR}/contract.sha256")
+    expected_target=$(sed -n 's/^TARGET=//p' "$pass_file" 2>/dev/null | head -n 1)
+    [ -n "$expected_seal" ] && [ "$expected_seal" = "$current_seal" ] || return 1
+    [ "$expected_target" = "$target" ] || return 1
+    [ ! -e "$marker" ] && [ ! -L "$marker" ] || return 1
+    verify_q2_112_runtime_proof_guard "$before_dir" "$after_dir"
+}
+
+run_q2_112_runtime_path_restore_proof() {
+    local label="$1"
+    local proof_dir="$2"
+    local target="$3"
+    local marker="$4"
+    local source="${Q2_112_CONTRACT_DIR}/external${target}"
+    local before_dir="${proof_dir}/checks/before"
+    local after_dir="${proof_dir}/checks/after"
+    local emergency_target="${proof_dir}/emergency/target"
+    local proof_token marker_name changes
+
+    banner "Q2 1.1.2 ${label} restore proof"
+
+    if [ "$AIO_LAYOUT" != "q2_112" ] || [ "$STOCK_UI_SERVICE" != "qidi-client" ]; then
+        err "This proof is only available on Q2 firmware 1.1.2 with qidi-client."
+        return 1
+    fi
+    if ! validate_q2_112_restore_contract || ! q2_112_present_path_restore_proof_passed; then
+        err "The verified contract and captured-present systemd proof must pass first."
+        return 1
+    fi
+    if ! q2_112_external_paths_match_contract; then
+        err "One or more external paths no longer exactly match the sealed contract."
+        info "Run option 12 and review every reported change before continuing."
+        return 1
+    fi
+    if ! q2_112_contract_path_was_present_directory "$target"; then
+        err "Target was not captured as a present directory: ${target}"
+        return 1
+    fi
+    if [ ! -d "$target" ] || [ -L "$target" ] || [ ! -d "$source" ] || [ -L "$source" ]; then
+        err "Live target or sealed contract source is not a real directory."
+        return 1
+    fi
+    if [ -e "$marker" ] || [ -L "$marker" ]; then
+        err "Controlled runtime proof marker already exists; refusing to overwrite it."
+        return 1
+    fi
+    if ! q2_112_runtime_services_active; then
+        err "Klipper, Moonraker, QIDIClient, and Crowsnest must all be active."
+        return 1
+    fi
+
+    warn "This tests sealed restoration of one loaded Python runtime directory:"
+    warn "  ${target}"
+    warn "It creates one hidden marker without a .py extension, verifies that marker"
+    warn "is the only difference, then restores only this directory with rsync --delete."
+    warn "It does not reload Python, restart services, or touch active Klipper configs."
+    if ! confirm "Run the controlled ${label} restore proof now?"; then
+        info "${label} restore proof cancelled."
+        return 1
+    fi
+    if ! q2_112_runtime_services_active; then
+        err "A guarded runtime service changed state while awaiting confirmation."
+        return 1
+    fi
+
+    proof_token="AIO_Q2_112_RUNTIME_PATH_PROOF_$(date +%Y%m%d_%H%M%S)"
+    marker_name="${marker##*/}"
+    sudo rm -rf "$proof_dir"
+    sudo mkdir -p "$before_dir" "$after_dir" "$emergency_target" || {
+        err "Could not create runtime-path proof state."
+        return 1
+    }
+
+    banner "Capturing emergency rollback and runtime guard"
+    if ! sudo rsync -aHAX --numeric-ids "${target}/" "${emergency_target}/"; then
+        err "Could not capture emergency runtime-path rollback."
+        return 1
+    fi
+    write_q2_112_runtime_proof_guard "$before_dir" || {
+        err "Could not capture pre-proof runtime guard."
+        return 1
+    }
+    ok "Emergency rollback and pre-proof runtime guard captured"
+
+    banner "Creating harmless non-Python proof marker"
+    if ! printf '%s\n' "$proof_token" | sudo tee "$marker" >/dev/null; then
+        err "Could not create controlled runtime proof marker."
+        rollback_q2_112_runtime_path_restore_proof "$proof_dir" "$target"
+        return 1
+    fi
+    if [ "$(sudo cat "$marker" 2>/dev/null || true)" != "$proof_token" ]; then
+        err "Controlled runtime proof marker identity could not be verified."
+        warn "The marker was left for inspection: ${marker}"
+        return 1
+    fi
+    changes=$(sudo rsync -aHAX --numeric-ids --checksum --delete --dry-run --itemize-changes \
+        --omit-dir-times --exclude="/${marker_name}" "${source}/" "${target}/" 2>/dev/null) || {
+        err "Could not verify runtime target safety immediately before restore."
+        remove_q2_112_runtime_proof_marker "$marker" "$proof_token" || \
+            warn "The marker was left for inspection: ${marker}"
+        return 1
+    }
+    if [ -n "$changes" ]; then
+        err "Runtime target changed after the initial safety gate; refusing rsync --delete."
+        remove_q2_112_runtime_proof_marker "$marker" "$proof_token" || \
+            warn "The marker was left for inspection: ${marker}"
+        return 1
+    fi
+    if ! q2_112_runtime_services_active; then
+        err "A guarded runtime service changed state before the restore."
+        remove_q2_112_runtime_proof_marker "$marker" "$proof_token" || \
+            warn "The marker was left for inspection: ${marker}"
+        return 1
+    fi
+    ok "Marker is the only target difference; all guarded services remain active"
+
+    banner "Executing sealed runtime-directory restore"
+    if ! sudo rsync -aHAX --numeric-ids --checksum --delete "${source}/" "${target}/"; then
+        err "Contract-backed runtime-directory restore failed."
+        rollback_q2_112_runtime_path_restore_proof "$proof_dir" "$target"
+        return 1
+    fi
+    if [ -e "$marker" ] || [ -L "$marker" ]; then
+        err "Runtime proof marker survived contract-backed rsync --delete."
+        rollback_q2_112_runtime_path_restore_proof "$proof_dir" "$target"
+        return 1
+    fi
+    changes=$(sudo rsync -aHAX --numeric-ids --checksum --delete --dry-run --itemize-changes \
+        "${source}/" "${target}/" 2>/dev/null) || {
+        err "Could not verify restored runtime target against the sealed contract."
+        rollback_q2_112_runtime_path_restore_proof "$proof_dir" "$target"
+        return 1
+    }
+    if [ -n "$changes" ]; then
+        err "Restored runtime target does not exactly match the sealed contract."
+        rollback_q2_112_runtime_path_restore_proof "$proof_dir" "$target"
+        return 1
+    fi
+    ok "Runtime target exactly matches the sealed contract"
+
+    banner "Verifying unchanged runtime and printer state"
+    write_q2_112_runtime_proof_guard "$after_dir" || {
+        err "Could not capture post-proof runtime guard."
+        rollback_q2_112_runtime_path_restore_proof "$proof_dir" "$target"
+        return 1
+    }
+    if ! verify_q2_112_runtime_proof_guard "$before_dir" "$after_dir" || \
+       ! q2_112_runtime_services_active; then
+        err "Guarded printer runtime differs after the controlled restore."
+        rollback_q2_112_runtime_path_restore_proof "$proof_dir" "$target"
+        return 1
+    fi
+
+    if ! sudo tee "${proof_dir}/PASS" >/dev/null <<EOF
+AIO_VERSION=${AIO_VERSION}
+CONTRACT_DIR=${Q2_112_CONTRACT_DIR}
+CONTRACT_SEAL_SHA256=$(file_sha256 "${Q2_112_CONTRACT_DIR}/contract.sha256")
+TARGET=${target}
+PROVED_AT=$(date -Iseconds)
+EOF
+    then
+        err "Restore succeeded, but the runtime-path proof PASS record could not be written."
+        return 1
+    fi
+    sudo rm -rf "${proof_dir}/emergency"
+    ok "Controlled ${label} restore proof passed"
+    ok "Klipper, Moonraker, QIDIClient, and Crowsnest remained active"
+    ok "No Python reload, service restart, config change, or package change occurred"
+    info "Run option 8 to verify full printer runtime and Qidi Box sensor health."
+    info "Full install and general real revert remain blocked."
+    return 0
+}
+
+menu_q2_112_klipper_extras_restore_proof() {
+    run_q2_112_runtime_path_restore_proof \
+        "Klipper extras" \
+        "$Q2_112_KLIPPER_EXTRAS_PROOF_DIR" \
+        "$Q2_112_KLIPPER_EXTRAS_PROOF_TARGET" \
+        "$Q2_112_KLIPPER_EXTRAS_PROOF_MARKER"
+    press_enter
+}
+
+menu_q2_112_moonraker_components_restore_proof() {
+    run_q2_112_runtime_path_restore_proof \
+        "Moonraker components" \
+        "$Q2_112_MOONRAKER_COMPONENTS_PROOF_DIR" \
+        "$Q2_112_MOONRAKER_COMPONENTS_PROOF_TARGET" \
+        "$Q2_112_MOONRAKER_COMPONENTS_PROOF_MARKER"
+    press_enter
+}
+
+offer_q2_112_restore_contract_capture() {
+    [ "$AIO_LAYOUT" = "q2_112" ] || return 0
+
+    if validate_q2_112_restore_contract; then
+        ok "Verified 1.1.2 restore contract is ready."
+        return 0
+    fi
+    if capture_q2_112_restore_contract; then
+        banner "Restore contract preview after capture"
+        report_q2_112_restore_contract || true
+    fi
+}
+
+report_stock_preservation_dry_run() {
+    banner "Dry-run stock preservation checks"
+
+    dry_run_path_state "Active config dir" "$CONFIG_DIR"
+    dry_run_path_state "Stock macro directory" "${CONFIG_DIR}/klipper-macros-qd"
+    dry_run_path_state "Stock crowsnest.conf" "${CONFIG_DIR}/crowsnest.conf"
+    dry_run_path_state "Stock timelapse.cfg" "${CONFIG_DIR}/timelapse.cfg"
+    dry_run_path_state "Stock QIDI_Client directory" "${AIO_HOME}/QIDI_Client"
+
+    verify_systemd_service_health "$STOCK_UI_SERVICE" "$STOCK_UI_LABEL" true
+    if [ "$CAMERA_STACK" = "crowsnest" ]; then
+        verify_systemd_service_health crowsnest "Crowsnest camera stack" false
+    fi
+    verify_qidi_tuning_service_health
+}
+
+report_aio_removal_dry_run() {
+    banner "Dry-run AIO artifact removal plan"
+
+    for d in \
+        "$HAPPY_HARE_DIR" \
+        "$HELIX_DIR" \
+        "$HELIX_PRINT_DIR" \
+        "$KLIPPERSCREEN_DIR" \
+        "$KLIPPERSCREEN_VENV" \
+        "$KIAUH_DIR" \
+        "$KIAUH_BACKUPS_DIR" \
+        "$KIAUH_UPPER_DIR" \
+        "$KIAUH_UPPER_BACKUPS_DIR" \
+        "$MAINSAIL_DIR" \
+        "$Q2_112_PROBE_STATE_DIR" \
+        /opt/helixscreen \
+        /var/lib/helixscreen \
+        /var/log/helixscreen \
+        "${HOME}/.helixscreen" \
+        /root/.helixscreen; do
+        dry_run_removal_state "$d"
+    done
+
+    for f in \
+        "${CONFIG_DIR}/bunnybox_macros.cfg" \
+        "${CONFIG_DIR}/box_drying.cfg" \
+        "${CONFIG_DIR}/idle_fan_shutdown.cfg" \
+        "${CONFIG_DIR}/KlipperScreen.conf" \
+        "${CONFIG_DIR}/KAMP_Settings.cfg" \
+        "${CONFIG_DIR}/KAMP_settings.cfg" \
+        "${CONFIG_DIR}/Adaptive_Meshing.cfg" \
+        "${CONFIG_DIR}/Adaptive_Mesh.cfg" \
+        "${CONFIG_DIR}/Line_Purge.cfg" \
+        "${CONFIG_DIR}/Smart_Park.cfg" \
+        "${CONFIG_DIR}/mmu_cut_tip.cfg" \
+        "${CONFIG_DIR}/mmu_form_tip.cfg" \
+        "${CONFIG_DIR}/mmu_heater_vent.cfg" \
+        "${CONFIG_DIR}/mmu_leds.cfg" \
+        "${CONFIG_DIR}/mmu_purge.cfg" \
+        "${CONFIG_DIR}/mmu_sequence.cfg" \
+        "${CONFIG_DIR}/mmu_software.cfg" \
+        "${CONFIG_DIR}/mmu_state.cfg" \
+        "${CONFIG_DIR}/mmu_parameters.cfg" \
+        "${CONFIG_DIR}/mmu_macro_vars.cfg" \
+        "${CONFIG_DIR}/mmu_hardware.cfg" \
+        "${CONFIG_DIR}/mmu_vars.cfg" \
+        "${CONFIG_DIR}/mmu.cfg" \
+        "${CONFIG_DIR}/moonraker.conf.aio-bak" \
+        "$Q2_112_LIVE_PROOF_CFG" \
+        "$Q2_112_PROBE_CFG" \
+        /etc/systemd/system/KlipperScreen.service \
+        /etc/systemd/system/helixscreen.service \
+        "$Q2_112_PRESENT_PROOF_MARKER" \
+        "$Q2_112_KLIPPER_EXTRAS_PROOF_MARKER" \
+        "$Q2_112_MOONRAKER_COMPONENTS_PROOF_MARKER" \
+        /etc/systemd/system/helixscreen-update.path \
+        /etc/systemd/system/helixscreen-update.service \
+        /etc/udev/rules.d/99-helixscreen-backlight.rules \
+        /etc/polkit-1/localauthority/50-local.d/helixscreen-network.pkla \
+        /etc/polkit-1/rules.d/49-helixscreen-network.rules \
+        /etc/polkit-1/rules.d/50-helixscreen-network.rules; do
+        dry_run_removal_state "$f"
+    done
+
+    while IFS= read -r -d '' path; do
+        dry_run_removal_state "$path"
+    done < <(
+        find "$CONFIG_DIR" -maxdepth 1 \
+            \( -name 'mmu' -o -name 'mmu-*' -o -name 'mmu_*' -o -name 'mmu[0-9]*' \
+               -o -name 'backup_hh_*' -o -name 'backup_revert_*' -o -name 'backup_mmu_*' \
+               -o -name 'backup_bunnybox_*' -o -name 'mmu_klipperscreen.*' \
+               -o -name 'moonraker.conf.bak.helixscreen*' \) \
+            -print0 2>/dev/null
+    )
+
+    info "Installer-managed backup root: ${BACKUP_ROOT}/"
+    info "This is not stock firmware content; dry-run does not remove installer-managed backups."
+}
+
+revert_to_backup_dry_run() {
+    banner "Revert to Backup dry-run (no changes)"
+    warn "This is a report only: no backups, rsync, rm, sed, or systemctl mutations will run."
+    warn "Real Revert to Backup remains blocked on ${AIO_LAYOUT_NAME} until this plan is validated."
+
+    show_layout_report
+    report_revert_backup_dry_run
+    report_q2_112_restore_contract || true
+    report_stock_preservation_dry_run
+    report_aio_removal_dry_run
+    report_qidi_box_object_inventory
+    verify_qidi_box_runtime_sensors
+    report_active_config_graph
+
+    banner "Dry-run complete"
+    info "Review this output for anything stock that would be removed or missing from backup."
+    info "Full install and general real revert remain blocked while the 1.1.2 compatibility lane is tested."
+}
+
+offer_q2_112_baseline_capture() {
+    local selected selected_label selected_path selected_delete
+
+    [ "$AIO_LAYOUT" = "q2_112" ] || return 0
+    if ! selected=$(select_revert_backup_source); then
+        warn "No backup source exists yet for this layout."
+        if capture_q2_112_stock_baseline; then
+            banner "Re-running Revert dry-run after baseline capture"
+            revert_to_backup_dry_run
+        fi
+        return 0
+    fi
+
+    IFS='|' read -r selected_label selected_path selected_delete <<< "$selected"
+    if backup_missing_active_stock_essentials "$selected_path"; then
+        warn "The selected baseline is missing active 1.1.2 stock essentials."
+        if capture_q2_112_stock_baseline; then
+            banner "Re-running Revert dry-run after baseline capture"
+            revert_to_backup_dry_run
+        fi
+    fi
+}
+
+q2_112_probe_installed() {
+    [ -d "$Q2_112_PROBE_STATE_DIR" ] || \
+    [ -e "$Q2_112_PROBE_CFG" ] || \
+    grep -Fqx "$Q2_112_PROBE_INCLUDE" "${CONFIG_DIR}/printer.cfg" 2>/dev/null
+}
+
+file_sha256() {
+    local path="$1"
+    sudo sha256sum "$path" 2>/dev/null | awk '{print $1}'
+}
+
+q2_112_probe_manifest_value() {
+    local key="$1"
+    [ -f "$Q2_112_PROBE_MANIFEST" ] || return 1
+    sed -n "s/^${key}=//p" "$Q2_112_PROBE_MANIFEST" 2>/dev/null | head -n 1
+}
+
+q2_112_baseline_safe() {
+    local selected selected_label selected_path selected_delete
+    if ! selected=$(select_revert_backup_source); then
+        err "No stock baseline exists. Run option 4 and capture the guarded baseline first."
+        return 1
+    fi
+    IFS='|' read -r selected_label selected_path selected_delete <<< "$selected"
+    if backup_missing_active_stock_essentials "$selected_path"; then
+        err "Selected stock baseline is missing active 1.1.2 stock essentials."
+        info "Run option 4 to inspect or repair the baseline before using the probe."
+        return 1
+    fi
+    ok "Guarded stock baseline is ready: ${selected_path}"
+    return 0
+}
+
+rollback_q2_112_probe_install() {
+    warn "Rolling back incomplete 1.1.2 compatibility probe install"
+    if [ -f "$Q2_112_PROBE_ORIGINAL" ]; then
+        sudo cp -a "$Q2_112_PROBE_ORIGINAL" "${CONFIG_DIR}/printer.cfg" 2>/dev/null || true
+    fi
+    sudo rm -f "$Q2_112_PROBE_CFG" 2>/dev/null || true
+    sudo rm -rf "$Q2_112_PROBE_STATE_DIR" 2>/dev/null || true
+}
+
+install_q2_112_roundtrip_probe() {
+    banner "Install 1.1.2 compatibility round-trip probe"
+
+    if [ "$AIO_LAYOUT" != "q2_112" ]; then
+        err "The compatibility probe is only available on Q2 firmware 1.1.2 / qidi layout."
+        return 1
+    fi
+    if q2_112_probe_installed; then
+        warn "Compatibility probe artifacts are already present."
+        info "Run this option again and choose removal."
+        return 1
+    fi
+    q2_112_stock_essentials_present || return 1
+    q2_112_aio_artifacts_absent || return 1
+    q2_112_baseline_safe || return 1
+
+    warn "This controlled test will add exactly two active-config changes:"
+    warn "  ${Q2_112_PROBE_CFG}"
+    warn "  ${Q2_112_PROBE_INCLUDE} in ${CONFIG_DIR}/printer.cfg"
+    warn "It records exact before/after printer.cfg hashes for guarded removal."
+    if ! confirm "Install the reversible 1.1.2 compatibility probe?"; then
+        info "Compatibility probe install cancelled."
+        return 1
+    fi
+
+    local original_sha modified_sha
+    original_sha=$(file_sha256 "${CONFIG_DIR}/printer.cfg")
+    if [ -z "$original_sha" ]; then
+        err "Could not hash active printer.cfg"
+        return 1
+    fi
+
+    sudo mkdir -p "$Q2_112_PROBE_STATE_DIR" || return 1
+    if ! sudo cp -a "${CONFIG_DIR}/printer.cfg" "$Q2_112_PROBE_ORIGINAL"; then
+        err "Could not save exact pre-probe printer.cfg"
+        rollback_q2_112_probe_install
+        return 1
+    fi
+    if ! sudo cp -a "$Q2_112_PROBE_ORIGINAL" "$Q2_112_PROBE_MODIFIED"; then
+        err "Could not stage compatibility probe printer.cfg"
+        rollback_q2_112_probe_install
+        return 1
+    fi
+
+    if ! sudo tee -a "$Q2_112_PROBE_MODIFIED" >/dev/null <<EOF
+
+# AIO Q2 1.1.2 reversible compatibility probe
+${Q2_112_PROBE_INCLUDE}
+EOF
+    then
+        err "Could not stage compatibility probe include"
+        rollback_q2_112_probe_install
+        return 1
+    fi
+
+    modified_sha=$(file_sha256 "$Q2_112_PROBE_MODIFIED")
+    if [ -z "$modified_sha" ] || [ "$modified_sha" = "$original_sha" ]; then
+        err "Could not verify the staged compatibility probe printer.cfg"
+        rollback_q2_112_probe_install
+        return 1
+    fi
+
+    if ! sudo tee "$Q2_112_PROBE_MANIFEST" >/dev/null <<EOF
+AIO_VERSION=${AIO_VERSION}
+AIO_LAYOUT=${AIO_LAYOUT}
+CONFIG_DIR=${CONFIG_DIR}
+PROBE_CFG=${Q2_112_PROBE_CFG}
+PROBE_INCLUDE=${Q2_112_PROBE_INCLUDE}
+ORIGINAL_PRINTER_CFG_SHA256=${original_sha}
+MODIFIED_PRINTER_CFG_SHA256=${modified_sha}
+EOF
+    then
+        err "Could not write compatibility probe manifest"
+        rollback_q2_112_probe_install
+        return 1
+    fi
+
+    if ! sudo tee "$Q2_112_PROBE_CFG" >/dev/null <<'EOF'
+# AIO Q2 firmware 1.1.2 reversible compatibility probe.
+[gcode_macro AIO_Q2_112_COMPAT_PROBE]
+description: AIO Q2 1.1.2 reversible compatibility probe
+gcode:
+    G4 P1
+EOF
+    then
+        err "Could not write compatibility probe config"
+        rollback_q2_112_probe_install
+        return 1
+    fi
+    sudo chown --reference="${CONFIG_DIR}/printer.cfg" "$Q2_112_PROBE_CFG" 2>/dev/null || true
+    sudo chmod --reference="${CONFIG_DIR}/printer.cfg" "$Q2_112_PROBE_CFG" 2>/dev/null || true
+
+    if ! sudo cp -a "$Q2_112_PROBE_MODIFIED" "${CONFIG_DIR}/printer.cfg"; then
+        err "Could not activate staged compatibility probe printer.cfg"
+        rollback_q2_112_probe_install
+        return 1
+    fi
+
+    if [ ! -f "$Q2_112_PROBE_CFG" ] || \
+       ! grep -Fqx "$Q2_112_PROBE_INCLUDE" "${CONFIG_DIR}/printer.cfg" 2>/dev/null || \
+       [ "$(file_sha256 "${CONFIG_DIR}/printer.cfg")" != "$modified_sha" ]; then
+        err "Compatibility probe verification failed"
+        rollback_q2_112_probe_install
+        return 1
+    fi
+
+    ok "Compatibility probe installed with exact before/after hashes"
+    info "Run FIRMWARE_RESTART, then option 8 to verify Klipper and the active include graph."
+    info "After verification, run option 9 again to perform the guarded round-trip removal."
+    return 0
+}
+
+remove_q2_112_roundtrip_probe() {
+    banner "Remove 1.1.2 compatibility round-trip probe"
+
+    if [ "$AIO_LAYOUT" != "q2_112" ]; then
+        err "The compatibility probe is only available on Q2 firmware 1.1.2 / qidi layout."
+        return 1
+    fi
+    if [ ! -f "$Q2_112_PROBE_ORIGINAL" ] || [ ! -f "$Q2_112_PROBE_MANIFEST" ]; then
+        err "Probe state is incomplete; refusing to overwrite printer.cfg."
+        info "Inspect: ${Q2_112_PROBE_STATE_DIR}"
+        return 1
+    fi
+
+    local original_sha expected_modified_sha current_sha restored_sha
+    original_sha=$(q2_112_probe_manifest_value ORIGINAL_PRINTER_CFG_SHA256)
+    expected_modified_sha=$(q2_112_probe_manifest_value MODIFIED_PRINTER_CFG_SHA256)
+    current_sha=$(file_sha256 "${CONFIG_DIR}/printer.cfg")
+    if [ -z "$original_sha" ] || [ -z "$expected_modified_sha" ] || [ -z "$current_sha" ]; then
+        err "Probe hash metadata could not be read; refusing cleanup."
+        return 1
+    fi
+    if [ "$current_sha" = "$original_sha" ]; then
+        warn "Active printer.cfg already matches the pre-probe hash."
+        warn "Cleaning incomplete probe files/state without overwriting printer.cfg."
+        sudo rm -f "$Q2_112_PROBE_CFG"
+        sudo rm -rf "$Q2_112_PROBE_STATE_DIR"
+        ok "Incomplete compatibility probe state removed"
+        return 0
+    elif [ "$current_sha" != "$expected_modified_sha" ]; then
+        err "Active printer.cfg changed after the probe was installed."
+        warn "Expected modified hash: ${expected_modified_sha}"
+        warn "Current hash:           ${current_sha}"
+        warn "Refusing to overwrite unrelated changes. Probe state was kept for recovery."
+        return 1
+    fi
+
+    warn "This will restore the exact pre-probe printer.cfg and remove only:"
+    warn "  ${Q2_112_PROBE_CFG}"
+    if ! confirm "Remove the compatibility probe and verify the round trip?"; then
+        info "Compatibility probe removal cancelled."
+        return 1
+    fi
+
+    if ! sudo cp -a "$Q2_112_PROBE_ORIGINAL" "${CONFIG_DIR}/printer.cfg"; then
+        err "Could not restore exact pre-probe printer.cfg"
+        return 1
+    fi
+    sudo rm -f "$Q2_112_PROBE_CFG"
+
+    restored_sha=$(file_sha256 "${CONFIG_DIR}/printer.cfg")
+    if [ "$restored_sha" != "$original_sha" ]; then
+        err "Round-trip verification failed: restored printer.cfg hash does not match original."
+        warn "Probe state was kept: ${Q2_112_PROBE_STATE_DIR}"
+        return 1
+    fi
+    if [ -e "$Q2_112_PROBE_CFG" ] || \
+       grep -Fqx "$Q2_112_PROBE_INCLUDE" "${CONFIG_DIR}/printer.cfg" 2>/dev/null; then
+        err "Round-trip verification failed: probe artifacts remain."
+        warn "Probe state was kept: ${Q2_112_PROBE_STATE_DIR}"
+        return 1
+    fi
+
+    sudo rm -rf "$Q2_112_PROBE_STATE_DIR"
+    ok "Round-trip verified: printer.cfg exactly matches its pre-probe hash"
+    ok "Compatibility probe config and state removed"
+    info "Run FIRMWARE_RESTART, then sudo reboot."
+    return 0
+}
+
+menu_q2_112_roundtrip_probe() {
+    if [ "$AIO_LAYOUT" != "q2_112" ]; then
+        warn "The 1.1.2 compatibility probe is only available on the q2_112 layout."
+        press_enter
+        return 0
+    fi
+
+    if q2_112_probe_installed; then
+        remove_q2_112_roundtrip_probe
+    else
+        install_q2_112_roundtrip_probe
+    fi
+    press_enter
+}
+
+# Switch the Q2's active display from the stock Qidi services to HelixScreen.
+# Inverse of the unmask/enable/restart block in uninstall_helixscreen().
 #
 # Why this exists: HelixScreen's upstream installer was written for the
 # Artillery M1 Pro and doesn't know about Qidi-specific display services.
-# Without this swap, lightdm + makerbase-client keep the stock UI on the
+# Without this swap, the stock UI service keeps the vendor UI on the
 # physical screen and HelixScreen never appears, even though the package
 # was installed correctly.
 switch_display_to_helixscreen() {
@@ -1834,12 +4315,16 @@ switch_display_to_helixscreen() {
         warn "HelixScreen package may not have installed correctly. Check output above."
         return 1
     fi
-    sudo systemctl stop    makerbase-client  2>/dev/null || true
-    sudo systemctl disable makerbase-client  2>/dev/null || true
-    sudo systemctl mask    makerbase-client  2>/dev/null || true
-    sudo systemctl stop    lightdm           2>/dev/null || true
-    sudo systemctl disable lightdm           2>/dev/null || true
-    sudo systemctl mask    lightdm           2>/dev/null || true
+    if [ -n "$STOCK_UI_SERVICE" ]; then
+        sudo systemctl stop    "$STOCK_UI_SERVICE" 2>/dev/null || true
+        sudo systemctl disable "$STOCK_UI_SERVICE" 2>/dev/null || true
+        sudo systemctl mask    "$STOCK_UI_SERVICE" 2>/dev/null || true
+    fi
+    if [ -n "$STOCK_DISPLAY_SERVICE" ]; then
+        sudo systemctl stop    "$STOCK_DISPLAY_SERVICE" 2>/dev/null || true
+        sudo systemctl disable "$STOCK_DISPLAY_SERVICE" 2>/dev/null || true
+        sudo systemctl mask    "$STOCK_DISPLAY_SERVICE" 2>/dev/null || true
+    fi
     sudo systemctl daemon-reload             2>/dev/null || true
     sudo systemctl unmask  helixscreen       2>/dev/null || true
     sudo systemctl enable  helixscreen       2>/dev/null || true
@@ -1891,8 +4376,8 @@ uninstall_helixscreen() {
     fi
 }
 
-# Full upstream-style revert: re-enables lightdm + makerbase-client and
-# restores from /home/mks/mudstockbackups via rsync (mirrors Camden-Winder
+# Full upstream-style revert: re-enables the stock display stack and
+# restores from the selected AIO backup via rsync (mirrors Camden-Winder
 # uninstall.sh).
 revert_to_backup() {
     banner "Revert to Backup (full stock restore)"
@@ -1939,7 +4424,7 @@ revert_to_backup() {
         else
             local oldest
             oldest=$(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d \
-                     -not -name '_FIRST_STOCK' 2>/dev/null | sort | head -n 1)
+                     -not -name '_*' 2>/dev/null | sort | head -n 1)
             if [ -n "$oldest" ]; then
                 src="$oldest"
                 restore_can_delete=true
@@ -2041,13 +4526,13 @@ revert_to_backup() {
             remove_backup_root_after_revert || true
         else
             warn "Keeping ${BACKUP_ROOT}/ because stock display services did not verify"
-            warn "Fix LightDM/makerbase-client, then rerun Revert to Backup to remove AIO backups."
+            warn "Fix $(stock_display_stack_label), then rerun Revert to Backup to remove AIO backups."
         fi
     fi
 
     banner "Revert complete"
     info "Run FIRMWARE_RESTART from Klipper/Moonraker, then sudo reboot."
-    info "After reboot, confirm stock display startup with systemctl status lightdm makerbase-client."
+    info "After reboot, confirm stock display startup with systemctl status ${STOCK_DISPLAY_SERVICE:-display-manager.service} ${STOCK_UI_SERVICE:-}"
 }
 
 # ---------- post-install verification --------------------------------
@@ -2331,33 +4816,370 @@ run_all_verifiers() {
     press_enter
 }
 
-# Scan every .cfg under CONFIG_DIR for duplicate [gcode_macro NAME] decls.
-# Klipper refuses to start with "gcode command X already registered" if any
-# macro name is defined twice across included files. This pinpoints exactly
-# which file pair is the conflict so the user can comment one out.
+report_firmware_layout_files() {
+    banner "Firmware layout files"
+
+    if [ -d "$AIO_HOME" ]; then
+        ok "AIO home exists: ${AIO_HOME}"
+    else
+        warn "AIO home missing: ${AIO_HOME}"
+    fi
+    if [ -d "$CONFIG_DIR" ]; then
+        ok "Config dir exists: ${CONFIG_DIR}"
+    else
+        warn "Config dir missing: ${CONFIG_DIR}"
+    fi
+    if [ -d "${CONFIG_DIR}/klipper-macros-qd" ]; then
+        ok "Stock Qidi macro directory present: ${CONFIG_DIR}/klipper-macros-qd"
+    else
+        info "Stock Qidi macro directory not present: ${CONFIG_DIR}/klipper-macros-qd"
+    fi
+    if [ -d "${AIO_HOME}/QIDI_Client" ]; then
+        ok "QIDI_Client directory present: ${AIO_HOME}/QIDI_Client"
+    else
+        info "QIDI_Client directory not present: ${AIO_HOME}/QIDI_Client"
+    fi
+    if [ -f "${CONFIG_DIR}/crowsnest.conf" ]; then
+        ok "crowsnest.conf present"
+    else
+        info "crowsnest.conf not present"
+    fi
+    if [ -f "${CONFIG_DIR}/timelapse.cfg" ]; then
+        ok "timelapse.cfg present"
+    else
+        info "timelapse.cfg not present"
+    fi
+}
+
+report_stock_macro_layout() {
+    banner "Stock macro layout"
+
+    local macro_dir="${CONFIG_DIR}/klipper-macros-qd"
+    if [ ! -d "$macro_dir" ]; then
+        info "No klipper-macros-qd/ directory on this layout"
+        return 0
+    fi
+
+    local count=0
+    while IFS= read -r file; do
+        [ -n "$file" ] || continue
+        count=$((count + 1))
+        if [ "$count" -le 20 ]; then
+            info "  ${file#${CONFIG_DIR}/}"
+        fi
+    done < <(find "$macro_dir" -maxdepth 2 -type f -name '*.cfg' 2>/dev/null | sort)
+
+    if [ "$count" -eq 0 ]; then
+        warn "klipper-macros-qd/ exists but no .cfg files were found"
+    elif [ "$count" -gt 20 ]; then
+        info "  ... $((count - 20)) more .cfg files"
+    fi
+    info "Stock macro cfg count: ${count}"
+}
+
+report_qidi_box_object_inventory() {
+    banner "Qidi Box Moonraker object inventory"
+
+    local response summary level message
+    if ! response=$(moonraker_get "/printer/objects/list"); then
+        warn "Could not query Moonraker object list"
+        return 0
+    fi
+
+    summary=$(printf '%s' "$response" | python3 -c '
+import json
+import sys
+
+objects = json.load(sys.stdin).get("result", {}).get("objects", [])
+needles = ("box", "heater_box", "heater_temp", "heater_fan", "slot")
+matches = [name for name in objects if any(needle in name.lower() for needle in needles)]
+if not matches:
+    print("WARN|No Qidi Box-looking objects found in Moonraker")
+else:
+    for name in sorted(matches):
+        print(f"INFO|  {name}")
+
+expected_stock = [
+    "mcu mcu_box1",
+    "box_extras",
+    "box_stepper slot0",
+    "box_stepper slot1",
+    "box_stepper slot2",
+    "box_stepper slot3",
+    "aht20_f heater_box1",
+    "heater_generic heater_box1",
+]
+missing = [name for name in expected_stock if name not in objects]
+if missing:
+    print("WARN|Missing expected stock 1.1.2 objects: " + ", ".join(missing))
+else:
+    print("OK|Expected stock 1.1.2 Qidi Box objects are present")
+' 2>/dev/null || true)
+
+    if [ -z "$summary" ]; then
+        warn "Moonraker object list returned, but status could not be parsed"
+        return 0
+    fi
+
+    while IFS='|' read -r level message; do
+        case "$level" in
+            OK) ok "$message" ;;
+            INFO) info "$message" ;;
+            *) warn "$message" ;;
+        esac
+    done <<< "$summary"
+}
+
+report_active_config_graph() {
+    banner "Active Klipper include graph"
+
+    if [ ! -f "${CONFIG_DIR}/printer.cfg" ]; then
+        warn "printer.cfg not found at ${CONFIG_DIR}/printer.cfg"
+        return 0
+    fi
+
+    local count=0
+    while IFS= read -r -d '' file; do
+        count=$((count + 1))
+        if [ "$count" -le 40 ]; then
+            info "  ${file#${CONFIG_DIR}/}"
+        fi
+    done < <(list_active_klipper_configs)
+
+    if [ "$count" -eq 0 ]; then
+        warn "No active config files found from printer.cfg"
+    elif [ "$count" -gt 40 ]; then
+        info "  ... $((count - 40)) more active config files"
+    fi
+    info "Active config file count: ${count}"
+}
+
+find_duplicate_macros_readonly() {
+    banner "Scanning duplicate gcode_macro declarations (read-only)"
+
+    if [ ! -f "${CONFIG_DIR}/printer.cfg" ]; then
+        warn "printer.cfg not found - skipping scan"
+        return 0
+    fi
+
+    local summary level message
+    summary=$(list_active_klipper_configs | python3 -c '
+import collections
+import re
+import sys
+
+macro_re = re.compile(r"^\[gcode_macro\s+([^\]]+)\]")
+paths = [p.decode("utf-8", "replace") for p in sys.stdin.buffer.read().split(b"\0") if p]
+seen = collections.defaultdict(list)
+for path in paths:
+    try:
+        with open(path, encoding="utf-8", errors="replace") as config_file:
+            for line_no, line in enumerate(config_file, 1):
+                match = macro_re.match(line.strip())
+                if match:
+                    seen[match.group(1)].append((path, line_no))
+    except OSError:
+        continue
+
+dups = {name: hits for name, hits in seen.items() if len(hits) > 1}
+if not seen:
+    print("INFO|No gcode_macro declarations found in the active include graph")
+elif not dups:
+    print("OK|No duplicate active gcode_macro declarations")
+else:
+    print("WARN|Duplicate active gcode_macro declarations detected")
+    for name in sorted(dups):
+        print(f"WARN|  [gcode_macro {name}]:")
+        for path, line_no in dups[name]:
+            print(f"WARN|    {path}:{line_no}")
+' 2>/dev/null || true)
+
+    if [ -z "$summary" ]; then
+        warn "Duplicate macro scan returned no parseable output"
+        return 0
+    fi
+
+    while IFS='|' read -r level message; do
+        case "$level" in
+            OK) ok "$message" ;;
+            INFO) info "$message" ;;
+            *) warn "$message" ;;
+        esac
+    done <<< "$summary"
+}
+
+check_invalid_klipper_options_readonly() {
+    banner "Checking invalid Klipper config options (read-only)"
+    local pcfg="${CONFIG_DIR}/printer.cfg"
+    if [ ! -f "$pcfg" ]; then
+        info "printer.cfg not found - skipping"
+        return 0
+    fi
+
+    if awk '/^\[bed_mesh\]/{flag=1; next} /^\[/{flag=0} flag && /^[[:space:]]*timeout[[:space:]]*:/{found=1} END{exit !found}' "$pcfg"; then
+        warn "Found 'timeout:' inside [bed_mesh] in printer.cfg"
+    else
+        ok "[bed_mesh] check 1/2: no invalid 'timeout:' found"
+    fi
+    if awk '/^\[bed_mesh\]/{flag=1; next} /^\[/{flag=0} flag && /^[[:space:]]*gcode[[:space:]]*:/{found=1} END{exit !found}' "$pcfg"; then
+        warn "Found 'gcode:' inside [bed_mesh] in printer.cfg"
+    else
+        ok "[bed_mesh] check 2/2: no invalid 'gcode:' found"
+    fi
+}
+
+check_orphan_includes_readonly() {
+    banner "Checking orphan [include] lines (read-only)"
+    local pcfg="${CONFIG_DIR}/printer.cfg"
+    if [ ! -f "$pcfg" ]; then
+        info "printer.cfg not found - skipping"
+        return 0
+    fi
+
+    local found=0
+    while IFS= read -r line; do
+        local target resolved
+        target=$(printf '%s' "$line" | sed -n 's/^\[include[[:space:]]\+\([^]]*\)\].*/\1/p' | tr -d ' ')
+        [ -z "$target" ] && continue
+        resolved="${CONFIG_DIR}/${target#./}"
+        if [[ "$resolved" == *[\*\?\[]* ]]; then
+            if ! compgen -G "$resolved" >/dev/null; then
+                warn "  ${line}   (missing: ${target})"
+                found=1
+            fi
+        elif [ ! -f "$resolved" ]; then
+            warn "  ${line}   (missing: ${target})"
+            found=1
+        fi
+    done < <(grep -E '^\[include ' "$pcfg" 2>/dev/null || true)
+
+    if [ "$found" -eq 0 ]; then
+        ok "All [include] targets exist"
+    fi
+}
+
+run_readonly_diagnostics() {
+    banner "Health Check / Read-only Diagnostics"
+    warn "This firmware layout is not enabled for general AIO mutations."
+    warn "Running diagnostics only: no backups, repairs, service changes, or file edits."
+
+    show_layout_report
+    verify_klipper_runtime_health
+    verify_stock_display_runtime_health
+    if [ "$CAMERA_STACK" = "crowsnest" ]; then
+        verify_systemd_service_health crowsnest "Crowsnest camera stack" false
+    fi
+    report_firmware_layout_files
+    report_stock_macro_layout
+    report_qidi_box_object_inventory
+    verify_qidi_box_runtime_sensors
+    report_active_config_graph
+    if q2_112_probe_installed; then
+        ok "1.1.2 compatibility probe artifacts detected"
+    else
+        info "1.1.2 compatibility probe not installed"
+    fi
+    if validate_q2_112_restore_contract; then
+        ok "Verified 1.1.2 restore contract is ready"
+    else
+        warn "Verified 1.1.2 restore contract is not ready"
+    fi
+    if q2_112_restore_rehearsal_passed; then
+        ok "1.1.2 isolated restore rehearsal has passed"
+    else
+        info "1.1.2 isolated restore rehearsal has not passed yet"
+    fi
+    if q2_112_live_restore_proof_passed; then
+        ok "1.1.2 controlled live restore proof has passed"
+    else
+        info "1.1.2 controlled live restore proof has not passed yet"
+    fi
+    if q2_112_present_path_restore_proof_passed; then
+        ok "1.1.2 captured-present path restore proof has passed"
+    else
+        info "1.1.2 captured-present path restore proof has not passed yet"
+    fi
+    if q2_112_runtime_path_restore_proof_passed \
+        "$Q2_112_KLIPPER_EXTRAS_PROOF_DIR" \
+        "$Q2_112_KLIPPER_EXTRAS_PROOF_TARGET" \
+        "$Q2_112_KLIPPER_EXTRAS_PROOF_MARKER"; then
+        ok "1.1.2 Klipper extras restore proof has passed"
+    else
+        info "1.1.2 Klipper extras restore proof has not passed yet"
+    fi
+    if q2_112_runtime_path_restore_proof_passed \
+        "$Q2_112_MOONRAKER_COMPONENTS_PROOF_DIR" \
+        "$Q2_112_MOONRAKER_COMPONENTS_PROOF_TARGET" \
+        "$Q2_112_MOONRAKER_COMPONENTS_PROOF_MARKER"; then
+        ok "1.1.2 Moonraker components restore proof has passed"
+    else
+        info "1.1.2 Moonraker components restore proof has not passed yet"
+    fi
+    find_duplicate_macros_readonly
+    check_invalid_klipper_options_readonly
+    check_orphan_includes_readonly
+
+    banner "Read-only diagnostics complete"
+    info "Install, revert, addon, and repair paths remain blocked on this layout."
+    press_enter
+}
+
+# Print the active Klipper config graph as NUL-delimited paths. This mirrors
+# Klipper's include handling: includes resolve relative to the file containing
+# them, globs are supported, and commented-out include lines are ignored.
+list_active_klipper_configs() {
+    local pcfg="${CONFIG_DIR}/printer.cfg"
+    [ -f "$pcfg" ] || return 1
+
+    python3 - "$pcfg" <<'PY'
+import glob
+import os
+import re
+import sys
+
+include_re = re.compile(r"^\[include\s+([^\]]+)\]$")
+seen = set()
+
+def walk(filename):
+    filename = os.path.abspath(filename)
+    if filename in seen:
+        return
+    seen.add(filename)
+    sys.stdout.write(filename + "\0")
+    try:
+        with open(filename, encoding="utf-8", errors="replace") as config_file:
+            lines = config_file
+            for line in lines:
+                line = line.split("#", 1)[0].strip()
+                match = include_re.match(line)
+                if not match:
+                    continue
+                include_glob = os.path.join(os.path.dirname(filename), match.group(1).strip())
+                for child in sorted(glob.glob(include_glob)):
+                    if os.path.isfile(child):
+                        walk(child)
+    except OSError:
+        pass
+
+walk(sys.argv[1])
+PY
+}
+
+# Scan the active printer.cfg include graph for duplicate [gcode_macro NAME]
+# declarations. Files preserved on disk for stock restore are intentionally not
+# scanned unless printer.cfg can reach them through an active [include] line.
 find_duplicate_macros() {
     banner "Scanning for duplicate gcode_macro declarations"
 
-    if [ ! -d "$CONFIG_DIR" ]; then
-        warn "Config directory not found - skipping scan"
+    if [ ! -f "${CONFIG_DIR}/printer.cfg" ]; then
+        warn "printer.cfg not found - skipping scan"
         return 0
     fi
 
     local tmp
     tmp=$(mktemp /tmp/aio_macros.XXXXXX) || return 0
 
-    # Skip backup files/dirs Klipper does not load. Happy Hare and the AIO
-    # leave timestamped printer-*.cfg / gcode_macro-*.cfg snapshots directly
-    # in CONFIG_DIR, and scanning them creates false duplicate warnings.
-    find "$CONFIG_DIR" -maxdepth 4 -type f -name '*.cfg' \
-        -not -path '*/backup_*/*' \
-        -not -path '*/mmu-2*/*' \
-        -not -path '*/_FIRST_STOCK/*' \
-        -not -name 'printer-*.cfg' \
-        -not -name 'gcode_macro-*.cfg' \
-        -not -name '*.bak' \
-        -not -name '*.bak.*' \
-        -print0 2>/dev/null | \
+    list_active_klipper_configs | \
     xargs -0 grep -Hn -E '^\[gcode_macro [^]]+\]' 2>/dev/null > "$tmp" || true
 
     if [ ! -s "$tmp" ]; then
@@ -2376,7 +5198,7 @@ find_duplicate_macros() {
         return 0
     fi
 
-    warn "Duplicate gcode_macro declarations detected — Klipper will refuse to load:"
+    warn "Duplicate active gcode_macro declarations detected — Klipper will refuse to load:"
     while IFS= read -r name; do
         warn "  [gcode_macro ${name}]:"
         grep -F "[gcode_macro ${name}]" "$tmp" | while IFS=: read -r path line _; do
@@ -2601,15 +5423,8 @@ _install_bunnybox() {
         ok "BunnyBox install step complete"
 
         banner "Installing HelixScreen"
-        local helix_tmp helix_zip
-        helix_tmp=$(mktemp /tmp/helixscreen-pi.XXXXXX) || return 1
-        helix_zip="${helix_tmp}.zip"
-        mv "$helix_tmp" "$helix_zip" || { rm -f "$helix_tmp" "$helix_zip"; return 1; }
-        fetch "$HELIXSCREEN_RELEASE_ZIP" "$helix_zip" || { rm -f "$helix_zip"; return 1; }
-        info "Using HelixScreen release archive: ${HELIXSCREEN_RELEASE_ZIP}"
-        run_remote_script "$HELIXSCREEN_INSTALLER" --local "$helix_zip"
+        run_remote_script "$HELIXSCREEN_INSTALLER"
         local hs_exit=$?
-        rm -f "$helix_zip"
         if [ $hs_exit -ne 0 ]; then
             err "HelixScreen installer failed with exit ${hs_exit}"
             return 1
@@ -2918,6 +5733,11 @@ show_about() {
     cat <<EOF
 ${C_CYAN}Qidi Q2 Superuser - All-in-One Installer${C_RESET}
 ${C_BOLD}Version:${C_RESET} ${AIO_VERSION}
+${C_BOLD}Detected layout:${C_RESET} ${AIO_LAYOUT_NAME} (${AIO_LAYOUT})
+${C_BOLD}Mutation support:${C_RESET} ${AIO_LAYOUT_SUPPORTS_MUTATION}
+${C_BOLD}AIO home/config:${C_RESET} ${AIO_HOME} / ${CONFIG_DIR}
+${C_BOLD}Stock display stack:${C_RESET} $(stock_display_stack_label)
+${C_BOLD}Macro/camera layout:${C_RESET} ${MACRO_LAYOUT} / ${CAMERA_STACK}
 
 A community-built toolkit to unlock advanced features on the Qidi Q2
 3D printer beyond stock Qidi firmware. This menu is the single entry
@@ -2925,27 +5745,20 @@ point for every supported install / uninstall path.
 
 ${C_BOLD}What it can install:${C_RESET}
 
-  ${C_GREEN}BunnyBox & HelixScreen${C_RESET}  (Q2 ${C_BOLD}with${C_RESET} the Qidi Box)
-    - Happy Hare MMU firmware/macros for multi-material printing
-    - HelixScreen replacement touchscreen UI (pinned >= ${HELIXSCREEN_PIN})
-    - Happier Hare hook: installs a rebuilt HelixScreen archive from
-      HAPPIER_HARE_ZIP_URL, or from ${HAPPIER_HARE_LOCAL_ZIP} when that
-      file is present, for native Box humidity/dryer UI and Happy
-      Hare-compatible dryer commands
-    - Unified printer.cfg + gcode_macro.cfg
-    - box_drying.cfg: spool rotation during filament drying using
-      Happy Hare's Environment Manager, with humidity-based early
-      termination via the AHT2X sensor
-    - KAMP adaptive bed meshing
-    - ${C_CYAN}Strips the HELIX_QIDI_BOX_WRITE drop-in${C_RESET} if present.
-      That env var lets HelixScreen drive the Qidi Box natively
-      (load_filament, unload_filament, change_tool, set_tool_mapping).
-      With BunnyBox + Happy Hare driving the Box via MMU macros, having
-      HelixScreen also drive it natively causes contention.
-    - helixscreen_settings.json: AMS spool style set to '3d' for
-      Qidi Box slot visualization in the HelixScreen AMS panel
-    - Post-install verification: checks box.cfg, [box_stepper] sections,
-      officiall_filas_list.cfg, and HelixScreen version compatibility
+  ${C_GREEN}BunnyBox, Happy Hare & HelixScreen${C_RESET}  (Q2 ${C_BOLD}with${C_RESET} the Qidi Box)
+    - Happy Hare MMU firmware/macros for four-slot multi-material printing
+    - HelixScreen replacement touchscreen UI
+    - Happier Hare patched HelixScreen build for native Qidi Box
+      temperature, humidity, and dryer controls. Archive selection uses:
+        1. HAPPIER_HARE_ZIP_URL override
+        2. ${HAPPIER_HARE_LOCAL_ZIP}
+        3. hosted ${HAPPIER_HARE_RELEASE_TAG} release asset
+    - Unified printer.cfg + gcode_macro.cfg and KAMP adaptive meshing
+    - box_drying.cfg fallback macros with automatic spool rotation
+      through Happy Hare's Environment Manager and the Box AHT10 sensor
+    - ${C_CYAN}Strips the HELIX_QIDI_BOX_WRITE drop-in${C_RESET} if present so
+      Happy Hare alone owns Qidi Box write commands and avoids contention
+    - AMS spool style set to '3d' for Qidi Box slot visualization
 
   ${C_GREEN}Just Faster Printer${C_RESET}    (Q2 ${C_BOLD}without${C_RESET} the Box, stock screen)
     - Faster, cleaner PRINT_START / PRINT_END macros
@@ -2956,30 +5769,146 @@ ${C_BOLD}What it can install:${C_RESET}
     - Installer body is preserved, but menu option 2 is disabled while
       the Q2 display backend issue is investigated
 
+${C_BOLD}What is Happier Hare?${C_RESET}
+  Happier Hare is this project's Qidi Q2 compatibility layer for
+  HelixScreen's upstream Happy Hare backend. It is not a replacement
+  for Happy Hare. The patched HelixScreen build adds the native AMS
+  environment indicator, Qidi Box temperature and humidity readings,
+  and dryer overlay controls while BunnyBox owns the Box hardware.
+  The macro dryer buttons remain available as a fallback.
+
+${C_BOLD}Optional addons:${C_RESET}
+  - Idle Fan Shutdown: temperature-gated fan/heater shutdown after 10m idle
+  - Mainsail: web UI on port ${MAINSAIL_PORT}, including camera proxy setup
+
+${C_BOLD}Health Check / Run Verifiers:${C_RESET}
+  - Reports Klipper, Moonraker, Happy Hare/MMU, HelixScreen, Qidi Box
+    sensor/heater, Mainsail, and camera runtime health when applicable.
+  - Scans active Klipper includes for duplicate macros, orphan includes,
+    invalid options, and leftover MMU artifacts; prompts before repairs.
+  - On unsupported layouts such as Q2 firmware 1.1.2, option 8 runs in
+    read-only diagnostics mode: layout, services, Qidi Box objects,
+    stock macro layout, active include graph, and config scans only.
+
+${C_BOLD}1.1.2 compatibility round-trip probe:${C_RESET}
+  - Option 9 installs one harmless no-op macro config and one include
+    line after verifying the guarded stock baseline is safe.
+  - It records exact before/after printer.cfg hashes and an original copy.
+  - Running option 9 again restores the exact original printer.cfg,
+    removes the probe config, and verifies the original hash.
+  - Cleanup refuses to overwrite printer.cfg if unrelated changes were
+    made after the probe was installed.
+
+${C_BOLD}1.1.2 restore contract:${C_RESET}
+  - Option 4 can atomically capture a verified restore contract after
+    the guarded stock baseline passes.
+  - The contract preserves the exact config tree, Klipper extras,
+    Moonraker components, mapped display/runtime and system integration
+    paths, their present/absent state, file hashes, metadata, symlink
+    targets, service states, default boot target, and Debian package inventory.
+  - Option 4 previews the exact contract-backed restore plan. Option 8
+    verifies contract integrity without modifying active printer state.
+  - Full install and general real revert remain blocked while the
+    1.1.2 compatibility lane is tested.
+
+${C_BOLD}1.1.2 isolated restore rehearsal:${C_RESET}
+  - Option 10 reconstructs the sealed config and external recovery trees
+    only under ${Q2_112_REHEARSAL_DIR}.
+  - It verifies file hashes, ownership, permissions, timestamps, and
+    symlink targets against the contract, then generates non-executing
+    config/path/service/package restore plans.
+  - Before and after guards verify the active config tree, service
+    enablement, default target, and package inventory were untouched.
+  - It never writes to active /home/qidi runtime trees, /etc, packages,
+    or services. Full install and general real revert remain blocked.
+
+${C_BOLD}1.1.2 controlled live restore proof:${C_RESET}
+  - Option 11 requires a verified stock restore contract, a passed
+    isolated rehearsal, and an active config tree exactly matching the
+    sealed contract.
+  - It creates one harmless non-included config marker and one marker
+    under a path captured absent, then performs a real contract-backed
+    config restore using rsync --delete.
+  - It removes only the identified external proof path, verifies the
+    exact stock config and guarded system state, and retains an emergency
+    config snapshot if any verification fails.
+  - Option 8 validates the sealed historical proof and stored guards
+    without requiring stock processes to preserve active config metadata
+    unchanged after a reboot.
+  - Full install and general real revert remain blocked.
+
+${C_BOLD}1.1.2 external restore audit:${C_RESET}
+  - Option 12 compares every captured-present and captured-absent
+    external path against the sealed stock contract.
+  - It uses checksum-backed rsync --dry-run --itemize-changes to report
+    exactly what a future restore would replace or remove.
+  - It does not write files or change packages, services, or boot targets.
+
+${C_BOLD}1.1.2 captured-present path restore proof:${C_RESET}
+  - Option 13 requires every mapped external path to exactly match the
+    sealed stock contract.
+  - It creates one ignored marker without a .conf extension under
+    ${Q2_112_PRESENT_PROOF_TARGET}, then restores only that directory
+    from the sealed contract using rsync --delete.
+  - It does not run daemon-reload or restart services, and verifies
+    QIDIClient remains active plus all guarded printer state is unchanged.
+
+${C_BOLD}1.1.2 loaded runtime-path restore proofs:${C_RESET}
+  - Options 14 and 15 independently test sealed restoration of the stock
+    Klipper extras and Moonraker components directories.
+  - Each creates one hidden marker without a .py extension, permits only
+    that marker in the final safety comparison, then restores one directory
+    from the sealed contract using rsync --delete.
+  - They do not reload Python or restart services. Klipper, Moonraker,
+    QIDIClient, and Crowsnest must remain active, and all guarded config,
+    service, boot-target, and package state must remain unchanged.
+
 ${C_BOLD}What it can uninstall:${C_RESET}
   - 'Revert to Backup' is the supported full restore path.
   - Revert removes KlipperScreen, HelixScreen, BunnyBox/Happy Hare,
     optional addons, display-service overrides, AIO-created KIAUH dirs,
     helix_print, and ${BACKUP_ROOT}/ after a successful restore.
-  - Revert re-enables lightdm + makerbase-client, sets graphical.target,
+  - On the supported legacy layout, Revert re-enables
+    $(stock_display_stack_label), sets graphical.target,
     and prints recent service logs if the stock display stack fails.
     If the stock display stack does not verify, ${BACKUP_ROOT}/ is kept
     for recovery instead of being deleted.
   - Config restore prefers ${BACKUP_ROOT}/_FIRST_STOCK, then the
-    oldest timestamped backup.
+    oldest timestamped backup, including the stock KAMP/ directory.
+  - On unsupported layouts such as Q2 firmware 1.1.2, option 4 runs a
+    dry-run only report: backup source, preserve checks, removal plan,
+    Box objects/sensors, and active include graph. It does not restore
+    configs, remove files, or change services.
+  - If the 1.1.2 dry-run finds an unsafe _FIRST_STOCK baseline while
+    active stock essentials are present and AIO artifacts are absent,
+    option 4 can quarantine the unsafe baseline and capture a fresh one.
+  - After the 1.1.2 baseline passes, option 4 can capture and validate
+    the broader restore contract without changing active configs/services.
 
 ${C_BOLD}Safety:${C_RESET}
-  Every install and uninstall first writes a timestamped backup of
-  ${CONFIG_DIR}/ to ${BACKUP_ROOT}/<timestamp>/.
+  Install and repair paths write timestamped backups of ${CONFIG_DIR}/
+  to ${BACKUP_ROOT}/<timestamp>/ before editing configs.
+  Option 1 preserves the first clean config tree as ${BACKUP_ROOT}/_FIRST_STOCK.
   Health-check repairs also create a backup before editing configs.
+  Firmware layout detection resolves active home/config/service names.
+  Mutating paths remain blocked on unsupported layouts such as Q2
+  firmware 1.1.2 until the dedicated compatibility lane is ready.
+  Option 8 read-only diagnostics is allowed on unsupported layouts.
+  Option 4 dry-run reporting is allowed on unsupported layouts.
+  Option 4 guarded 1.1.2 baseline capture only writes under ${BACKUP_ROOT}/.
+  Option 4 guarded 1.1.2 restore-contract capture only writes under ${BACKUP_ROOT}/.
+  Run FIRMWARE_RESTART, then sudo reboot, after an install or revert.
   Refuses to run as root.
 
 ${C_BOLD}Known limitations:${C_RESET}
-  - Native HelixScreen Qidi Box humidity/dryer UI currently requires the
-    Happier Hare patched HelixScreen zip via HAPPIER_HARE_ZIP_URL or
-    ${HAPPIER_HARE_LOCAL_ZIP}.
-    Macro buttons remain the fallback when using the stock HelixScreen zip.
+  - Native HelixScreen Qidi Box humidity/dryer UI requires the Happier
+    Hare patched HelixScreen zip. Option 1 installs the hosted
+    ${HAPPIER_HARE_RELEASE_TAG} asset automatically when available.
+    Macro buttons remain the fallback when the patched zip is unavailable.
   - ${C_YELLOW}MMU_CALIBRATE_GEAR${C_RESET} is required after clean installs.
+  - Qidi Q2 firmware 1.1.2 / V01.01.02.01 uses a new /home/qidi
+    layout and qidi-client stock UI. AIO currently detects the new
+    paths/services and blocks mutating actions on that layout.
   - BunnyBox currently requires HelixScreen for MMU workflows; the
     stock Qidi screen does not yet expose the MMU UI.
 
@@ -2991,7 +5920,12 @@ EOF
 
 # ---------- main menu ------------------------------------------------
 show_status_line() {
-    local bb_status display_status idle_status box_write_status mainsail_status camera_status
+    local bb_status display_status idle_status box_write_status mainsail_status camera_status firmware_status
+    if layout_supports_mutation; then
+        firmware_status="${C_GREEN}$(q2_firmware_layout_label)${C_RESET}"
+    else
+        firmware_status="${C_RED}$(q2_firmware_layout_label)${C_RESET}"
+    fi
     if bunnybox_installed; then
         bb_status="${C_GREEN}installed${C_RESET}"
     else
@@ -3039,6 +5973,7 @@ show_status_line() {
            "$bb_status" "$display_status" "$idle_status" "$box_write_status"
     printf '  Mainsail: %b | Camera: %b\n' \
            "$mainsail_status" "$camera_status"
+    printf '  Firmware: %b\n' "$firmware_status"
 }
 
 draw_menu() {
@@ -3060,6 +5995,14 @@ draw_menu() {
     printf '  %sINFO%s\n' "$C_BOLD$C_CYAN" "$C_RESET"
     printf '   %s7)%s About\n'                                                    "$C_CYAN" "$C_RESET"
     printf '   %s8)%s Health Check / Run Verifiers\n'                             "$C_CYAN" "$C_RESET"
+    printf '  %sTESTING%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
+    printf '   %s9)%s 1.1.2 Compatibility Probe          (reversible round trip)\n' "$C_CYAN" "$C_RESET"
+    printf '  %s10)%s 1.1.2 Restore Rehearsal             (isolated, no live changes)\n' "$C_CYAN" "$C_RESET"
+    printf '  %s11)%s 1.1.2 Live Restore Proof            (controlled contract restore)\n' "$C_CYAN" "$C_RESET"
+    printf '  %s12)%s 1.1.2 External Restore Audit         (read-only drift report)\n' "$C_CYAN" "$C_RESET"
+    printf '  %s13)%s 1.1.2 Present-Path Restore Proof     (controlled systemd path)\n' "$C_CYAN" "$C_RESET"
+    printf '  %s14)%s 1.1.2 Klipper Extras Restore Proof    (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
+    printf '  %s15)%s 1.1.2 Moonraker Components Proof      (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
     printf '   %s0)%s Exit\n'                                                    "$C_CYAN" "$C_RESET"
     printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
     printf '%sEnter selection:%s ' "$C_BOLD" "$C_RESET"
@@ -3110,17 +6053,49 @@ main_loop() {
             2) warn "KlipperScreen install is temporarily disabled — display issue under investigation." ; press_enter ;;
             3) install_just_faster ;;
             4)
+                if ! layout_supports_mutation; then
+                    revert_to_backup_dry_run
+                    offer_q2_112_baseline_capture
+                    offer_q2_112_restore_contract_capture
+                    press_enter
+                    continue
+                fi
                 warn "Revert to Backup will uninstall AIO display/MMU changes,"
-                warn "restore configs from ${BACKUP_ROOT}/, and re-enable stock lightdm + makerbase-client."
+                warn "restore configs from ${BACKUP_ROOT}/, and re-enable stock $(stock_display_stack_label)."
                 if confirm "Proceed with full revert?"; then
                     revert_to_backup
                     press_enter
                 fi
                 ;;
-            5) menu_idle_fan_shutdown ;;
-            6) menu_mainsail ;;
+            5)
+                if require_supported_firmware_layout "Idle Fan Shutdown addon"; then
+                    menu_idle_fan_shutdown
+                else
+                    press_enter
+                fi
+                ;;
+            6)
+                if require_supported_firmware_layout "Mainsail addon"; then
+                    menu_mainsail
+                else
+                    press_enter
+                fi
+                ;;
             7) show_about ;;
-            8) run_all_verifiers ;;
+            8)
+                if layout_supports_mutation; then
+                    run_all_verifiers
+                else
+                    run_readonly_diagnostics
+                fi
+                ;;
+            9) menu_q2_112_roundtrip_probe ;;
+            10) menu_q2_112_restore_rehearsal ;;
+            11) menu_q2_112_live_restore_proof ;;
+            12) menu_q2_112_external_restore_audit ;;
+            13) menu_q2_112_present_path_restore_proof ;;
+            14) menu_q2_112_klipper_extras_restore_proof ;;
+            15) menu_q2_112_moonraker_components_restore_proof ;;
             0|q|Q|exit) info "Bye."; exit 0 ;;
             *) err "Invalid selection: '$choice'"; sleep 1 ;;
         esac
