@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.34'
+AIO_VERSION='RC2.35'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -86,11 +86,6 @@ REPO_REF="${AIO_REPO_REF:-main}"
 REPO_BASE="https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/${REPO_REF}/Q2"
 BUNNYBOX_INSTALLER='https://raw.githubusercontent.com/Camden-Winder/Bunny-Box/refs/heads/main/Q2/install-bb-q2.sh'
 HELIXSCREEN_INSTALLER="https://raw.githubusercontent.com/prestonbrown/helixscreen/main/scripts/install.sh"
-HAPPIER_HARE_INSTALLER="https://raw.githubusercontent.com/ChanceVegas/Qidi-Q2-superuser_helpinghands/refs/heads/${REPO_REF}/Happier_Hare/install_happier_hare.sh"
-HAPPIER_HARE_RELEASE_TAG="${HAPPIER_HARE_RELEASE_TAG:-happier-hare-rc2.17}"
-HAPPIER_HARE_RELEASE_ZIP="https://github.com/ChanceVegas/Qidi-Q2-superuser_helpinghands/releases/download/${HAPPIER_HARE_RELEASE_TAG}/helixscreen-pi.zip"
-HAPPIER_HARE_ZIP_URL="${HAPPIER_HARE_ZIP_URL:-}"
-HAPPIER_HARE_LOCAL_ZIP="${HAPPIER_HARE_LOCAL_ZIP:-${AIO_HOME}/helixscreen-pi-happier-hare.zip}"
 HELIX_UNINSTALLER='https://releases.helixscreen.org/install.sh'
 # KAMP_BASE no longer used — Adaptive_Meshing.cfg, Line_Purge.cfg, Smart_Park.cfg now served from REPO_BASE
 # Mainsail is delegated to Camden-Winder's standalone installer, which
@@ -265,12 +260,6 @@ show_layout_report() {
         mks_target=$(readlink -f /home/mks 2>/dev/null || printf 'unknown')
         info "/home/mks target: ${mks_target}"
     fi
-}
-
-helixscreen_binary_candidates() {
-    [ -d "${HELIX_DIR}/bin" ] || return 0
-    find "${HELIX_DIR}/bin" -maxdepth 1 -type f -name 'helix-screen*' \
-        -print 2>/dev/null
 }
 
 verify_systemd_service_health() {
@@ -638,150 +627,6 @@ verify_qidi_box_helixscreen() {
         warn "HelixScreen version ${v} is older than v0.99.66 - Qidi Box AMS may not be detected"
     fi
 
-    local timer_patched=0 stop_patched=0 env_sensor_patch=0 aht10_sensor_patch=0 seen_binary=0
-    local target
-    while IFS= read -r target; do
-        [ -f "$target" ] || continue
-        seen_binary=1
-        if LC_ALL=C grep -aFq 'MMU_HEATER DRY=1 TEMP={:.0f} TIMER={}' "$target"; then
-            timer_patched=1
-        elif LC_ALL=C grep -aFq 'MMU_HEATER DRY=1 TEMP={:.0f} DURATION={}' "$target"; then
-            warn "$(basename "$target") still uses DURATION= for Happy Hare drying - native dryer button duration may be ignored"
-        fi
-        if LC_ALL=C grep -aFq 'MMU_HEATER STOP=1' "$target"; then
-            stop_patched=1
-        elif LC_ALL=C grep -aFq 'MMU_HEATER DRY=0' "$target"; then
-            warn "$(basename "$target") still uses DRY=0 for Happy Hare dryer stop - native stop may be ignored"
-        fi
-        if LC_ALL=C grep -aFq 'aht10 box' "$target"; then
-            aht10_sensor_patch=1
-        fi
-        if LC_ALL=C grep -aFq 'temperature_sensor box' "$target" || \
-           LC_ALL=C grep -aFq 'aht20_f heater_box' "$target"; then
-            env_sensor_patch=1
-        fi
-    done < <(helixscreen_binary_candidates)
-    if [ "$seen_binary" -eq 0 ]; then
-        warn "No helix-screen* binaries found under ${HELIX_DIR}/bin"
-    fi
-    if [ "$timer_patched" -eq 1 ]; then
-        ok "HelixScreen Happy Hare dryer start command uses TIMER="
-    fi
-    if [ "$stop_patched" -eq 1 ]; then
-        ok "HelixScreen Happy Hare dryer stop command uses STOP=1"
-    fi
-    if [ "$aht10_sensor_patch" -eq 1 ]; then
-        ok "HelixScreen binary has BunnyBox AHT10 humidity sensor support"
-    elif bunnybox_installed; then
-        warn "HelixScreen binary does not show BunnyBox AHT10 humidity support"
-        warn "Native Box humidity may stay blank; install the RC2.15+ Happier Hare zip."
-    fi
-    if [ "$env_sensor_patch" -eq 1 ]; then
-        ok "HelixScreen binary has Happier Hare Qidi Box environment sensor support"
-    elif bunnybox_installed; then
-        warn "HelixScreen binary does not show Happier Hare Qidi Box sensor support"
-        warn "Native Box temperature/humidity may stay blank; rebuild/reinstall the patched zip."
-    fi
-}
-
-patch_helixscreen_happy_hare_dryer_command() {
-    banner "Patching HelixScreen Happy Hare dryer command strings"
-    local target seen=0 patched=0 already=0 failed=0
-    for target in "${HELIX_DIR}/bin/helix-screen" "${HELIX_DIR}/bin/helix-screen-fbdev"; do
-        [ -f "$target" ] || continue
-        seen=1
-        python3 - "$target" <<'PY'
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-old = b"MMU_HEATER DRY=1 TEMP={:.0f} DURATION={}"
-new_cmd = b"MMU_HEATER DRY=1 TEMP={:.0f} TIMER={}"
-new = new_cmd + b"\0" * (len(old) - len(new_cmd))
-data = path.read_bytes()
-
-if new_cmd in data:
-    sys.exit(2)
-if old not in data:
-    sys.exit(3)
-
-path.write_bytes(data.replace(old, new, 1))
-sys.exit(0)
-PY
-        case $? in
-            0)
-                ok "$(basename "$target"): patched DURATION= to TIMER="
-                patched=1
-                ;;
-            2)
-                ok "$(basename "$target"): already uses TIMER="
-                already=1
-                ;;
-            3)
-                warn "$(basename "$target"): known Happy Hare dryer command not found"
-                failed=1
-                ;;
-            *)
-                warn "$(basename "$target"): patch failed"
-                failed=1
-                ;;
-        esac
-
-        python3 - "$target" <<'PY'
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1])
-old = b"MMU_HEATER DRY=0"
-new_cmd = b"MMU_HEATER STOP=1"
-data = path.read_bytes()
-
-if new_cmd in data:
-    sys.exit(2)
-
-# STOP=1 is one byte longer than DRY=0, so only patch when the original
-# string has two NUL bytes available. That preserves C-string termination
-# and avoids corrupting the following read-only data.
-pattern = old + b"\0\0"
-replacement = new_cmd + b"\0"
-if pattern in data:
-    path.write_bytes(data.replace(pattern, replacement, 1))
-    sys.exit(0)
-
-if old in data:
-    sys.exit(4)
-sys.exit(3)
-PY
-        case $? in
-            0)
-                ok "$(basename "$target"): patched DRY=0 to STOP=1"
-                patched=1
-                ;;
-            2)
-                ok "$(basename "$target"): already uses STOP=1"
-                already=1
-                ;;
-            3)
-                warn "$(basename "$target"): known Happy Hare dryer stop command not found"
-                ;;
-            4)
-                warn "$(basename "$target"): DRY=0 found, but no safe padding for in-place STOP=1 patch"
-                ;;
-            *)
-                warn "$(basename "$target"): stop command patch failed"
-                ;;
-        esac
-    done
-
-    if [ "$seen" -eq 0 ]; then
-        warn "No HelixScreen binary found under ${HELIX_DIR}/bin"
-        return 1
-    fi
-    if [ "$failed" -ne 0 ] && [ "$patched" -eq 0 ] && [ "$already" -eq 0 ]; then
-        warn "Native HelixScreen dryer command could not be verified"
-        return 1
-    fi
-    return 0
 }
 
 QIDI_BOX_WRITE_DROPIN='/etc/systemd/system/helixscreen.service.d/qidi-box-write.conf'
@@ -1614,21 +1459,6 @@ url_exists() {
     curl --fail --silent --location --head --max-time 10 "$url" >/dev/null 2>&1
 }
 
-happier_hare_zip_url() {
-    if [ -n "${HAPPIER_HARE_ZIP_URL:-}" ]; then
-        printf '%s\n' "$HAPPIER_HARE_ZIP_URL"
-        return 0
-    fi
-    if [ -f "$HAPPIER_HARE_LOCAL_ZIP" ]; then
-        printf '%s\n' "$HAPPIER_HARE_LOCAL_ZIP"
-        return 0
-    fi
-    if url_exists "$HAPPIER_HARE_RELEASE_ZIP"; then
-        printf '%s\n' "$HAPPIER_HARE_RELEASE_ZIP"
-        return 0
-    fi
-    return 1
-}
 
 # ---------- safety: refuse root --------------------------------------
 if [ "$(id -u)" -eq 0 ]; then
@@ -5428,23 +5258,7 @@ _install_bunnybox() {
             return 1
         fi
         ok "HelixScreen install step complete"
-        patch_helixscreen_happy_hare_dryer_command || return 1
-
-        banner "Happier Hare dryer integration"
-        local happier_zip_url
-        if happier_zip_url=$(happier_hare_zip_url); then
-            info "Installing rebuilt Happier Hare HelixScreen archive"
-            info "Using Happier Hare archive: ${happier_zip_url}"
-            HAPPIER_HARE_REPO_REF="$REPO_REF" \
-                run_remote_script "$HAPPIER_HARE_INSTALLER" --install-zip "$happier_zip_url"
-        else
-            info "No rebuilt Happier Hare archive found - keeping macro fallback for drying"
-            info "Checked local archive: ${HAPPIER_HARE_LOCAL_ZIP}"
-            info "Checked release asset: ${HAPPIER_HARE_RELEASE_ZIP}"
-            info "Command strings were patched locally, but native Box humidity/dryer UI"
-            info "requires a rebuilt HelixScreen binary with the source-level patch"
-        fi
-
+        banner "Installing unified gcode_macro.cfg & printer.cfg"
         banner "Installing unified gcode_macro.cfg & printer.cfg"
         fetch "${REPO_BASE}/macros/gcode_macro-BunnyBox.cfg" \
               "${CONFIG_DIR}/gcode_macro.cfg" || return 1
@@ -5558,8 +5372,7 @@ ${C_BOLD}Next steps:${C_RESET}
   4. First-time only - calibrate MMU gear steppers:
         ${C_CYAN}MMU_CALIBRATE_GEAR GATE=0 LENGTH=100${C_RESET}
      Mark filament, measure travel, re-run with MEASURED=<mm>
-  5. Start drying (use HelixScreen AMS environment UI when the patched
-     Happier Hare zip is installed; otherwise use macro buttons or console):
+  5. Start drying: run BOX_DRY from the macro buttons or console.
         ${C_CYAN}DRY_PLA${C_RESET}  ${C_CYAN}DRY_PETG${C_RESET}  ${C_CYAN}DRY_ABS${C_RESET}  ${C_CYAN}DRY_TPU${C_RESET}  ${C_CYAN}DRY_PA${C_RESET}
   6. Check status:   ${C_CYAN}BOX_DRY_STATUS${C_RESET}
   7. Stop drying:    ${C_CYAN}BOX_DRY_STOP${C_RESET}
@@ -5745,13 +5558,8 @@ ${C_BOLD}What it can install:${C_RESET}
   ${C_GREEN}BunnyBox, Happy Hare & HelixScreen${C_RESET}  (Q2 ${C_BOLD}with${C_RESET} the Qidi Box)
     - Happy Hare MMU firmware/macros for four-slot multi-material printing
     - HelixScreen replacement touchscreen UI
-    - Happier Hare patched HelixScreen build for native Qidi Box
-      temperature, humidity, and dryer controls. Archive selection uses:
-        1. HAPPIER_HARE_ZIP_URL override
-        2. ${HAPPIER_HARE_LOCAL_ZIP}
-        3. hosted ${HAPPIER_HARE_RELEASE_TAG} release asset
     - Unified printer.cfg + gcode_macro.cfg and KAMP adaptive meshing
-    - box_drying.cfg fallback macros with automatic spool rotation
+    - box_drying.cfg macros with automatic spool rotation
       through Happy Hare's Environment Manager and the Box AHT10 sensor
     - ${C_CYAN}Strips the HELIX_QIDI_BOX_WRITE drop-in${C_RESET} if present so
       Happy Hare alone owns Qidi Box write commands and avoids contention
@@ -5765,14 +5573,6 @@ ${C_BOLD}What it can install:${C_RESET}
   ${C_YELLOW}KlipperScreen Happy Hare Edition${C_RESET}
     - Installer body is preserved, but menu option 2 is disabled while
       the Q2 display backend issue is investigated
-
-${C_BOLD}What is Happier Hare?${C_RESET}
-  Happier Hare is this project's Qidi Q2 compatibility layer for
-  HelixScreen's upstream Happy Hare backend. It is not a replacement
-  for Happy Hare. The patched HelixScreen build adds the native AMS
-  environment indicator, Qidi Box temperature and humidity readings,
-  and dryer overlay controls while BunnyBox owns the Box hardware.
-  The macro dryer buttons remain available as a fallback.
 
 ${C_BOLD}Optional addons:${C_RESET}
   - Idle Fan Shutdown: temperature-gated fan/heater shutdown after 10m idle
@@ -5898,10 +5698,6 @@ ${C_BOLD}Safety:${C_RESET}
   Refuses to run as root.
 
 ${C_BOLD}Known limitations:${C_RESET}
-  - Native HelixScreen Qidi Box humidity/dryer UI requires the Happier
-    Hare patched HelixScreen zip. Option 1 installs the hosted
-    ${HAPPIER_HARE_RELEASE_TAG} asset automatically when available.
-    Macro buttons remain the fallback when the patched zip is unavailable.
   - ${C_YELLOW}MMU_CALIBRATE_GEAR${C_RESET} is required after clean installs.
   - Qidi Q2 firmware 1.1.2 / V01.01.02.01 uses a new /home/qidi
     layout and qidi-client stock UI. AIO currently detects the new
