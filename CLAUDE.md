@@ -2,21 +2,34 @@
 
 Project context for Claude Code sessions. Read this first every time.
 
+## Three Install Paths (Canon — Q2 and Max 4)
+
+| Path | Who it's for | What it installs |
+|---|---|---|
+| **Just Faster Printer** | Stock experience with faster/cleaner macros. No Qidi Box. | Optimised macros only |
+| **Just Faster Box** | Stock experience with faster/cleaner macros. They have a Qidi Box. | Optimised macros + box-aware paths enabled |
+| **BunnyBox + HelixScreen** | Users who want the full advanced stack. | Happy Hare MMU firmware + HelixScreen LVGL UI + BunnyBox **(Q2 only — not applicable to Max 4)** |
+
+For the Max 4, only paths 1 and 2 are in scope. Path 3 does not exist on the Max 4.
+
 ## Quick Start — Test Commands
 
 Always run these before committing:
 
 ```bash
-bash -n All_in_One_Installer/aio_menu.sh          # shell syntax check
+bash -n All_in_One_Installer/aio_menu.sh          # shell syntax check (Q2)
+bash -n All_in_One_Installer/aio_menu_max4.sh     # shell syntax check (Max 4)
 python3 -m json.tool Q2/helixscreen_settings.json  # JSON lint
 shellcheck -S warning All_in_One_Installer/aio_menu.sh         # style (advisory)
+shellcheck -S warning All_in_One_Installer/aio_menu_max4.sh    # style (advisory)
 ```
 
 ## Repo Layout
 
 ```
 All_in_One_Installer/
-  aio_menu.sh              ← Main artifact. All installer logic lives here.
+  aio_menu.sh              ← Q2 installer. All Q2 logic lives here. DO NOT MODIFY for Max 4.
+  aio_menu_max4.sh         ← Max 4 installer. Sibling to aio_menu.sh.
   README.md
   WHAT_WAS_DONE.md
 
@@ -35,6 +48,13 @@ Q2/
   macros/                  ← gcode_macro cfg templates
   Printer Presets/         ← OrcaSlicer printer profiles
 
+Max4/
+  macros/
+    gcode_macro-JustFasterPrinter.cfg ← JFP macro file (no box)
+    gcode_macro-JustFasterBox.cfg     ← JFB macro file (with box)
+  Instructions.md          ← User-facing SSH + install guide
+  FAQ.md                   ← Fan assignments, NeoPixel, Z offset, polar cooler, misc
+
 Configurations/            ← Stock Qidi reference files. DO NOT MODIFY.
 Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
 
@@ -44,8 +64,9 @@ Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
   checklist.md             ← Pre-flight checklists
 ```
 
-## Target Environment
+## Target Environments
 
+### Qidi Q2 (existing)
 - Hardware: Qidi Q2 3D printer
 - Runs Debian 10
 - OS: ARM Linux, user `mks`
@@ -55,6 +76,19 @@ Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
   - `/home/mks/mudstockbackups/` — AIO backup snapshots
   - `/home/mks/helixscreen/` — HelixScreen install dir
   - `/home/mks/Happy-Hare/` — Happy Hare MMU firmware
+
+### Qidi Max 4 (new)
+- Hardware: Qidi Max 4 3D printer
+- Runs Debian Bullseye
+- OS: ARM Linux, user `qidi`
+- Stack: Klipper + Moonraker + stock qidi-client touchscreen UI + Qidi Box (4-slot AMS, optional)
+- Key paths on the printer:
+  - `/home/qidi/printer_data/config/` — Klipper config root
+  - `/home/qidi/mudstockbackups/` — AIO backup snapshots
+  - `/home/qidi/QIDI_Client/` — touchscreen UI assets
+  - `config/klipper-macros-qd/` — stock Qidi macro directory
+- Supported firmware: `01.01.06.03`, `01.01.06.04`
+- No Happy Hare, no HelixScreen — stock UI only
 
 ## Critical Rules
 

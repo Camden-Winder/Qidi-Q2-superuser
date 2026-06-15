@@ -1,6 +1,6 @@
-# Qidi Q2 Superuser Guide
+# Qidi Superuser Guide
 
-Welcome — this repo is everything I use to turn a stock Qidi Q2 into a faster, cleaner, and more capable printer.
+Welcome — this repo is everything I use to turn a stock Qidi Q2 or Qidi Max 4 into a faster, cleaner, and more capable printer.
 
 Join the Discord: https://discord.gg/aZGUk69Mp
 
@@ -15,7 +15,7 @@ This repo covers:
 - Filament tracking with Spoolman  
 - Faster, cleaner printer macros  
 - One‑line install and uninstall tools  
-- Recommended printables for the Q2  
+- Recommended printables  
 
 Everything here is optional — take what you want, skip what you don’t.
 
@@ -36,7 +36,7 @@ This section walks you through slicer setup, basic usage, and the “what do I d
 
 I used to recommend OctoEverywhere, but recent reliability issues and aggressive paywalling make it hard to suggest now.
 
-I’m moving toward Tailscale‑based remote access. Once I’ve fully tested it on the Q2, I’ll publish a full guide.
+I’m moving toward Tailscale‑based remote access. Once I’ve fully tested it, I’ll publish a full guide.
 
 Alternatives worth considering: **Obico**
 
@@ -65,21 +65,24 @@ This becomes especially useful once Bunny Box is installed on the Qidi Box.
 
 # All-in-One Installer (AIO)
 
-The AIO is a single ANSI-colored bash menu that handles every supported install and uninstall path for the Q2 — no need to remember which `.sh` to run for which variant.
+The AIO is a single ANSI-coloured bash menu per printer that handles every supported install, uninstall, and addon path — no need to remember which `.sh` to run for which variant.
 
-SSH into the Q2 as `mks`, then run:
+## Supported Printers
 
-```bash
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/All_in_One_Installer/aio_menu.sh | bash
-```
+| Printer | Instructions |
+|---|---|
+| **Qidi Q2** | [Q2/Instructions.md](Q2/Instructions.md) |
+| **Qidi Max 4** | [Max4/Instructions.md](Max4/Instructions.md) |
 
-Full documentation → [All_in_One_Installer/README.md](All_in_One_Installer/README.md)
+Each printer's `Instructions.md` has the SSH command, curl one-liner, menu walkthrough, and troubleshooting steps.
+
+Full documentation and changelog → [All_in_One_Installer/README.md](All_in_One_Installer/README.md)
 
 ---
 
 # Printer Configs
 
-The Q2 ships with a very heavy PRINT_START macro and a lot of vendor‑specific glue code.  
+Both the Q2 and Max 4 ship with heavy PRINT_START macros and a lot of vendor‑specific glue code.  
 This repo documents what those macros do and provides faster, cleaner replacements.
 
 All macro adjustments are handled by the AIO installer above. For reference configs and additional resources:
@@ -91,7 +94,7 @@ All macro adjustments are handled by the AIO installer above. For reference conf
 
 # Printables
 
-Once your Q2 is running smoothly, here are prints that actually improve the machine.
+Once your printer is running smoothly, here are prints that may improve the machine. Note: most printables listed are designed for the Q2.
 
 [Printables](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Printables/Prints.md)
 
@@ -101,7 +104,7 @@ Once your Q2 is running smoothly, here are prints that actually improve the mach
 
 Congratulations — you’ve reached the end of the guide.
 
-If you have ideas, corrections, or additional tips for the Q2, feel free to open an issue or PR.  
+If you have ideas, corrections, or additional tips, feel free to open an issue or PR.  
 I’m always improving this setup and appreciate good suggestions.
 
 [Thanks](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Thanks.md)
