@@ -11,10 +11,48 @@ The AIO installer for the Q2 offers three install paths:
 | Path | Who it's for |
 |---|---|
 | **Just Faster Printer** | Stock experience with faster/cleaner macros. No Qidi Box. Keeps stock screen. |
+| **Just Faster Box** | Same as JFP but with Qidi Box-aware macros active. No BunnyBox. Keeps stock screen. |
 | **BunnyBox + HelixScreen** | Full advanced stack. Happy Hare MMU firmware + HelixScreen LVGL UI. Requires Qidi Box. |
 | **Addons** | Optional toggles: Idle Fan Shutdown, Mainsail web UI, camera stream. |
 
 The AIO also handles a full **Revert to Backup** that restores your printer to factory config.
+
+---
+
+## AIO Menu Preview
+
+```
+============================================
+   Qidi Q2 Superuser - AIO Setup Menu (RC2.36)
+============================================
+  Just Faster: not found | BunnyBox: not found | Display: none
+  IdleFan: off | BoxWrite: off | Mainsail: not found | Camera: off
+  Firmware: legacy mks layout
+--------------------------------------------
+  INSTALL
+   1) Install BunnyBox & HelixScreen    (Q2 with Qidi Box)
+   2) Install Just Faster Printer       (Q2 without Box)
+   3) Install Just Faster Box           (Q2 with Qidi Box, no BunnyBox)
+  UNINSTALL
+   4) Revert to Backup                  (full uninstall + restore stock)
+  ADDONS
+   5) Idle Fan Shutdown                 (10m idle, temp-gated)
+   6) Mainsail                          (web UI on port 100)
+  INFO
+   7) About
+   8) Health Check / Run Verifiers
+  TESTING
+   9) 1.1.2 Compatibility Probe          (reversible round trip)
+  10) 1.1.2 Restore Rehearsal             (isolated, no live changes)
+  11) 1.1.2 Live Restore Proof            (controlled contract restore)
+  12) 1.1.2 External Restore Audit         (read-only drift report)
+  13) 1.1.2 Present-Path Restore Proof     (controlled systemd path)
+  14) 1.1.2 Klipper Extras Restore Proof    (controlled runtime path)
+  15) 1.1.2 Moonraker Components Proof      (controlled runtime path)
+   0) Exit
+============================================
+Enter selection:
+```
 
 ---
 
@@ -84,6 +122,20 @@ What it does:
 - Backs up your current `config/` to `~/mudstockbackups/`
 - Writes optimised Klipper macros (`gcode_macro.cfg`) — faster `PRINT_START`, cleaner `PRINT_END`, adaptive bed meshing
 - Patches `printer.cfg` to include the new macro file
+- Keeps the stock Makerbase touchscreen UI unchanged
+
+After install:
+1. Run `FIRMWARE_RESTART`
+2. Run a bed level and `SCREWS_TILT_CALCULATE` before your first print
+
+### Option 4 — Just Faster Box (with Qidi Box, no BunnyBox)
+
+Choose this if you have a Qidi Box and want improved macros without installing Happy Hare or HelixScreen.
+
+What it does:
+- Everything Option 3 does, but installs `gcode_macro-JustFasterBox.cfg` instead of the printer-only variant
+- The box-aware macro branches (`BOX_PRINT_START`, box heater control) are live — the stock Qidi Box AMS backend remains in control
+- Does not install Happy Hare, BunnyBox, or HelixScreen
 - Keeps the stock Makerbase touchscreen UI unchanged
 
 After install:

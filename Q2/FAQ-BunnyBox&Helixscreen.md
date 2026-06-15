@@ -41,7 +41,7 @@ Bunny Box requires HelixScreen. The stock Qidi touchscreen UI does not support i
 
 ### What is HelixScreen?
 
-HelixScreen is a replacement UI for the Qidi Q2's touchscreen. It's built on top of KlipperScreen and designed specifically for the Q2's hardware.
+HelixScreen is a replacement UI for the Qidi Q2's touchscreen, built specifically for the Q2's hardware.
 
 Compared to the stock Qidi screen software, HelixScreen gives you:
 

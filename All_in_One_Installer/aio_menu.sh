@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.35'
+AIO_VERSION='RC2.36'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -120,10 +120,7 @@ USTREAMER_DEVICE='/dev/video0'
 CAMERA_MARKER="${BACKUP_ROOT}/.aio_camera_installed"
 USTREAMER_PACKAGE_MARKER="${BACKUP_ROOT}/.aio_ustreamer_installed"
 MOONRAKER_PORT=7125
-KLIPPERSCREEN_REPO_URL='https://github.com/moggieuk/KlipperScreen-Happy-Hare-Edition.git'
-KLIPPERSCREEN_DIR="${AIO_HOME}/KlipperScreen"
-KLIPPERSCREEN_VENV="${AIO_HOME}/.KlipperScreen-env"
-KLIPPERSCREEN_SERVICE='KlipperScreen'
+
 Q2_112_PROBE_STATE_DIR="${BACKUP_ROOT}/_Q2_112_PROBE_STATE"
 Q2_112_PROBE_ORIGINAL="${Q2_112_PROBE_STATE_DIR}/printer.cfg.original"
 Q2_112_PROBE_MODIFIED="${Q2_112_PROBE_STATE_DIR}/printer.cfg.probe"
@@ -573,7 +570,7 @@ verify_runtime_health() {
     verify_klipper_runtime_health
     verify_happy_hare_runtime_health
     verify_helixscreen_runtime_health
-    if ! helixscreen_installed && ! klipperscreen_installed; then
+    if ! helixscreen_installed; then
         verify_stock_display_runtime_health
     fi
 }
@@ -1517,6 +1514,17 @@ bunnybox_installed() {
             -print -quit 2>/dev/null)" ]
 }
 
+just_faster_printer_installed() {
+    [ -f "${CONFIG_DIR}/gcode_macro.cfg" ] && \
+    grep -q 'PRINTER_PARAM' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null && \
+    ! grep -q 'BOX_PRINT_START' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null
+}
+
+just_faster_box_installed() {
+    [ -f "${CONFIG_DIR}/gcode_macro.cfg" ] && \
+    grep -q 'BOX_PRINT_START' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null
+}
+
 # Scan every path the BunnyBox installer's own detection logic looks at,
 # plus a few extras. Returns 0 if any artifact is present (and prints
 # what was found), 1 if the slate is truly clean.
@@ -1543,61 +1551,6 @@ detect_bunnybox_artifacts() {
 
 helixscreen_installed() {
     [ -d "$HELIX_DIR" ] || systemctl is-enabled helixscreen &>/dev/null
-}
-
-klipperscreen_installed() {
-    systemctl is-enabled --quiet "$KLIPPERSCREEN_SERVICE" 2>/dev/null || \
-    [ -d "$KLIPPERSCREEN_DIR" ] || \
-    [ -d "$KLIPPERSCREEN_VENV" ] || \
-    [ -f /etc/systemd/system/KlipperScreen.service ] || \
-    [ -d /etc/systemd/system/KlipperScreen.service.d ]
-}
-
-# Mask the stock Qidi display service so KlipperScreen can own the screen.
-# The upstream KlipperScreen-install.sh handles X server setup (xinit),
-# service creation, and display configuration — we just clear the way.
-prepare_display_for_klipperscreen() {
-    banner "Preparing display for KlipperScreen"
-    if [ -n "$STOCK_UI_SERVICE" ]; then
-        sudo systemctl stop    "$STOCK_UI_SERVICE" 2>/dev/null || true
-        sudo systemctl disable "$STOCK_UI_SERVICE" 2>/dev/null || true
-        sudo systemctl mask    "$STOCK_UI_SERVICE" 2>/dev/null || true
-    fi
-    if [ -n "$STOCK_DISPLAY_SERVICE" ]; then
-        sudo systemctl stop    "$STOCK_DISPLAY_SERVICE" 2>/dev/null || true
-        sudo systemctl disable "$STOCK_DISPLAY_SERVICE" 2>/dev/null || true
-        sudo systemctl mask    "$STOCK_DISPLAY_SERVICE" 2>/dev/null || true
-    fi
-    sudo systemctl stop    helixscreen            2>/dev/null || true
-    sudo systemctl disable helixscreen            2>/dev/null || true
-    sudo systemctl mask    helixscreen            2>/dev/null || true
-    ok "$(stock_display_stack_label) masked — KlipperScreen owns the screen"
-}
-
-uninstall_klipperscreen() {
-    banner "Uninstalling KlipperScreen"
-    sudo systemctl disable --now "$KLIPPERSCREEN_SERVICE" 2>/dev/null || true
-    sudo systemctl mask    "$KLIPPERSCREEN_SERVICE" 2>/dev/null || true
-    sudo rm -f /etc/systemd/system/KlipperScreen.service
-    sudo rm -rf /etc/systemd/system/KlipperScreen.service.d
-    sudo systemctl daemon-reload 2>/dev/null || true
-    rm -rf "$KLIPPERSCREEN_DIR" 2>/dev/null || true
-    rm -rf "$KLIPPERSCREEN_VENV" 2>/dev/null || true
-    if restore_stock_display_services; then
-        ok "KlipperScreen uninstalled, stock display services re-enabled"
-    else
-        warn "KlipperScreen uninstalled, but stock display services need attention"
-    fi
-}
-
-verify_klipperscreen() {
-    klipperscreen_installed || return 0
-    if systemctl is-active --quiet "$KLIPPERSCREEN_SERVICE"; then
-        ok "KlipperScreen.service is active"
-    else
-        warn "KlipperScreen.service is not active"
-        warn "  → check: sudo journalctl -u ${KLIPPERSCREEN_SERVICE} -n 50"
-    fi
 }
 
 preflight() {
@@ -1661,8 +1614,6 @@ capture_first_run_state() {
         "$HAPPY_HARE_DIR" \
         "$HELIX_DIR" \
         "$HELIX_PRINT_DIR" \
-        "$KLIPPERSCREEN_DIR" \
-        "$KLIPPERSCREEN_VENV" \
         "$KIAUH_DIR" \
         "$KIAUH_BACKUPS_DIR" \
         "$KIAUH_UPPER_DIR" \
@@ -1755,8 +1706,6 @@ cleanup_aio_runtime_artifacts() {
         "$HAPPY_HARE_DIR" \
         "$HELIX_DIR" \
         "$HELIX_PRINT_DIR" \
-        "$KLIPPERSCREEN_DIR" \
-        "$KLIPPERSCREEN_VENV" \
         "$KIAUH_DIR" \
         "$KIAUH_BACKUPS_DIR" \
         "$KIAUH_UPPER_DIR" \
@@ -1771,8 +1720,6 @@ cleanup_aio_runtime_artifacts() {
         fi
     done
 
-    sudo rm -f /etc/systemd/system/KlipperScreen.service
-    sudo rm -rf /etc/systemd/system/KlipperScreen.service.d
     sudo rm -f /etc/systemd/system/helixscreen.service
     sudo rm -f /etc/systemd/system/helixscreen-update.path
     sudo rm -f /etc/systemd/system/helixscreen-update.service
@@ -1798,7 +1745,6 @@ cleanup_aio_config_residue() {
         bunnybox_macros.cfg \
         box_drying.cfg \
         idle_fan_shutdown.cfg \
-        KlipperScreen.conf \
         aio_q2_112_live_restore_proof.cfg \
         KAMP_Settings.cfg \
         KAMP_settings.cfg \
@@ -1829,7 +1775,7 @@ cleanup_aio_config_residue() {
         rm -f "$f" && ok "Removed $f"
     done < <(
         find "$CONFIG_DIR" -maxdepth 1 -type f \
-            \( -name 'mmu*.cfg' -o -name 'mmu_klipperscreen.*' \
+            \( -name 'mmu*.cfg' \
                -o -name 'moonraker.conf.aio-bak' \
                -o -name 'moonraker.conf.bak.helixscreen*' \) \
             -print0 2>/dev/null
@@ -1882,7 +1828,7 @@ restore_stock_display_services() {
     sudo systemctl reset-failed display-manager.service      2>/dev/null || true
     sudo systemctl unmask  display-manager.service           2>/dev/null || true
 
-    sudo systemctl stop helixscreen KlipperScreen    2>/dev/null || true
+    sudo systemctl stop helixscreen 2>/dev/null || true
     if [ -n "$STOCK_DISPLAY_SERVICE" ]; then
         sudo systemctl start "$STOCK_DISPLAY_SERVICE" 2>/dev/null || true
     fi
@@ -2111,8 +2057,6 @@ q2_112_aio_artifacts_absent() {
         "$HAPPY_HARE_DIR" \
         "$HELIX_DIR" \
         "$HELIX_PRINT_DIR" \
-        "$KLIPPERSCREEN_DIR" \
-        "$KLIPPERSCREEN_VENV" \
         "$KIAUH_DIR" \
         "$KIAUH_BACKUPS_DIR" \
         "$KIAUH_UPPER_DIR" \
@@ -2122,7 +2066,6 @@ q2_112_aio_artifacts_absent() {
         "${CONFIG_DIR}/bunnybox_macros.cfg" \
         "${CONFIG_DIR}/box_drying.cfg" \
         "${CONFIG_DIR}/idle_fan_shutdown.cfg" \
-        "${CONFIG_DIR}/KlipperScreen.conf" \
         "${CONFIG_DIR}/KAMP_Settings.cfg" \
         "${CONFIG_DIR}/KAMP_settings.cfg" \
         "${CONFIG_DIR}/Adaptive_Meshing.cfg" \
@@ -2148,7 +2091,7 @@ q2_112_aio_artifacts_absent() {
         find "$CONFIG_DIR" -maxdepth 1 \
             \( -name 'mmu' -o -name 'mmu-*' -o -name 'mmu_*' -o -name 'mmu[0-9]*' \
                -o -name 'backup_hh_*' -o -name 'backup_revert_*' -o -name 'backup_mmu_*' \
-               -o -name 'backup_bunnybox_*' -o -name 'mmu_klipperscreen.*' \
+               -o -name 'backup_bunnybox_*' \
                -o -name 'moonraker.conf.aio-bak' -o -name 'moonraker.conf.bak.helixscreen*' \) \
             -print0 2>/dev/null
     )
@@ -2232,8 +2175,6 @@ q2_112_restore_contract_paths() {
         /etc/systemd/system/helixscreen.service.d \
         /etc/systemd/system/helixscreen-update.path \
         /etc/systemd/system/helixscreen-update.service \
-        /etc/systemd/system/KlipperScreen.service \
-        /etc/systemd/system/KlipperScreen.service.d \
         /etc/udev/rules.d/99-helixscreen-backlight.rules \
         /etc/polkit-1/localauthority/50-local.d/helixscreen-network.pkla \
         /etc/polkit-1/rules.d/49-helixscreen-network.rules \
@@ -2247,8 +2188,7 @@ q2_112_restore_contract_services() {
         klipper \
         moonraker \
         qidi-tuning \
-        helixscreen \
-        KlipperScreen
+        helixscreen
 }
 
 q2_112_contract_path_state_line() {
@@ -3776,8 +3716,6 @@ report_aio_removal_dry_run() {
         "$HAPPY_HARE_DIR" \
         "$HELIX_DIR" \
         "$HELIX_PRINT_DIR" \
-        "$KLIPPERSCREEN_DIR" \
-        "$KLIPPERSCREEN_VENV" \
         "$KIAUH_DIR" \
         "$KIAUH_BACKUPS_DIR" \
         "$KIAUH_UPPER_DIR" \
@@ -3796,7 +3734,6 @@ report_aio_removal_dry_run() {
         "${CONFIG_DIR}/bunnybox_macros.cfg" \
         "${CONFIG_DIR}/box_drying.cfg" \
         "${CONFIG_DIR}/idle_fan_shutdown.cfg" \
-        "${CONFIG_DIR}/KlipperScreen.conf" \
         "${CONFIG_DIR}/KAMP_Settings.cfg" \
         "${CONFIG_DIR}/KAMP_settings.cfg" \
         "${CONFIG_DIR}/Adaptive_Meshing.cfg" \
@@ -3819,7 +3756,6 @@ report_aio_removal_dry_run() {
         "${CONFIG_DIR}/moonraker.conf.aio-bak" \
         "$Q2_112_LIVE_PROOF_CFG" \
         "$Q2_112_PROBE_CFG" \
-        /etc/systemd/system/KlipperScreen.service \
         /etc/systemd/system/helixscreen.service \
         "$Q2_112_PRESENT_PROOF_MARKER" \
         "$Q2_112_KLIPPER_EXTRAS_PROOF_MARKER" \
@@ -3839,7 +3775,7 @@ report_aio_removal_dry_run() {
         find "$CONFIG_DIR" -maxdepth 1 \
             \( -name 'mmu' -o -name 'mmu-*' -o -name 'mmu_*' -o -name 'mmu[0-9]*' \
                -o -name 'backup_hh_*' -o -name 'backup_revert_*' -o -name 'backup_mmu_*' \
-               -o -name 'backup_bunnybox_*' -o -name 'mmu_klipperscreen.*' \
+               -o -name 'backup_bunnybox_*' \
                -o -name 'moonraker.conf.bak.helixscreen*' \) \
             -print0 2>/dev/null
     )
@@ -4214,12 +4150,6 @@ revert_to_backup() {
     # cleanup step they do (qidi-box-write systemd drop-in, helixscreen state
     # dir, moonraker bak, restore_aio_disabled_macros, fix_printer_cfg_after_uninstall,
     # etc.) without duplicating logic here.
-    if klipperscreen_installed; then
-        uninstall_klipperscreen
-    else
-        info "KlipperScreen not present, skipping"
-    fi
-
     if helixscreen_installed; then
         uninstall_helixscreen
     else
@@ -4230,6 +4160,15 @@ revert_to_backup() {
         uninstall_bunnybox
     else
         info "BunnyBox / Happy Hare not present, skipping"
+    fi
+
+    if just_faster_box_installed || just_faster_printer_installed; then
+        info "Removing Just Faster macros..."
+        rm -f "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null || \
+            sudo rm -f "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null || true
+        ok "gcode_macro.cfg removed (will be restored from backup)"
+    else
+        info "Just Faster not present, skipping"
     fi
 
     cleanup_aio_install_artifacts
@@ -4387,15 +4326,12 @@ verify_bunnybox_install() {
         all_ok=false
     fi
 
-    if ! klipperscreen_installed; then
-        if [ -s "${HELIX_CONFIG_DIR}/settings.json" ]; then
-            ok "helixscreen settings.json"
-        else
-            err "helixscreen settings.json missing"
-            all_ok=false
-        fi
+    if [ -s "${HELIX_CONFIG_DIR}/settings.json" ]; then
+        ok "helixscreen settings.json"
+    else
+        err "helixscreen settings.json missing"
+        all_ok=false
     fi
-
     if [ "$all_ok" = true ]; then
         ok "All files verified"
     else
@@ -4414,6 +4350,29 @@ verify_jfp_install() {
             all_ok=false
         fi
     done
+    if [ "$all_ok" = true ]; then
+        ok "All files verified"
+    else
+        warn "Some files are missing - install may not work correctly."
+    fi
+}
+
+verify_jfb_install() {
+    banner "Verifying installation"
+    local all_ok=true
+    for f in printer.cfg gcode_macro.cfg KAMP/KAMP_Settings.cfg; do
+        if [ -s "${CONFIG_DIR}/${f}" ]; then
+            ok "${f}"
+        else
+            err "${f} missing"
+            all_ok=false
+        fi
+    done
+    if grep -q 'BOX_PRINT_START' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null; then
+        ok "gcode_macro.cfg contains box-aware macros (BOX_PRINT_START)"
+    else
+        warn "gcode_macro.cfg does not appear to contain box-aware macros"
+    fi
     if [ "$all_ok" = true ]; then
         ok "All files verified"
     else
@@ -4595,11 +4554,6 @@ _run_verifiers_core() {
         ok "idle_fan_shutdown.cfg installed and included in printer.cfg"
     else
         info "Idle Fan Shutdown not installed"
-    fi
-    if klipperscreen_installed; then
-        verify_klipperscreen
-    else
-        info "KlipperScreen not installed"
     fi
     if mainsail_installed; then
         verify_mainsail
@@ -5386,113 +5340,6 @@ EOF
 
 install_bunnybox_helixscreen() { _install_bunnybox; }
 
-# ---------- install: KlipperScreen Happy Hare Edition (standalone) ------
-install_klipperscreen() {
-    banner "Install: KlipperScreen Happy Hare Edition"
-    warn "KlipperScreen install is disabled in ${AIO_VERSION}."
-    warn "The current xinit/Xorg path fails on the Q2 because the kernel has no VT subsystem."
-    warn "Leaving the preserved installer body below for the next display-backend fix."
-    press_enter
-    return 1
-
-    preflight || { press_enter; return 1; }
-    do_backup || { press_enter; return 1; }
-
-    local INSTALL_LOG
-    INSTALL_LOG="${BACKUP_ROOT}/install_$(date +%Y%m%d_%H%M%S).log"
-    info "Install log: ${INSTALL_LOG}"
-
-    {
-        banner "Installing KlipperScreen Happy Hare Edition"
-        local ks_install_dir="$KLIPPERSCREEN_DIR"
-        local ks_script="$ks_install_dir/scripts/KlipperScreen-install.sh"
-        if [ -d "$ks_install_dir/.git" ]; then
-            local existing_remote
-            existing_remote=$(git -C "$ks_install_dir" remote get-url origin 2>/dev/null || true)
-            if [ "$existing_remote" = "$KLIPPERSCREEN_REPO_URL" ]; then
-                info "KlipperScreen HH Edition repo exists — updating"
-                git -C "$ks_install_dir" pull --ff-only 2>/dev/null || true
-            else
-                warn "Existing KlipperScreen clone is from wrong repo (${existing_remote})"
-                info "Removing old clone and re-cloning Happy Hare Edition"
-                rm -rf "$ks_install_dir"
-                if ! git clone "$KLIPPERSCREEN_REPO_URL" "$ks_install_dir"; then
-                    err "Failed to clone KlipperScreen Happy Hare Edition repository"
-                    return 1
-                fi
-            fi
-        else
-            [ -d "$ks_install_dir" ] && rm -rf "$ks_install_dir"
-            info "Cloning KlipperScreen Happy Hare Edition to ${ks_install_dir}"
-            if ! git clone "$KLIPPERSCREEN_REPO_URL" "$ks_install_dir"; then
-                err "Failed to clone KlipperScreen Happy Hare Edition repository"
-                return 1
-            fi
-        fi
-        chmod +x "$ks_script"
-        sed -i 's/xserver-xorg-legacy[[:space:]]*//' "$ks_script"
-        info "Running upstream KlipperScreen-install.sh (NETWORK=N)"
-        NETWORK=N bash "$ks_script"
-        local ks_exit=$?
-        [ $ks_exit -ne 0 ] && \
-            warn "KlipperScreen installer exited ${ks_exit}"
-        local hh_script="$ks_install_dir/happy_hare/install_ks.sh"
-        if [ -f "$hh_script" ]; then
-            info "Configuring Happy Hare Edition for 4 gates (Qidi Box)"
-            chmod +x "$hh_script"
-            bash "$hh_script" -g 4
-            local hh_exit=$?
-            [ $hh_exit -ne 0 ] && \
-                warn "Happy Hare Edition gate setup exited ${hh_exit}"
-        else
-            warn "Happy Hare Edition setup script not found at ${hh_script}"
-        fi
-        # The Q2 kernel does not create /dev/tty0 (no VT subsystem in the
-        # Rockchip BSP kernel). Xorg needs it for VT auto-detection and the
-        # upstream service unit has ConditionPathExists=/dev/tty0. A drop-in
-        # clears the condition and creates the device node before each start.
-        info "Installing /dev/tty0 workaround for Q2"
-        sudo mkdir -p /etc/systemd/system/KlipperScreen.service.d
-        sudo tee /etc/systemd/system/KlipperScreen.service.d/q2-tty0-fix.conf > /dev/null <<'DROPIN'
-[Unit]
-ConditionPathExists=
-
-[Service]
-ExecStartPre=-/bin/sh -c '[ -e /dev/tty0 ] || /bin/mknod /dev/tty0 c 4 0'
-DROPIN
-        sudo systemctl daemon-reload 2>/dev/null || true
-        ok "/dev/tty0 workaround installed"
-
-        prepare_display_for_klipperscreen
-        sudo systemctl restart "$KLIPPERSCREEN_SERVICE" 2>/dev/null || true
-        ok "KlipperScreen Happy Hare Edition install complete"
-
-        verify_klipperscreen
-    } 2>&1 | tee -a "$INSTALL_LOG"
-
-    local _pipe_exit="${PIPESTATUS[0]}"
-    if [ "$_pipe_exit" != "0" ]; then
-        err "Install aborted — a required step failed (see log above)"
-        err "Log saved to: ${INSTALL_LOG}"
-        press_enter
-        return 1
-    fi
-
-    banner "Install complete"
-    cat <<EOF
-${C_BOLD}Next steps:${C_RESET}
-  1. FIRMWARE_RESTART (Klipper console or KlipperScreen)
-  2. sudo reboot
-  3. Verify:    systemctl status klipper
-  4. Verify:    systemctl status ${KLIPPERSCREEN_SERVICE}
-
-Install log:    ${INSTALL_LOG}
-Config backup:  ${BACKUP_DIR}
-EOF
-
-    press_enter
-}
-
 # ---------- install: Just Faster Printer -----------------------------
 install_just_faster() {
     banner "Install: Just Faster Printer (Q2 without Box)"
@@ -5537,6 +5384,49 @@ EOF
     press_enter
 }
 
+install_just_faster_box() {
+    banner "Install: Just Faster Box (Q2 with Qidi Box)"
+
+    preflight || { press_enter; return 1; }
+    do_backup || { press_enter; return 1; }
+    cleanup_aio_install_artifacts
+
+    info "Updating gcode_macro.cfg..."
+    fetch "${REPO_BASE}/macros/gcode_macro-JustFasterBox.cfg" \
+          "${CONFIG_DIR}/gcode_macro.cfg" || { press_enter; return 1; }
+    ok "gcode_macro.cfg installed"
+
+    info "Updating printer.cfg..."
+    fetch "${REPO_BASE}/JustFasterPrinter.cfg" \
+          "${CONFIG_DIR}/printer.cfg" || { press_enter; return 1; }
+    ok "printer.cfg installed"
+
+    info "Applying KAMP settings..."
+    mkdir -p "${CONFIG_DIR}/KAMP"
+    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
+    ok "KAMP settings and sub-files applied to ${CONFIG_DIR}/KAMP/"
+
+    verify_jfb_install
+
+    banner "Install complete"
+    cat <<EOF
+${C_BOLD}Your Q2 is now running the 'Just Faster Box' setup.${C_RESET}
+  Stock Qidi Box controls, no BunnyBox, no HelixScreen — just cleaner macros and faster starts.
+
+${C_BOLD}Next steps:${C_RESET}
+  1. FIRMWARE_RESTART (Klipper console or stock screen)
+  2. sudo reboot
+  3. Run a bed level + screws_tilt_adjust before your first print.
+
+Config backup:  ${BACKUP_DIR}
+EOF
+
+    press_enter
+}
+
 # ---------- about ----------------------------------------------------
 show_about() {
     banner "About - Qidi Q2 Superuser AIO"
@@ -5569,10 +5459,6 @@ ${C_BOLD}What it can install:${C_RESET}
     - Faster, cleaner PRINT_START / PRINT_END macros
     - KAMP adaptive meshing, screws_tilt_adjust, Spoolman hooks
     - No UI changes - stock Qidi screen stays
-
-  ${C_YELLOW}KlipperScreen Happy Hare Edition${C_RESET}
-    - Installer body is preserved, but menu option 2 is disabled while
-      the Q2 display backend issue is investigated
 
 ${C_BOLD}Optional addons:${C_RESET}
   - Idle Fan Shutdown: temperature-gated fan/heater shutdown after 10m idle
@@ -5662,7 +5548,7 @@ ${C_BOLD}1.1.2 loaded runtime-path restore proofs:${C_RESET}
 
 ${C_BOLD}What it can uninstall:${C_RESET}
   - 'Revert to Backup' is the supported full restore path.
-  - Revert removes KlipperScreen, HelixScreen, BunnyBox/Happy Hare,
+  - Revert removes HelixScreen, BunnyBox/Happy Hare,
     optional addons, display-service overrides, AIO-created KIAUH dirs,
     helix_print, and ${BACKUP_ROOT}/ after a successful restore.
   - On the supported legacy layout, Revert re-enables
@@ -5713,20 +5599,25 @@ EOF
 
 # ---------- main menu ------------------------------------------------
 show_status_line() {
-    local bb_status display_status idle_status box_write_status mainsail_status camera_status firmware_status
+    local bb_status display_status idle_status box_write_status mainsail_status camera_status firmware_status just_faster_status
     if layout_supports_mutation; then
         firmware_status="${C_GREEN}$(q2_firmware_layout_label)${C_RESET}"
     else
         firmware_status="${C_RED}$(q2_firmware_layout_label)${C_RESET}"
+    fi
+    if just_faster_box_installed; then
+        just_faster_status="${C_GREEN}Just Faster Box${C_RESET}"
+    elif just_faster_printer_installed; then
+        just_faster_status="${C_GREEN}Just Faster Printer${C_RESET}"
+    else
+        just_faster_status="${C_YELLOW}not found${C_RESET}"
     fi
     if bunnybox_installed; then
         bb_status="${C_GREEN}installed${C_RESET}"
     else
         bb_status="${C_YELLOW}not found${C_RESET}"
     fi
-    if klipperscreen_installed; then
-        display_status="${C_GREEN}KlipperScreen${C_RESET}"
-    elif helixscreen_installed; then
+    if helixscreen_installed; then
         display_status="${C_GREEN}HelixScreen${C_RESET}"
     else
         display_status="${C_YELLOW}none${C_RESET}"
@@ -5762,10 +5653,10 @@ show_status_line() {
             box_write_status="${C_YELLOW}off${C_RESET}"
         fi
     fi
-    printf '  BunnyBox: %b | Display: %b | IdleFan: %b | BoxWrite: %b\n' \
-           "$bb_status" "$display_status" "$idle_status" "$box_write_status"
-    printf '  Mainsail: %b | Camera: %b\n' \
-           "$mainsail_status" "$camera_status"
+    printf '  Just Faster: %b | BunnyBox: %b | Display: %b\n' \
+           "$just_faster_status" "$bb_status" "$display_status"
+    printf '  IdleFan: %b | BoxWrite: %b | Mainsail: %b | Camera: %b\n' \
+           "$idle_status" "$box_write_status" "$mainsail_status" "$camera_status"
     printf '  Firmware: %b\n' "$firmware_status"
 }
 
@@ -5778,8 +5669,8 @@ draw_menu() {
     printf '%s--------------------------------------------%s\n' "$C_BOLD" "$C_RESET"
     printf '  %sINSTALL%s\n' "$C_BOLD$C_GREEN" "$C_RESET"
     printf '   %s1)%s Install BunnyBox & HelixScreen    (Q2 with Qidi Box)\n'         "$C_CYAN" "$C_RESET"
-    printf '   %s2)%s Install KlipperScreen             (temporarily disabled)\n'       "$C_YELLOW" "$C_RESET"
-    printf '   %s3)%s Install Just Faster Printer       (Q2 without Box)\n'           "$C_CYAN" "$C_RESET"
+    printf '   %s2)%s Install Just Faster Printer       (Q2 without Box)\n'           "$C_CYAN" "$C_RESET"
+    printf '   %s3)%s Install Just Faster Box           (Q2 with Qidi Box, no BunnyBox)\n' "$C_CYAN" "$C_RESET"
     printf '  %sUNINSTALL%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
     printf '   %s4)%s Revert to Backup                  (full uninstall + restore stock)\n' "$C_CYAN" "$C_RESET"
     printf '  %sADDONS%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
@@ -5843,8 +5734,8 @@ main_loop() {
         read -r choice </dev/tty || exit 0
         case "$choice" in
             1) install_bunnybox_helixscreen ;;
-            2) warn "KlipperScreen install is temporarily disabled — display issue under investigation." ; press_enter ;;
-            3) install_just_faster ;;
+            2) install_just_faster ;;
+            3) install_just_faster_box ;;
             4)
                 if ! layout_supports_mutation; then
                     revert_to_backup_dry_run

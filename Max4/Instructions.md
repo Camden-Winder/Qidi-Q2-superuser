@@ -19,6 +19,30 @@ The AIO also offers **System Optimizations** (DNS fix, APT sources, service hard
 
 ---
 
+## AIO Menu Preview
+
+```
+============================================
+   Qidi Max 4 Superuser - AIO Setup Menu (Max4-RC1.01)
+============================================
+  JFP: not found | JFB: not found | SysOpts: not applied
+--------------------------------------------
+  INSTALL
+   1) Install Just Faster Printer       (Max 4, no Qidi Box)
+   2) Install Just Faster Box           (Max 4 with Qidi Box)
+   3) System Optimizations              (DNS, APT, services, GIFs)
+  UNINSTALL
+   4) Revert to Backup                  (full uninstall + restore stock)
+  INFO
+   5) About
+   6) Run all verifiers
+   0) Exit
+============================================
+Enter selection:
+```
+
+---
+
 ## Requirements
 
 - Qidi Max 4 running stock firmware `01.01.06.03` or `01.01.06.04`
