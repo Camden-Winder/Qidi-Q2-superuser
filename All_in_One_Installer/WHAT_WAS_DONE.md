@@ -27,13 +27,13 @@ Menu items:
 | # | Action |
 |---|--------|
 | 1 | Install BunnyBox & HelixScreen (Q2 with Qidi Box) |
-| 2 | Install KlipperScreen *(disabled in RC2.13 — reliability issues)* |
-| 3 | Install Just Faster Printer (Q2 without Box, stock screen) |
+| 2 | Install Just Faster Printer (Q2 without Box, stock screen) |
+| 3 | Install Just Faster Box (Q2 with Qidi Box, no BunnyBox) |
 | 4 | Revert to Backup (full uninstall + restore stock) |
 | 5 | Idle Fan Shutdown (10 min idle, temp-gated) |
 | 6 | Mainsail (web UI on port 100) |
 | 7 | About |
-| 8 | Run all verifiers |
+| 8 | Health Check / Run Verifiers |
 | 0 | Exit |
 
 Features:
@@ -165,7 +165,6 @@ Every install capability follows this pattern:
 
 - **BunnyBox requires HelixScreen for MMU workflows** — the stock Qidi screen does not expose the MMU UI. While BunnyBox is installed, the Qidi UI's "Control Box" panel does not work (Happy Hare owns the box hardware). Revert to Backup restores the stock panel.
 - **`MMU_CALIBRATE_GEAR` required after clean installs**: mark filament, run `MMU_CALIBRATE_GEAR GATE=0 LENGTH=100`, measure travel, re-run with `MEASURED=<mm>`.
-- **KlipperScreen install disabled** (RC2.13+) — option 2 shows a warning. Removed due to reliability issues.
 - Use the `BOX_DRY` macro or the Klipper console to start filament drying on the Q2.
 
 ## Usage

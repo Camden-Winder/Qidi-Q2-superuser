@@ -31,25 +31,24 @@ The AIO also handles a full **Revert to Backup** that restores your printer to f
 --------------------------------------------
   INSTALL
    1) Install BunnyBox & HelixScreen    (Q2 with Qidi Box)
-   2) Install KlipperScreen             (temporarily disabled)
-   3) Install Just Faster Printer       (Q2 without Box)
-   4) Install Just Faster Box           (Q2 with Qidi Box, no BunnyBox)
+   2) Install Just Faster Printer       (Q2 without Box)
+   3) Install Just Faster Box           (Q2 with Qidi Box, no BunnyBox)
   UNINSTALL
-   5) Revert to Backup                  (full uninstall + restore stock)
+   4) Revert to Backup                  (full uninstall + restore stock)
   ADDONS
-   6) Idle Fan Shutdown                 (10m idle, temp-gated)
-   7) Mainsail                          (web UI on port 100)
+   5) Idle Fan Shutdown                 (10m idle, temp-gated)
+   6) Mainsail                          (web UI on port 100)
   INFO
-   8) About
-   9) Health Check / Run Verifiers
+   7) About
+   8) Health Check / Run Verifiers
   TESTING
-  10) 1.1.2 Compatibility Probe          (reversible round trip)
-  11) 1.1.2 Restore Rehearsal             (isolated, no live changes)
-  12) 1.1.2 Live Restore Proof            (controlled contract restore)
-  13) 1.1.2 External Restore Audit         (read-only drift report)
-  14) 1.1.2 Present-Path Restore Proof     (controlled systemd path)
-  15) 1.1.2 Klipper Extras Restore Proof    (controlled runtime path)
-  16) 1.1.2 Moonraker Components Proof      (controlled runtime path)
+   9) 1.1.2 Compatibility Probe          (reversible round trip)
+  10) 1.1.2 Restore Rehearsal             (isolated, no live changes)
+  11) 1.1.2 Live Restore Proof            (controlled contract restore)
+  12) 1.1.2 External Restore Audit         (read-only drift report)
+  13) 1.1.2 Present-Path Restore Proof     (controlled systemd path)
+  14) 1.1.2 Klipper Extras Restore Proof    (controlled runtime path)
+  15) 1.1.2 Moonraker Components Proof      (controlled runtime path)
    0) Exit
 ============================================
 Enter selection:
@@ -108,7 +107,7 @@ What it does:
 After install:
 1. Run `FIRMWARE_RESTART` from the Klipper console or HelixScreen
 2. Run `sudo reboot` over SSH
-3. Run **option 9 — Health Check** to verify everything loaded correctly
+3. Run **option 8 — Health Check** to verify everything loaded correctly
 4. **First-time only:** calibrate the MMU gear steppers:
    ```
    MMU_CALIBRATE_GEAR GATE=0 LENGTH=100
@@ -143,11 +142,11 @@ After install:
 1. Run `FIRMWARE_RESTART`
 2. Run a bed level and `SCREWS_TILT_CALCULATE` before your first print
 
-### Option 6 — Idle Fan Shutdown (addon)
+### Option 5 — Idle Fan Shutdown (addon)
 
 Toggle. Shuts off fans and heaters after 10 minutes of idle, but only once all temperatures have dropped to safe levels. Safe to enable on any install path.
 
-### Option 7 — Mainsail (addon)
+### Option 6 — Mainsail (addon)
 
 Toggle. Installs the Mainsail web interface, accessible at `http://<printer-ip>:100`. Qidi's stock UI on port 80 is unaffected. Includes a camera proxy so the webcam stream works in Mainsail.
 
@@ -169,7 +168,7 @@ After installing BunnyBox (option 1), drying macros are available from the touch
 
 ## Reverting
 
-**Option 5 — Revert to Backup** uninstalls everything the AIO installed and restores your config from the `_FIRST_STOCK` backup taken on the first AIO run. This always gets you back to factory stock, including re-enabling the stock Makerbase UI.
+**Option 4 — Revert to Backup** uninstalls everything the AIO installed and restores your config from the `_FIRST_STOCK` backup taken on the first AIO run. This always gets you back to factory stock, including re-enabling the stock Makerbase UI.
 
 After reverting, Klipper will restart. Check the touchscreen or the web UI to confirm it comes back up cleanly.
 
@@ -192,7 +191,7 @@ journalctl -u makerbase-client -n 50 --no-pager
 journalctl -u lightdm -n 50 --no-pager
 ```
 
-Option 9 (Health Check) also runs automatically at the end of every revert and prints recent display service logs if the stock UI does not come back.
+Option 8 (Health Check) also runs automatically at the end of every revert and prints recent display service logs if the stock UI does not come back.
 
 **I accidentally broke my config:**
 

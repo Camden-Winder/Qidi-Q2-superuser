@@ -127,8 +127,7 @@ When `install_*` fetches a remote file, use the `fetch()` helper, not `curl` dir
 
 | Function | Feature | Status indicator |
 |---|---|---|
-| `install_bunnybox_helixscreen()` | Happy Hare + HelixScreen | `BunnyBox: installed/not found`, `Display: KlipperScreen/HelixScreen/none` |
-| `install_klipperscreen()` | KlipperScreen Happy Hare Edition (standalone) | `Display: KlipperScreen/none` |
+| `install_bunnybox_helixscreen()` | Happy Hare + HelixScreen | `BunnyBox: installed/not found`, `Display: HelixScreen/none` |
 | `install_just_faster()` | JustFasterPrinter macros (Q2) | `Just Faster: Just Faster Printer` |
 | `install_just_faster_box()` | JustFasterBox macros (Q2) | `Just Faster: Just Faster Box` |
 | `install_idle_fan_shutdown()` | 10m idle fan+heater shutdown | `IdleFan: on/off` |
@@ -139,21 +138,20 @@ When `install_*` fetches a remote file, use the `fetch()` helper, not `curl` dir
 
 ```
 1)  Install BunnyBox & HelixScreen    (Q2 with Qidi Box)
-2)  Install KlipperScreen             (temporarily disabled)
-3)  Install Just Faster Printer       (Q2 without Box)
-4)  Install Just Faster Box           (Q2 with Qidi Box, no BunnyBox)
-5)  Revert to Backup                  (full uninstall + restore stock)
-6)  Idle Fan Shutdown                 (10m idle, temp-gated)
-7)  Mainsail                          (web UI on port 100)
-8)  About
-9)  Health Check / Run Verifiers
-10) 1.1.2 Compatibility Probe          (reversible round trip)
-11) 1.1.2 Restore Rehearsal             (isolated, no live changes)
-12) 1.1.2 Live Restore Proof            (controlled contract restore)
-13) 1.1.2 External Restore Audit         (read-only drift report)
-14) 1.1.2 Present-Path Restore Proof     (controlled systemd path)
-15) 1.1.2 Klipper Extras Restore Proof    (controlled runtime path)
-16) 1.1.2 Moonraker Components Proof      (controlled runtime path)
+2)  Install Just Faster Printer       (Q2 without Box)
+3)  Install Just Faster Box           (Q2 with Qidi Box, no BunnyBox)
+4)  Revert to Backup                  (full uninstall + restore stock)
+5)  Idle Fan Shutdown                 (10m idle, temp-gated)
+6)  Mainsail                          (web UI on port 100)
+7)  About
+8)  Health Check / Run Verifiers
+9)  1.1.2 Compatibility Probe          (reversible round trip)
+10) 1.1.2 Restore Rehearsal             (isolated, no live changes)
+11) 1.1.2 Live Restore Proof            (controlled contract restore)
+12) 1.1.2 External Restore Audit         (read-only drift report)
+13) 1.1.2 Present-Path Restore Proof     (controlled systemd path)
+14) 1.1.2 Klipper Extras Restore Proof    (controlled runtime path)
+15) 1.1.2 Moonraker Components Proof      (controlled runtime path)
 0)  Exit
 ```
 

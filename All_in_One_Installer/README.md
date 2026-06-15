@@ -27,15 +27,7 @@ See each printer's `Instructions.md` for SSH credentials, curl commands, menu op
 |---------|------------------|
 | RC2.35 | Current release |
 | RC2.9 | Hardened Revert to Backup stock display restoration: resets failed lightdm/makerbase state, restores `graphical.target`, unmasks `display-manager.service`, prints recent service logs if the stock display stack does not come back |
-| RC1.30 | Option 2 (KlipperScreen) temporarily disabled — display not rendering despite service running; under investigation |
-| RC1.29 | Fixed KlipperScreen Xorg crash: Q2 kernel lacks `/dev/tty0` (no VT subsystem); systemd drop-in now creates the device node via `ExecStartPre` before each service start |
-| RC1.28 | Fixed KlipperScreen not launching: upstream service unit has `ConditionPathExists=/dev/tty0` which fails on the Q2; a systemd drop-in now clears this condition after install |
-| RC1.27 | Option 2 is now standalone KlipperScreen — no longer bundles BunnyBox, config templates, KAMP, or drying macros |
-| RC1.26 | KlipperScreen option 2 rewritten to use upstream `KlipperScreen-install.sh` as-is; `makerbase-client` and `helixscreen` are masked before the upstream installer runs |
-| RC1.25 | Fixed `install_ks.sh` aborting on `git describe` — switched from shallow clone to full clone so tag history is available |
-| RC1.24 | Fixed KlipperScreen service crash (`Group=mks` — Q2 has no `mks` group); fixed wrong KlipperScreen clone detection |
-| RC1.23 | KlipperScreen option 2 rewritten: uses KlipperScreen Happy Hare Edition as an X client on lightdm's `:0` display |
-| RC1.22 | Removed KlipperScreen option (Q2 display constraints made it unreliable); added filament drying macro buttons to HelixScreen settings |
+| RC1.22 | Added filament drying macro buttons to HelixScreen settings |
 | RC1.14 | Adopted `RC<major>.<minor>` version format; fixed duplicate webcam entries in Mainsail |
 | RC13 | Fixed camera stream in Mainsail (nginx `/webcam/` proxy + correct ustreamer paths) |
 | RC11 | Fixed two post-install Klipper errors: `gcode: not valid in section 'bed_mesh'` and `BED_MESH_CALIBRATE already registered`; install now aborts correctly if a required step fails |
