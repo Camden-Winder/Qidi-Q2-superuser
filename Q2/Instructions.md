@@ -1,116 +1,154 @@
-# Install Scripts – Qidi Q2 Superuser
+# Qidi Q2 — AIO Installer Guide
 
-There are multiple install scripts in this repo. Make sure you run the one that matches what you want to install.
+This guide covers installing the Q2 AIO (`aio_menu.sh`) on a stock Qidi Q2.
 
-**Warning** this script is actively being modified. All install scripts may not work. If you would like to see the status and get updates, join the Discord listed at top of readme
+---
 
-All scripts will:
+## What the AIO Does
 
-- Back up your current config (backup system is being improved)
-- Apply faster PRINT_START and PRINT_END macros
-- Lower the bed fully at print end
-- Install the `screw_tilt_adjust` macro  
-  [Documentation](https://github.com/bluedrool/Qidi-Q2-tuning-tweaks-and-mods/blob/main/docs/tramming.md)
+The AIO installer for the Q2 offers three install paths:
 
-To use any install script:
+| Path | Who it's for |
+|---|---|
+| **Just Faster Printer** | Stock experience with faster/cleaner macros. No Qidi Box. Keeps stock screen. |
+| **BunnyBox + HelixScreen** | Full advanced stack. Happy Hare MMU firmware + HelixScreen LVGL UI. Requires Qidi Box. |
+| **Addons** | Optional toggles: Idle Fan Shutdown, Mainsail web UI, camera stream. |
 
-1. SSH into your printer  
-   ```sh
-   ssh mks@<printer.ip.address>
+The AIO also handles a full **Revert to Backup** that restores your printer to factory config.
+
+---
+
+## Requirements
+
+- Qidi Q2 running stock Klipper firmware (legacy mks layout)
+- SSH access to the printer (user: `mks`, default password: `makerbase`)
+- Printer connected to your network
+
+---
+
+## Step 1 — SSH into the Printer
+
+From your computer:
+
+```bash
+ssh mks@<printer-ip>
+```
+
+Default password: `makerbase`
+
+To find the IP: check your router's DHCP table, or look in the printer touchscreen under **Settings → Network**.
+
+---
+
+## Step 2 — Download and Run the Installer
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/main/All_in_One_Installer/aio_menu.sh)
+```
+
+The installer will run a disclaimer screen and then show the main menu.
+
+> **Note:** Do not run as root (`sudo bash ...`). The script elevates with `sudo` only where needed and enforces this.
+
+---
+
+## Step 3 — Choose an Install Path
+
+### Option 1 — BunnyBox + HelixScreen (with Qidi Box)
+
+Choose this if you have a Qidi Box and want the full MMU stack.
+
+What it does:
+- Backs up your current `config/` to `~/mudstockbackups/`
+- Runs the BunnyBox installer (Happy Hare MMU firmware for the Q2)
+- Runs the HelixScreen installer (LVGL touchscreen UI built for Happy Hare)
+- Writes optimised Klipper configs, KAMP adaptive meshing, and drying macros
+- Disables `[include box.cfg]` in `printer.cfg` — the Qidi Box hardware is owned by Happy Hare, not the stock plugin
+- Switches the display from the stock Makerbase UI to HelixScreen
+
+After install:
+1. Run `FIRMWARE_RESTART` from the Klipper console or HelixScreen
+2. Run `sudo reboot` over SSH
+3. Run **option 8 — Health Check** to verify everything loaded correctly
+4. **First-time only:** calibrate the MMU gear steppers:
    ```
-2. Enter the password:  
-   ```sh
-   makerbase
+   MMU_CALIBRATE_GEAR GATE=0 LENGTH=100
    ```
+   Mark the filament at the entry point, measure how far it moved, then re-run with `MEASURED=<mm>`. Repeat for each gate.
+
+### Option 3 — Just Faster Printer (no Qidi Box)
+
+Choose this if you do not have a Qidi Box, or want to keep the stock screen without BunnyBox.
+
+What it does:
+- Backs up your current `config/` to `~/mudstockbackups/`
+- Writes optimised Klipper macros (`gcode_macro.cfg`) — faster `PRINT_START`, cleaner `PRINT_END`, adaptive bed meshing
+- Patches `printer.cfg` to include the new macro file
+- Keeps the stock Makerbase touchscreen UI unchanged
+
+After install:
+1. Run `FIRMWARE_RESTART`
+2. Run a bed level and `SCREWS_TILT_CALCULATE` before your first print
+
+### Option 5 — Idle Fan Shutdown (addon)
+
+Toggle. Shuts off fans and heaters after 10 minutes of idle, but only once all temperatures have dropped to safe levels. Safe to enable on any install path.
+
+### Option 6 — Mainsail (addon)
+
+Toggle. Installs the Mainsail web interface, accessible at `http://<printer-ip>:100`. Qidi's stock UI on port 80 is unaffected. Includes a camera proxy so the webcam stream works in Mainsail.
 
 ---
 
-## Whole 9 Yards Install
+## Filament Drying (BunnyBox installs only)
 
-**Installs:** Bunny Box + HelixScreen + my custom config changes  
-This is the full setup I run on my own Q2.
+After installing BunnyBox (option 1), drying macros are available from the touchscreen or console. Spools rotate automatically throughout each cycle.
 
-**Compatibility** Q2 with Qid Box, doesn't work with non-qidi box printers. 
+| Macro | Temp | Time |
+|---|---|---|
+| `DRY_PLA` | 45 °C | 4 h |
+| `DRY_PETG` | 65 °C | 4 h |
+| `DRY_ABS` | 65 °C | 4 h |
+| `DRY_TPU` | 55 °C | 4 h |
+| `DRY_PA` | 70 °C | 8 h |
 
-### Pros
+---
 
-- **Bunny Box** adds improved box functionality, faster loading, and better multicolor behavior.  
-  [Bunny Box Documentation](https://github.com/Wazzup77/Bunny-Box)
-- **HelixScreen** replaces the stock UI and works seamlessly with Bunny Box.  
-  [Helixscreen Documentation](https://github.com/prestonbrown/helixscreen) 
-- Ships with a preconfigured screen layout.
+## Reverting
 
-### Cons
+**Option 4 — Revert to Backup** uninstalls everything the AIO installed and restores your config from the `_FIRST_STOCK` backup taken on the first AIO run. This always gets you back to factory stock, including re-enabling the stock Makerbase UI.
 
-- Bunny Box currently requires HelixScreen.  
-- HelixScreen is working on stock screen support, but it’s not ready yet.
+After reverting, Klipper will restart. Check the touchscreen or the web UI to confirm it comes back up cleanly.
 
-### Install command
+---
 
-```sh
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/BunnyBox%26HelixScreen.sh | sh
+## Troubleshooting
+
+**Klipper won't start after install:**
+
+```bash
+journalctl -u klipper -n 50 --no-pager
 ```
 
-After installation, download and import the Orca slicer presets:
+Look for `Option '...' is not valid in section '...'` or `Unable to open config file` errors. Run option **8 — Health Check** from the AIO menu; it will detect and offer to fix the most common causes.
 
-[Presets](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Install-Script/Printer%20Presets/1.%20Presets.md)
+**Stock screen not coming back after Revert to Backup:**
 
----
-
-## Just Faster
-
-**Installs:** Only the macro and config improvements  
-
-**Compatibility** Q2's without the box, doesn't work on printers with the box.
-
-This is for users who want to keep the stock screen and avoid modifying (or don't have) the Qidi Box.  
-It’s the clean OEM+ setup — faster starts, cleaner macros, nothing extra.
-
-### Pros
-
-- Keeps the stock screen  
-- Faster PRINT_START  
-- Cleaner macros  
-- No UI changes  
-- No Bunny Box or HelixScreen required
-
-### Cons
-
-- You don’t get Bunny Box  
-- You don’t get HelixScreen
-
-### Install command
-
-```sh
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/JustFasterPrinter.sh | sh
+```bash
+journalctl -u makerbase-client -n 50 --no-pager
+journalctl -u lightdm -n 50 --no-pager
 ```
 
----
+Option 8 (Health Check) also runs automatically at the end of every revert and prints recent display service logs if the stock UI does not come back.
 
-## Uninstall and Revert
+**I accidentally broke my config:**
 
-If you want to remove everything and go back to your previous configuration, you can run the uninstaller.
+Run the AIO and choose **Revert to Backup**. The `_FIRST_STOCK` snapshot contains your original factory config.
 
-This removes:
+**`Cannot reach raw.githubusercontent.com`:**
 
-- Bunny Box  
-- HelixScreen  
-- All applied config changes  
-- And restores your backed‑up configs (if available)
+No internet from the printer. Check network settings or DNS. The AIO requires outbound HTTPS to GitHub.
 
-### Uninstall command
+**No stock backup exists:**
 
-```sh
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/Install-Script/uninstall.sh | sh
-```
-
----
-
-## Notes
-
-- All scripts are designed for the Qidi Q2’s default user (`mks`).  
-- Do **not** run these scripts as root — it will break permissions.  
-- Backups are stored in your `printer_data/config` directory and `/home/mks/mudstockbackups`.  
-- More variants will be added as the project evolves.
-
----
+`~/mudstockbackups/` is created automatically on the first AIO run. If your configs were already changed before the first AIO run, restore from a Qidi factory image first, then run AIO to capture a clean baseline.

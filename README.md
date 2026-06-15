@@ -1,6 +1,6 @@
-# Qidi Q2 Superuser Guide
+# Qidi Superuser Guide
 
-Welcome — this repo is everything I use to turn a stock Qidi Q2 into a faster, cleaner, and more capable printer.
+Welcome — this repo is everything I use to turn a stock Qidi Q2 or Qidi Max 4 into a faster, cleaner, and more capable printer.
 
 Join the Discord: https://discord.gg/aZGUk69Mp
 
@@ -65,15 +65,18 @@ This becomes especially useful once Bunny Box is installed on the Qidi Box.
 
 # All-in-One Installer (AIO)
 
-The AIO is a single ANSI-colored bash menu that handles every supported install and uninstall path for the Q2 — no need to remember which `.sh` to run for which variant.
+The AIO is a single ANSI-coloured bash menu per printer that handles every supported install, uninstall, and addon path — no need to remember which `.sh` to run for which variant.
 
-SSH into the Q2 as `mks`, then run:
+## Supported Printers
 
-```bash
-curl -sSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/main/All_in_One_Installer/aio_menu.sh | bash
-```
+| Printer | Instructions |
+|---|---|
+| **Qidi Q2** | [Q2/Instructions.md](Q2/Instructions.md) |
+| **Qidi Max 4** | [Max4/Instructions.md](Max4/Instructions.md) |
 
-Full documentation → [All_in_One_Installer/README.md](All_in_One_Installer/README.md)
+Each printer's `Instructions.md` has the SSH command, curl one-liner, menu walkthrough, and troubleshooting steps.
+
+Full documentation and changelog → [All_in_One_Installer/README.md](All_in_One_Installer/README.md)
 
 ---
 
