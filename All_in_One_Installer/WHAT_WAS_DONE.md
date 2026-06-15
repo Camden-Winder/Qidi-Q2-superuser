@@ -4,127 +4,173 @@ A summary of the toolkit assembled in `Camden-Winder/Qidi-Q2-superuser`, what ea
 
 ## Project
 
-**Qidi Q2 Superuser** is a community-driven toolkit that unlocks advanced features on the Qidi Q2 3D printer beyond stock Qidi firmware: multi-material printing, a modern touchscreen UI, automatic filament drying with humidity sensing, adaptive bed meshing, and faster, cleaner print start/end macros - all with a backup/restore safety net.
+**Qidi Q2 Superuser** is a community-driven toolkit that unlocks advanced features on the Qidi Q2 and Qidi Max 4 3D printers beyond stock Qidi firmware: multi-material printing (Q2 only), a modern touchscreen UI (Q2 only), automatic filament drying with humidity sensing, adaptive bed meshing, and faster, cleaner print start/end macros — all with a backup/restore safety net.
 
-This repo hardens the upstream installers and adds the AIO menu so anything you can do to a Q2 can be done from a single script.
+This repo hardens the upstream installers and adds per-printer AIO menus so anything you can do to a Q2 or Max 4 can be done from a single script.
+
+## Install Paths
+
+| Path | Printer | What it installs |
+|---|---|---|
+| **Just Faster Printer** | Q2 and Max 4 | Optimised macros only; stock screen |
+| **Just Faster Box** | Max 4 only | Optimised macros with Qidi Box AMS paths |
+| **BunnyBox + HelixScreen** | Q2 only | Happy Hare MMU firmware + HelixScreen LVGL UI |
 
 ## Accomplished
 
-### `All_in_One_Installer/aio_menu.sh` (new)
+### `All_in_One_Installer/aio_menu.sh` — Q2 AIO Menu (RC2.35)
 
-Single-entry, ANSI-colored bash menu that drives every install and uninstall path. Merges all logic from `BunnyBox&HelixScreen.sh` directly - one script, no shelling out to siblings. Refuses to run as root.
+Single-entry, ANSI-coloured bash menu for the Qidi Q2. Refuses to run as root.
 
 Menu items:
 
 | # | Action |
 |---|--------|
 | 1 | Install BunnyBox & HelixScreen (Q2 with Qidi Box) |
-| 2 | Install Just Faster Printer (Q2 without Box, stock screen) |
-| 3 | Uninstall BunnyBox only |
-| 4 | Uninstall HelixScreen only |
-| 5 | Uninstall Both |
-| 6 | Revert to Backup (uninstall both + rsync stock backup back) |
+| 2 | Install KlipperScreen *(disabled in RC2.13 — reliability issues)* |
+| 3 | Install Just Faster Printer (Q2 without Box, stock screen) |
+| 4 | Revert to Backup (full uninstall + restore stock) |
+| 5 | Idle Fan Shutdown (10 min idle, temp-gated) |
+| 6 | Mainsail (web UI on port 100) |
 | 7 | About |
+| 8 | Run all verifiers |
 | 0 | Exit |
 
 Features:
 - Preflight (network reachability to GitHub, `${CONFIG_DIR}` present, `enable_force_move` sanity check)
-- Timestamped backups to `/home/mks/mudstockbackups/YYYYMMDD_HHMMSS/` before every install **and** every uninstall
+- Timestamped backups to `/home/mks/mudstockbackups/YYYYMMDD_HHMMSS/` before every install and revert
 - Install log via `tee` for BunnyBox+HelixScreen flow
 - Per-action `[OK] / [INFO] / [WARN] / [ERR]` status lines (green / cyan / yellow / red)
-- Live status header showing BunnyBox / HelixScreen installed-state
-- Y/N confirmation on every uninstall action
-- Post-install verification: confirms all key files landed and `mmu_parameters.cfg` was configured correctly
-- "Revert to Backup" mirrors the upstream Camden-Winder `uninstall.sh`: removes HelixScreen via its official releases-server uninstaller, re-enables `lightdm` + `makerbase-client`, calls BunnyBox `--revert`, then rsyncs the newest timestamped stock backup back over `${CONFIG_DIR}`.
+- Live status header: `BunnyBox`, `HelixScreen`, `IdleFan`, `BoxWrite`, `Mainsail` installed-state
+- Y/N confirmation on destructive actions
+- Post-install verifiers: `verify_qidi_box_helixscreen()`, `verify_mainsail()`, etc.
+- `run_all_verifiers()` (option 8) sweeps for orphan includes, duplicate macros, invalid Klipper options, and leftover MMU artifacts — also auto-runs at the end of `revert_to_backup()`
+- `fix_known_klipper_conflicts()` — detects and resolves: duplicate `BED_MESH_CALIBRATE` macro definitions across config files; `timeout:` / `gcode:` keys misplaced inside `[bed_mesh]`; `[include box.cfg]` active while BunnyBox is installed (crashes Klipper)
+- `check_orphan_includes()` — finds `[include X]` lines whose target doesn't exist and offers to comment them out
+- `check_leftover_mmu_artifacts()` — detects surviving Happy Hare v3 `extras/mmu/` package and `mmu_*.py` symlinks
+- `switch_display_to_helixscreen()` — stops/disables `lightdm` and `makerbase-client`, then enables `helixscreen.service` (fixes fresh-install black screen)
+- Revert to Backup is the single uninstall path; internally delegates to `uninstall_bunnybox()` and `uninstall_helixscreen()` and then rsyncs the newest timestamped stock backup back over `${CONFIG_DIR}`
+- Happier Hare (custom patched HelixScreen binary) subsystem removed in RC2.34; HelixScreen is always pulled from the upstream `main` branch
 
-### `Install-Script/BunnyBox&HelixScreen.sh` (hardened)
+### `All_in_One_Installer/aio_menu_max4.sh` — Max 4 AIO Menu (Max4-RC1)
 
-Standalone installer for the BunnyBox + HelixScreen path. Same logic as the AIO menu item 1, also exposed as a one-liner with CLI flags: `--reinstall`, `--clean`, `--uninstall`, `--help`.
+Sibling installer for the Qidi Max 4. Separate file; `aio_menu.sh` is never modified for Max 4 changes.
 
-What it installs / does:
-- BunnyBox (Happy Hare MMU) via Camden-Winder's `install-bb-q2.sh`
-- HelixScreen via Preston Brown's `install.sh`
-- Unified `gcode_macro.cfg` and `printer.cfg` from this repo
-- `box_drying.cfg` (Qidi Box spool rotation during drying)
-- Patches `mmu/base/mmu_parameters.cfg` with `heater_vent_macro: _QIDI_BOX_VENT` and `heater_vent_interval: 5`
-- KAMP settings (`KAMP_settings.cfg`)
-- HelixScreen `settings.json`
-- Fixes the KAMP double-nesting include bug if it appears
-- Wraps third-party installers in `set +e` so a "warning" exit code doesn't abort the run
+Menu items:
 
-### `Install-Script/JustFasterPrinter.sh` (upstream)
+| # | Action |
+|---|--------|
+| 1 | Install Just Faster Printer (Max 4, no Qidi Box) |
+| 2 | Install Just Faster Box (Max 4 with Qidi Box) |
+| 3 | System Optimizations (DNS, APT, services, GIFs) |
+| 4 | Revert to Backup (full uninstall + restore stock) |
+| 5 | About |
+| 6 | Run all verifiers |
+| 0 | Exit |
 
-Lightweight config upgrade for Q2 owners **without** a Qidi Box. Now reachable from AIO menu item 2. Keeps the stock screen, no BunnyBox, no HelixScreen - just cleaner macros and faster starts. KAMP_Settings goes into the `KAMP/` subdirectory (`[include ./KAMP/KAMP_Settings.cfg]`).
+Key differences from the Q2 installer:
+- No BunnyBox / Happy Hare — stock UI only
+- No HelixScreen — Max 4 uses the stock `qidi-client` touchscreen
+- Runs as user `qidi` (not `mks`); config root is `/home/qidi/printer_data/config/`
+- Two macro variants: `gcode_macro-JustFasterPrinter.cfg` (no box) and `gcode_macro-JustFasterBox.cfg` (with box)
+- Supports firmware `01.01.06.03` and `01.01.06.04`
+- System Optimizations option: faster DNS, quieter APT, disables unused services, removes boot GIFs
 
-### `Install-Script/box_drying.cfg`
+### `Q2/` — Q2 Config Templates
 
-Klipper config that restores spool rotation during filament drying using Happy Hare's Environment Manager. Provides:
-- `_QIDI_BOX_VENT` - the macro Happy Hare calls on its venting interval; uses `FORCE_MOVE` on `stepper_mmu_gear*` to rotate spools so the heat penetrates evenly
-- `BOX_DRY [TEMP=] [TIME=] [HUMIDITY=]` - wraps `MMU_HEATER DRY=1` with humidity-based early termination via the AHT2X sensor
+Replaced the old `Install-Script/` folder in RC2.33. All Q2-specific source files live here.
+
+| File | Purpose |
+|---|---|
+| `printer-BunnyBox.cfg` | `printer.cfg` template for BunnyBox + HelixScreen path |
+| `JustFasterPrinter.cfg` | `printer.cfg` template for Just Faster Printer path |
+| `helixscreen_settings.json` | Shipped to `/home/mks/.config/helixscreen/settings.json`; includes `"spool_style": "3d"` for Qidi Box AMS view |
+| `idle_fan_shutdown.cfg` | 10-minute idle fan + heater shutdown config |
+| `box_drying.cfg` | Spool rotation during filament drying via Happy Hare Environment Manager |
+| `macros/` | `gcode_macro.cfg` templates for each install path |
+| `KAMP/` | `KAMP_settings.cfg` + vendored `Adaptive_Meshing.cfg`, `Line_Purge.cfg`, `Smart_Park.cfg` (moved into subdirectory in RC2.34) |
+| `mmu/` | Complete Happy Hare Klipper config file set shipped with the BunnyBox installer |
+| `Printer Presets/` | OrcaSlicer printer profiles |
+
+### `Max4/` — Max 4 Config Templates
+
+| File | Purpose |
+|---|---|
+| `macros/gcode_macro-JustFasterPrinter.cfg` | Macro file for Max 4 without Qidi Box |
+| `macros/gcode_macro-JustFasterBox.cfg` | Macro file for Max 4 with Qidi Box |
+| `Instructions.md` | User-facing SSH + install guide |
+| `FAQ.md` | Fan assignments, NeoPixel, Z offset, polar cooler, misc |
+
+### `Q2/box_drying.cfg`
+
+Klipper config that restores spool rotation during filament drying using Happy Hare's Environment Manager:
+
+- `BOX_DRY [TEMP=] [TIME=] [HUMIDITY=]` — wraps `MMU_HEATER DRY=1` with humidity-based early termination via the AHT2X sensor
 - `BOX_DRY_STOP`, `BOX_DRY_STATUS`, `BOX_ROTATE_SPOOLS`
+- `_QIDI_BOX_VENT` — called by Happy Hare on its venting interval; rotates spools via `FORCE_MOVE` so heat penetrates evenly
 
-The installer patches `heater_vent_macro` and `heater_vent_interval` in `mmu_parameters.cfg` automatically.
+### Install-Function Conventions
 
-### `Install-Script/gcode_macro-BunnyBox&HelixScreen.cfg`
+Every install capability follows this pattern:
 
-Unified macro config for the BunnyBox + HelixScreen install path.
-
-### `Install-Script/gcode_macro(JustFasterPrinter).cfg`
-
-Macro config for the non-Box Q2.
-
-### `Install-Script/printer(BunnyBox&HelixScreen).cfg`
-
-Printer config wired for MMU includes, HelixScreen compatibility, and KAMP.
-
-### `Install-Script/JustFasterPrinter.cfg`
-
-Printer config for non-Box Q2 with KAMP, `screws_tilt_adjust`, and Spoolman hooks.
-
-### `Install-Script/KAMP_settings.cfg`
-
-Klipper Adaptive Meshing & Purging settings - tuned for the Q2 bed.
-
-### `Install-Script/uninstall.sh` (upstream)
-
-Original Camden-Winder revert script. Reverts BunnyBox, removes HelixScreen, re-enables the stock screen services, and rsyncs `mudstockbackups` back into place. Its logic is integrated as the `revert_to_backup()` function in `aio_menu.sh` (AIO menu item 6).
+- `install_*()` — installs the feature
+- `uninstall_*()` — removes it cleanly
+- `*_installed()` or `*_enabled()` — detection helper
+- Wired into `revert_to_backup()` — called during full revert
+- Status indicator in `show_status_line()` — e.g. `IdleFan: on/off`
+- `verify_*()` — post-install sanity check (warns, never fails)
+- Remote files fetched with the `fetch()` helper, not `curl` directly
 
 ## Achievements
 
-- **Multi-material printing** via Happy Hare MMU (BunnyBox).
-- **HelixScreen** replacement touchscreen UI - modern, themeable, Klipper-native.
-- **Automatic filament drying** with humidity-based early termination (AHT2X) and active spool rotation while drying.
-- **KAMP adaptive bed meshing** - meshes only the printed area.
-- **`screws_tilt_adjust`** for guided manual bed leveling.
+- **Multi-material printing** via Happy Hare MMU / BunnyBox (Q2).
+- **HelixScreen** replacement touchscreen UI — modern, themeable, Klipper-native (Q2).
+- **Automatic filament drying** with humidity-based early termination (AHT2X) and active spool rotation while drying (Q2).
+- **KAMP adaptive bed meshing** — meshes only the printed area.
+- **`screws_tilt_adjust`** for guided manual bed levelling.
 - **Faster, cleaner `PRINT_START` / `PRINT_END`** macros.
 - **Spoolman hooks** for filament inventory.
-- **Full backup/restore safety net** - every install and uninstall writes a timestamped backup; `Revert to Backup` is one menu choice away.
-- **Single-entry AIO menu** so users do not have to remember which `.sh` to run for which Q2 variant.
+- **Idle Fan Shutdown** — fans and heaters turn off after 10 minutes of idle (temp-gated).
+- **Mainsail web UI** — parallel web interface on port 100; stock lighttpd on port 80 is untouched.
+- **System Optimizations** (Max 4) — DNS, APT, service, and boot-animation improvements.
+- **Full backup/restore safety net** — every install writes a timestamped backup; Revert to Backup is one menu choice away.
+- **Automated verifier suite** — catches orphan includes, duplicate macros, invalid Klipper options, and leftover MMU artifacts before they cause boot failures.
+- **Dual-printer scope** — single repo covers both the Qidi Q2 and Qidi Max 4 with separate, non-interfering installers.
 
 ## File Paths Reference
 
+### Q2
+
 | Source file | Destination on printer |
 |---|---|
-| `gcode_macro-BunnyBox&HelixScreen.cfg` | `/home/mks/printer_data/config/gcode_macro.cfg` |
-| `printer(BunnyBox&HelixScreen).cfg`    | `/home/mks/printer_data/config/printer.cfg` |
-| `box_drying.cfg`                       | `/home/mks/printer_data/config/box_drying.cfg` |
-| `KAMP_settings.cfg` (BB+HS)            | `/home/mks/printer_data/config/KAMP_Settings.cfg` |
-| `helixscreen_settings.json`            | `/home/mks/helixscreen/config/settings.json` |
-| `gcode_macro(JustFasterPrinter).cfg`   | `/home/mks/printer_data/config/gcode_macro.cfg` |
-| `JustFasterPrinter.cfg`                | `/home/mks/printer_data/config/printer.cfg` |
-| `KAMP_settings.cfg` (JFP)              | `/home/mks/printer_data/config/KAMP/KAMP_Settings.cfg` |
-| `mmu_parameters.cfg` (patch target)    | `/home/mks/printer_data/config/mmu/base/mmu_parameters.cfg` |
-| Backups                                | `/home/mks/mudstockbackups/YYYYMMDD_HHMMSS/` |
+| `Q2/macros/gcode_macro-BunnyBox.cfg` | `/home/mks/printer_data/config/gcode_macro.cfg` |
+| `Q2/printer-BunnyBox.cfg` | `/home/mks/printer_data/config/printer.cfg` |
+| `Q2/box_drying.cfg` | `/home/mks/printer_data/config/box_drying.cfg` |
+| `Q2/KAMP/KAMP_settings.cfg` | `/home/mks/printer_data/config/KAMP/KAMP_Settings.cfg` |
+| `Q2/helixscreen_settings.json` | `/home/mks/.config/helixscreen/settings.json` |
+| `Q2/macros/gcode_macro-JustFasterPrinter.cfg` | `/home/mks/printer_data/config/gcode_macro.cfg` |
+| `Q2/JustFasterPrinter.cfg` | `/home/mks/printer_data/config/printer.cfg` |
+| `Q2/idle_fan_shutdown.cfg` | `/home/mks/printer_data/config/idle_fan_shutdown.cfg` |
+| Backups | `/home/mks/mudstockbackups/YYYYMMDD_HHMMSS/` |
+
+### Max 4
+
+| Source file | Destination on printer |
+|---|---|
+| `Max4/macros/gcode_macro-JustFasterPrinter.cfg` | `/home/qidi/printer_data/config/gcode_macro.cfg` |
+| `Max4/macros/gcode_macro-JustFasterBox.cfg` | `/home/qidi/printer_data/config/gcode_macro.cfg` |
+| Backups | `/home/qidi/mudstockbackups/YYYYMMDD_HHMMSS/` |
 
 ## Known Limitations
 
-- Use the `BOX_DRY` macro or the Klipper console to start drying.
-- **`MMU_CALIBRATE_GEAR` is required after clean installs.** Mark filament, run `MMU_CALIBRATE_GEAR GATE=0 LENGTH=100`, measure travel, re-run with `MEASURED=<mm>`.
-- **BunnyBox currently requires HelixScreen for MMU workflows** - the stock Qidi screen does not yet expose the MMU UI.
+- **BunnyBox requires HelixScreen for MMU workflows** — the stock Qidi screen does not expose the MMU UI. While BunnyBox is installed, the Qidi UI's "Control Box" panel does not work (Happy Hare owns the box hardware). Revert to Backup restores the stock panel.
+- **`MMU_CALIBRATE_GEAR` required after clean installs**: mark filament, run `MMU_CALIBRATE_GEAR GATE=0 LENGTH=100`, measure travel, re-run with `MEASURED=<mm>`.
+- **KlipperScreen install disabled** (RC2.13+) — option 2 shows a warning. Removed due to reliability issues.
+- Use the `BOX_DRY` macro or the Klipper console to start filament drying on the Q2.
 
 ## Usage
 
-From the Q2 over SSH (as user `mks`, never as root):
+### Q2 (as user `mks`, never root)
 
 ```bash
 git clone https://github.com/Camden-Winder/Qidi-Q2-superuser.git
@@ -132,16 +178,17 @@ cd Qidi-Q2-superuser/All_in_One_Installer
 ./aio_menu.sh
 ```
 
-Or to run the BunnyBox+HelixScreen installer non-interactively:
+### Max 4 (as user `qidi`, never root)
 
 ```bash
-cd Qidi-Q2-superuser/Install-Script
-./BunnyBox\&HelixScreen.sh --clean    # uninstall first, then reinstall
+git clone https://github.com/Camden-Winder/Qidi-Q2-superuser.git
+cd Qidi-Q2-superuser/All_in_One_Installer
+./aio_menu_max4.sh
 ```
 
 ## Upstream Lineage
 
 - **Repo:** [`Camden-Winder/Qidi-Q2-superuser`](https://github.com/Camden-Winder/Qidi-Q2-superuser)
-- **Upstream:** [`Camden-Winder/Qidi-Q2-superuser`](https://github.com/Camden-Winder/Qidi-Q2-superuser) (uninstall logic only)
 - **BunnyBox:** [`Camden-Winder/Bunny-Box`](https://github.com/Camden-Winder/Bunny-Box)
 - **HelixScreen:** [`prestonbrown/helixscreen`](https://github.com/prestonbrown/helixscreen)
+- **Happy Hare:** [`moggieuk/Happy-Hare`](https://github.com/moggieuk/Happy-Hare)
