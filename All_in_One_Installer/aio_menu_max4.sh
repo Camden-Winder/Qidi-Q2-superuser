@@ -21,7 +21,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='Max4-RC1'
+AIO_VERSION='Max4-RC1.01'
 
 # ---------- constants ------------------------------------------------
 AIO_USER='qidi'

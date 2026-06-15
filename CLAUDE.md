@@ -2,6 +2,15 @@
 
 Project context for Claude Code sessions. Read this first every time.
 
+## Core Goals
+
+The Qidi Superuser repository exists to give basic users better tools for their Qidi printers. The target audience is new or non-technical users who want improved performance without deep Klipper knowledge.
+
+Two principles drive every decision:
+
+1. **Simple instructions.** Documentation should assume minimal prior knowledge. Steps should be explicit, numbered, and copy-pasteable.
+2. **Automate everything possible.** Anything a user could misconfigure manually — KAMP settings, printer.cfg includes, macro file placement, backup creation — should be handled by the installer. Users should not need to hand-edit config files to complete a supported install path.
+
 ## Three Install Paths (Canon — Q2 and Max 4)
 
 | Path | Who it's for | What it installs |
@@ -118,9 +127,10 @@ When `install_*` fetches a remote file, use the `fetch()` helper, not `curl` dir
 
 | Function | Feature | Status indicator |
 |---|---|---|
-| `install_bunnybox_helixscreen()` | Happy Hare + HelixScreen | `BunnyBox: installed/not found`, `HelixScreen: installed/not found` |
+| `install_bunnybox_helixscreen()` | Happy Hare + HelixScreen | `BunnyBox: installed/not found`, `Display: KlipperScreen/HelixScreen/none` |
 | `install_klipperscreen()` | KlipperScreen Happy Hare Edition (standalone) | `Display: KlipperScreen/none` |
-| `install_just_faster()` | JustFasterPrinter macros | (no AMS/Box) |
+| `install_just_faster()` | JustFasterPrinter macros (Q2) | `Just Faster: Just Faster Printer` |
+| `install_just_faster_box()` | JustFasterBox macros (Q2) | `Just Faster: Just Faster Box` |
 | `install_idle_fan_shutdown()` | 10m idle fan+heater shutdown | `IdleFan: on/off` |
 | `install_qidi_box_write()` | HelixScreen HELIX_QIDI_BOX_WRITE drop-in | `BoxWrite: on/off` |
 | `install_mainsail()` | Mainsail web UI (delegates to Camden-Winder's installer) | `Mainsail: installed/not found` |
@@ -128,15 +138,23 @@ When `install_*` fetches a remote file, use the `fetch()` helper, not `curl` dir
 ### Current Menu Layout
 
 ```
-1) Install BunnyBox & HelixScreen    (Q2 with Qidi Box)
-2) Install KlipperScreen             (Happy Hare Edition)
-3) Install Just Faster Printer       (Q2 without Box)
-4) Revert to Backup                  (full uninstall + restore stock)
-5) Idle Fan Shutdown                 (10m idle, temp-gated)
-6) Mainsail                          (web UI on port 100)
-7) About
-8) Run all verifiers
-0) Exit
+1)  Install BunnyBox & HelixScreen    (Q2 with Qidi Box)
+2)  Install KlipperScreen             (temporarily disabled)
+3)  Install Just Faster Printer       (Q2 without Box)
+4)  Install Just Faster Box           (Q2 with Qidi Box, no BunnyBox)
+5)  Revert to Backup                  (full uninstall + restore stock)
+6)  Idle Fan Shutdown                 (10m idle, temp-gated)
+7)  Mainsail                          (web UI on port 100)
+8)  About
+9)  Health Check / Run Verifiers
+10) 1.1.2 Compatibility Probe          (reversible round trip)
+11) 1.1.2 Restore Rehearsal             (isolated, no live changes)
+12) 1.1.2 Live Restore Proof            (controlled contract restore)
+13) 1.1.2 External Restore Audit         (read-only drift report)
+14) 1.1.2 Present-Path Restore Proof     (controlled systemd path)
+15) 1.1.2 Klipper Extras Restore Proof    (controlled runtime path)
+16) 1.1.2 Moonraker Components Proof      (controlled runtime path)
+0)  Exit
 ```
 
 Per-component uninstall options (BunnyBox-only / HelixScreen-only / Both) were removed in RC4. Revert to Backup is the single uninstall path and delegates to `uninstall_bunnybox()` and `uninstall_helixscreen()` internally before restoring from `_FIRST_STOCK`.
@@ -156,6 +174,23 @@ Claude **must ask first** before:
 - Force-pushing any branch
 - Deleting branches or files not created in the same session
 - Taking actions visible to users outside this repo (posting comments, etc.)
+
+## RC2.36 — What's In It
+
+- `AIO_VERSION='RC2.36'`
+- **Just Faster Box added to Q2 AIO** — Option 4 (`install_just_faster_box()`) installs `gcode_macro-JustFasterBox.cfg` + `JustFasterPrinter.cfg` + KAMP files. Same structure as JFP but with live box branches (`BOX_PRINT_START`, box heater control). No Happy Hare, no HelixScreen.
+- **Detection helpers** — `just_faster_printer_installed()` and `just_faster_box_installed()` fingerprint on `PRINTER_PARAM` / `BOX_PRINT_START` in `gcode_macro.cfg`.
+- **Status line updated** — `Just Faster: Just Faster Box / Just Faster Printer / not found` now shown alongside BunnyBox/Display.
+- **`verify_jfb_install()`** — post-install check confirms files present and `BOX_PRINT_START` in macro file.
+- **`revert_to_backup()` updated** — removes `gcode_macro.cfg` when JFP or JFB detected before restoring from backup.
+- **Menu renumbered** — Revert→5, Idle Fan→6, Mainsail→7, About→8, Health Check→9, Testing 9–15→10–16.
+- **Q2/Instructions.md** — JFB row added to path table, Option 4 subsection added, AIO menu preview added, option number references updated.
+
+## Max4-RC1.01 — What's In It
+
+- `AIO_VERSION='Max4-RC1.01'`
+- No functional changes to the Max 4 installer.
+- **Max4/Instructions.md** — AIO menu preview section added showing current Max 4 menu layout.
 
 ## RC2.13 — What's In It
 

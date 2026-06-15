@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.35'
+AIO_VERSION='RC2.36'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -1515,6 +1515,17 @@ bunnybox_installed() {
     [ -d "${CONFIG_DIR}/mmu" ] && \
     [ -n "$(find "${CONFIG_DIR}/mmu" -maxdepth 3 -name 'mmu_parameters.cfg' \
             -print -quit 2>/dev/null)" ]
+}
+
+just_faster_printer_installed() {
+    [ -f "${CONFIG_DIR}/gcode_macro.cfg" ] && \
+    grep -q 'PRINTER_PARAM' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null && \
+    ! grep -q 'BOX_PRINT_START' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null
+}
+
+just_faster_box_installed() {
+    [ -f "${CONFIG_DIR}/gcode_macro.cfg" ] && \
+    grep -q 'BOX_PRINT_START' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null
 }
 
 # Scan every path the BunnyBox installer's own detection logic looks at,
@@ -4232,6 +4243,15 @@ revert_to_backup() {
         info "BunnyBox / Happy Hare not present, skipping"
     fi
 
+    if just_faster_box_installed || just_faster_printer_installed; then
+        info "Removing Just Faster macros..."
+        rm -f "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null || \
+            sudo rm -f "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null || true
+        ok "gcode_macro.cfg removed (will be restored from backup)"
+    else
+        info "Just Faster not present, skipping"
+    fi
+
     cleanup_aio_install_artifacts
 
     info "Restoring configs from ${BACKUP_ROOT}..."
@@ -4414,6 +4434,29 @@ verify_jfp_install() {
             all_ok=false
         fi
     done
+    if [ "$all_ok" = true ]; then
+        ok "All files verified"
+    else
+        warn "Some files are missing - install may not work correctly."
+    fi
+}
+
+verify_jfb_install() {
+    banner "Verifying installation"
+    local all_ok=true
+    for f in printer.cfg gcode_macro.cfg KAMP/KAMP_Settings.cfg; do
+        if [ -s "${CONFIG_DIR}/${f}" ]; then
+            ok "${f}"
+        else
+            err "${f} missing"
+            all_ok=false
+        fi
+    done
+    if grep -q 'BOX_PRINT_START' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null; then
+        ok "gcode_macro.cfg contains box-aware macros (BOX_PRINT_START)"
+    else
+        warn "gcode_macro.cfg does not appear to contain box-aware macros"
+    fi
     if [ "$all_ok" = true ]; then
         ok "All files verified"
     else
@@ -5537,6 +5580,49 @@ EOF
     press_enter
 }
 
+install_just_faster_box() {
+    banner "Install: Just Faster Box (Q2 with Qidi Box)"
+
+    preflight || { press_enter; return 1; }
+    do_backup || { press_enter; return 1; }
+    cleanup_aio_install_artifacts
+
+    info "Updating gcode_macro.cfg..."
+    fetch "${REPO_BASE}/macros/gcode_macro-JustFasterBox.cfg" \
+          "${CONFIG_DIR}/gcode_macro.cfg" || { press_enter; return 1; }
+    ok "gcode_macro.cfg installed"
+
+    info "Updating printer.cfg..."
+    fetch "${REPO_BASE}/JustFasterPrinter.cfg" \
+          "${CONFIG_DIR}/printer.cfg" || { press_enter; return 1; }
+    ok "printer.cfg installed"
+
+    info "Applying KAMP settings..."
+    mkdir -p "${CONFIG_DIR}/KAMP"
+    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
+    ok "KAMP settings and sub-files applied to ${CONFIG_DIR}/KAMP/"
+
+    verify_jfb_install
+
+    banner "Install complete"
+    cat <<EOF
+${C_BOLD}Your Q2 is now running the 'Just Faster Box' setup.${C_RESET}
+  Stock Qidi Box controls, no BunnyBox, no HelixScreen — just cleaner macros and faster starts.
+
+${C_BOLD}Next steps:${C_RESET}
+  1. FIRMWARE_RESTART (Klipper console or stock screen)
+  2. sudo reboot
+  3. Run a bed level + screws_tilt_adjust before your first print.
+
+Config backup:  ${BACKUP_DIR}
+EOF
+
+    press_enter
+}
+
 # ---------- about ----------------------------------------------------
 show_about() {
     banner "About - Qidi Q2 Superuser AIO"
@@ -5713,11 +5799,18 @@ EOF
 
 # ---------- main menu ------------------------------------------------
 show_status_line() {
-    local bb_status display_status idle_status box_write_status mainsail_status camera_status firmware_status
+    local bb_status display_status idle_status box_write_status mainsail_status camera_status firmware_status just_faster_status
     if layout_supports_mutation; then
         firmware_status="${C_GREEN}$(q2_firmware_layout_label)${C_RESET}"
     else
         firmware_status="${C_RED}$(q2_firmware_layout_label)${C_RESET}"
+    fi
+    if just_faster_box_installed; then
+        just_faster_status="${C_GREEN}Just Faster Box${C_RESET}"
+    elif just_faster_printer_installed; then
+        just_faster_status="${C_GREEN}Just Faster Printer${C_RESET}"
+    else
+        just_faster_status="${C_YELLOW}not found${C_RESET}"
     fi
     if bunnybox_installed; then
         bb_status="${C_GREEN}installed${C_RESET}"
@@ -5762,10 +5855,10 @@ show_status_line() {
             box_write_status="${C_YELLOW}off${C_RESET}"
         fi
     fi
-    printf '  BunnyBox: %b | Display: %b | IdleFan: %b | BoxWrite: %b\n' \
-           "$bb_status" "$display_status" "$idle_status" "$box_write_status"
-    printf '  Mainsail: %b | Camera: %b\n' \
-           "$mainsail_status" "$camera_status"
+    printf '  Just Faster: %b | BunnyBox: %b | Display: %b\n' \
+           "$just_faster_status" "$bb_status" "$display_status"
+    printf '  IdleFan: %b | BoxWrite: %b | Mainsail: %b | Camera: %b\n' \
+           "$idle_status" "$box_write_status" "$mainsail_status" "$camera_status"
     printf '  Firmware: %b\n' "$firmware_status"
 }
 
@@ -5780,22 +5873,23 @@ draw_menu() {
     printf '   %s1)%s Install BunnyBox & HelixScreen    (Q2 with Qidi Box)\n'         "$C_CYAN" "$C_RESET"
     printf '   %s2)%s Install KlipperScreen             (temporarily disabled)\n'       "$C_YELLOW" "$C_RESET"
     printf '   %s3)%s Install Just Faster Printer       (Q2 without Box)\n'           "$C_CYAN" "$C_RESET"
+    printf '   %s4)%s Install Just Faster Box           (Q2 with Qidi Box, no BunnyBox)\n' "$C_CYAN" "$C_RESET"
     printf '  %sUNINSTALL%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
-    printf '   %s4)%s Revert to Backup                  (full uninstall + restore stock)\n' "$C_CYAN" "$C_RESET"
+    printf '   %s5)%s Revert to Backup                  (full uninstall + restore stock)\n' "$C_CYAN" "$C_RESET"
     printf '  %sADDONS%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
-    printf '   %s5)%s Idle Fan Shutdown                 (10m idle, temp-gated)\n' "$C_CYAN" "$C_RESET"
-    printf '   %s6)%s Mainsail                          (web UI on port 100)\n'   "$C_CYAN" "$C_RESET"
+    printf '   %s6)%s Idle Fan Shutdown                 (10m idle, temp-gated)\n' "$C_CYAN" "$C_RESET"
+    printf '   %s7)%s Mainsail                          (web UI on port 100)\n'   "$C_CYAN" "$C_RESET"
     printf '  %sINFO%s\n' "$C_BOLD$C_CYAN" "$C_RESET"
-    printf '   %s7)%s About\n'                                                    "$C_CYAN" "$C_RESET"
-    printf '   %s8)%s Health Check / Run Verifiers\n'                             "$C_CYAN" "$C_RESET"
+    printf '   %s8)%s About\n'                                                    "$C_CYAN" "$C_RESET"
+    printf '   %s9)%s Health Check / Run Verifiers\n'                             "$C_CYAN" "$C_RESET"
     printf '  %sTESTING%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
-    printf '   %s9)%s 1.1.2 Compatibility Probe          (reversible round trip)\n' "$C_CYAN" "$C_RESET"
-    printf '  %s10)%s 1.1.2 Restore Rehearsal             (isolated, no live changes)\n' "$C_CYAN" "$C_RESET"
-    printf '  %s11)%s 1.1.2 Live Restore Proof            (controlled contract restore)\n' "$C_CYAN" "$C_RESET"
-    printf '  %s12)%s 1.1.2 External Restore Audit         (read-only drift report)\n' "$C_CYAN" "$C_RESET"
-    printf '  %s13)%s 1.1.2 Present-Path Restore Proof     (controlled systemd path)\n' "$C_CYAN" "$C_RESET"
-    printf '  %s14)%s 1.1.2 Klipper Extras Restore Proof    (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
-    printf '  %s15)%s 1.1.2 Moonraker Components Proof      (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
+    printf '  %s10)%s 1.1.2 Compatibility Probe          (reversible round trip)\n' "$C_CYAN" "$C_RESET"
+    printf '  %s11)%s 1.1.2 Restore Rehearsal             (isolated, no live changes)\n' "$C_CYAN" "$C_RESET"
+    printf '  %s12)%s 1.1.2 Live Restore Proof            (controlled contract restore)\n' "$C_CYAN" "$C_RESET"
+    printf '  %s13)%s 1.1.2 External Restore Audit         (read-only drift report)\n' "$C_CYAN" "$C_RESET"
+    printf '  %s14)%s 1.1.2 Present-Path Restore Proof     (controlled systemd path)\n' "$C_CYAN" "$C_RESET"
+    printf '  %s15)%s 1.1.2 Klipper Extras Restore Proof    (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
+    printf '  %s16)%s 1.1.2 Moonraker Components Proof      (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
     printf '   %s0)%s Exit\n'                                                    "$C_CYAN" "$C_RESET"
     printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
     printf '%sEnter selection:%s ' "$C_BOLD" "$C_RESET"
@@ -5845,7 +5939,8 @@ main_loop() {
             1) install_bunnybox_helixscreen ;;
             2) warn "KlipperScreen install is temporarily disabled — display issue under investigation." ; press_enter ;;
             3) install_just_faster ;;
-            4)
+            4) install_just_faster_box ;;
+            5)
                 if ! layout_supports_mutation; then
                     revert_to_backup_dry_run
                     offer_q2_112_baseline_capture
@@ -5860,35 +5955,35 @@ main_loop() {
                     press_enter
                 fi
                 ;;
-            5)
+            6)
                 if require_supported_firmware_layout "Idle Fan Shutdown addon"; then
                     menu_idle_fan_shutdown
                 else
                     press_enter
                 fi
                 ;;
-            6)
+            7)
                 if require_supported_firmware_layout "Mainsail addon"; then
                     menu_mainsail
                 else
                     press_enter
                 fi
                 ;;
-            7) show_about ;;
-            8)
+            8) show_about ;;
+            9)
                 if layout_supports_mutation; then
                     run_all_verifiers
                 else
                     run_readonly_diagnostics
                 fi
                 ;;
-            9) menu_q2_112_roundtrip_probe ;;
-            10) menu_q2_112_restore_rehearsal ;;
-            11) menu_q2_112_live_restore_proof ;;
-            12) menu_q2_112_external_restore_audit ;;
-            13) menu_q2_112_present_path_restore_proof ;;
-            14) menu_q2_112_klipper_extras_restore_proof ;;
-            15) menu_q2_112_moonraker_components_restore_proof ;;
+            10) menu_q2_112_roundtrip_probe ;;
+            11) menu_q2_112_restore_rehearsal ;;
+            12) menu_q2_112_live_restore_proof ;;
+            13) menu_q2_112_external_restore_audit ;;
+            14) menu_q2_112_present_path_restore_proof ;;
+            15) menu_q2_112_klipper_extras_restore_proof ;;
+            16) menu_q2_112_moonraker_components_restore_proof ;;
             0|q|Q|exit) info "Bye."; exit 0 ;;
             *) err "Invalid selection: '$choice'"; sleep 1 ;;
         esac
