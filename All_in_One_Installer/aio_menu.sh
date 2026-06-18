@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.36'
+AIO_VERSION='RC2.38'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -96,6 +96,8 @@ MAINSAIL_INSTALLER='https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-supe
 # ---------- paths ----------------------------------------------------
 CONFIG_DIR="${AIO_HOME}/printer_data/config"
 BACKUP_ROOT="${AIO_HOME}/mudstockbackups"
+SNAPSHOT_DIR="${AIO_HOME}/aio_config_backup"
+AIO_MARKER="${CONFIG_DIR}/.aio_installed"
 HELIX_DIR="${AIO_HOME}/helixscreen"
 HELIX_PRINT_DIR="${AIO_HOME}/helix_print"
 HELIX_CONFIG_DIR="${HELIX_DIR}/config"
@@ -1264,9 +1266,52 @@ restore_aio_disabled_macros() {
     [ "$changed" -eq 0 ] && info "No AIO_DISABLED macros to restore"
 }
 
+# Non-config cleanup for Happy Hare / BunnyBox. Called from revert_to_backup()
+# only. Handles everything outside CONFIG_DIR: source tree, klipper extras,
+# moonraker component. Config files (mmu/, mmu*.cfg, etc.) are restored
+# automatically by rsync --delete in revert_to_backup().
+_purge_happy_hare_nonconfig() {
+    banner "Removing Happy Hare / BunnyBox (non-config cleanup)"
+
+    if [ -f "${HAPPY_HARE_DIR}/install.sh" ]; then
+        info "Running Happy Hare uninstaller (-d)..."
+        sudo bash "${HAPPY_HARE_DIR}/install.sh" -d 2>/dev/null || true
+    fi
+
+    info "Removing Happy Hare source tree: ${HAPPY_HARE_DIR}"
+    sudo rm -rf "$HAPPY_HARE_DIR"
+    if [ -d "$HAPPY_HARE_DIR" ]; then
+        err "Failed to remove ${HAPPY_HARE_DIR} — trying alternate approach"
+        sudo find "$HAPPY_HARE_DIR" -delete 2>/dev/null || true
+    fi
+
+    info "Removing Klipper extras: ${HOME}/klipper/klippy/extras/mmu"
+    sudo rm -rf "${HOME}/klipper/klippy/extras/mmu"
+    for f in mmu.py mmu_machine.py mmu_leds.py mmu_sensors.py mmu_encoder.py; do
+        sudo rm -f "${HOME}/klipper/klippy/extras/${f}"
+    done
+    sudo find "${HOME}/klipper/klippy/extras" -maxdepth 1 \
+        \( -name 'mmu_*.py' -o -name 'mmu_*.pyc' \) \
+        -delete 2>/dev/null || true
+    sudo find "${HOME}/klipper/klippy/extras" -path '*/__pycache__/mmu*' \
+        -delete 2>/dev/null || true
+
+    info "Removing Moonraker component: mmu_server.py"
+    sudo rm -f "${HOME}/moonraker/moonraker/components/mmu_server.py"
+
+    local residue=0
+    [ -d "$HAPPY_HARE_DIR" ]                          && { warn "RESIDUE: ${HAPPY_HARE_DIR} still exists"; residue=1; }
+    [ -d "${HOME}/klipper/klippy/extras/mmu" ]        && { warn "RESIDUE: extras/mmu/ still exists"; residue=1; }
+    if [ $residue -eq 1 ]; then
+        warn "Some Happy Hare artifacts survived purge — check output above"
+    else
+        ok "Happy Hare / BunnyBox non-config purge verified clean"
+    fi
+}
+
 # Exhaustively remove every Happy Hare / BunnyBox footprint we know
 # about, regardless of whether the upstream uninstallers ran. Called
-# from revert_to_backup() and uninstall_bunnybox().
+# from uninstall_bunnybox() and the verifier repair path.
 purge_happy_hare_all() {
     banner "Purging all Happy Hare / BunnyBox artifacts"
 
@@ -1331,7 +1376,7 @@ purge_happy_hare_all() {
 
     # Root-level KAMP files installed by the AIO BunnyBox flow. Do not remove
     # ${CONFIG_DIR}/KAMP here: Qidi stock configs may own that directory and
-    # Revert must restore it from _FIRST_STOCK.
+    # revert_to_backup()'s rsync --delete handles it from the snapshot.
     for f in KAMP_Settings.cfg Adaptive_Meshing.cfg Line_Purge.cfg Smart_Park.cfg; do
         rm -f "${CONFIG_DIR}/${f}"
     done
@@ -1361,39 +1406,6 @@ purge_happy_hare_all() {
     fi
 }
 
-# Comment out [include ...] lines in printer.cfg whose target files no longer
-# exist so Klipper can start cleanly after uninstall.
-fix_printer_cfg_after_uninstall() {
-    local pcfg="${CONFIG_DIR}/printer.cfg"
-    [ -f "$pcfg" ] || return 0
-
-    banner "Fixing printer.cfg broken includes"
-    local changed=0
-
-    for f in bunnybox_macros.cfg box_drying.cfg idle_fan_shutdown.cfg \
-              KAMP_Settings.cfg Adaptive_Meshing.cfg Line_Purge.cfg Smart_Park.cfg; do
-        if [ ! -f "${CONFIG_DIR}/${f}" ] && \
-           grep -q "^\[include ${f}\]" "$pcfg" 2>/dev/null; then
-            sed -i "s/^\[include ${f}\]/# AIO: file missing  [include ${f}]/" "$pcfg"
-            ok "Commented out missing include: ${f}"
-            changed=1
-        fi
-    done
-
-    # mmu/ wildcard — comment out if the mmu/ dir is gone
-    if [ ! -d "${CONFIG_DIR}/mmu" ] && \
-       grep -q '^\[include mmu/' "$pcfg" 2>/dev/null; then
-        sed -i 's/^\[include mmu\/[^]]*\]/# AIO: file missing  &/' "$pcfg"
-        ok "Commented out missing include: mmu/*.cfg"
-        changed=1
-    fi
-
-    if [ "$changed" -eq 1 ]; then
-        ok "printer.cfg patched — Klipper can now start without the removed files"
-    else
-        info "printer.cfg: no dangling includes found"
-    fi
-}
 
 # ---------- ANSI colors ----------------------------------------------
 if [ -t 1 ]; then
@@ -1650,30 +1662,22 @@ should_remove_aio_path() {
 }
 
 do_backup() {
-    banner "Backing up current configs"
-    BACKUP_DIR="${BACKUP_ROOT}/$(date +%Y%m%d_%H%M%S)"
-    mkdir -p "$BACKUP_DIR"
-    if ! rsync -a "${CONFIG_DIR}/" "${BACKUP_DIR}/"; then
-        err "Backup failed"
-        return 1
-    fi
-    ok "Backup written to ${BACKUP_DIR}"
-    if [ -d "${BACKUP_DIR}/KAMP" ]; then
-        ok "KAMP directory included in backup: ${BACKUP_DIR}/KAMP"
-    fi
-
-    # One-time permanent snapshot of the very first observed state. This
-    # is what "Revert to Backup" should restore - assuming the user ran
-    # the AIO before tinkering, it's their true stock. Once written, it
-    # is never overwritten.
-    if [ ! -d "${BACKUP_ROOT}/_FIRST_STOCK" ]; then
-        capture_first_run_state
-        mkdir -p "${BACKUP_ROOT}/_FIRST_STOCK"
-        if rsync -a "${CONFIG_DIR}/" "${BACKUP_ROOT}/_FIRST_STOCK/"; then
-            ok "First-run stock snapshot saved to ${BACKUP_ROOT}/_FIRST_STOCK"
-        else
-            warn "Could not write _FIRST_STOCK snapshot (revert will fall back to oldest timestamped backup)"
+    # If AIO has never run an install on this printer, snapshot the current
+    # config as "stock" — regardless of what's in it (manual installs included).
+    # The marker is created AFTER the snapshot so the snapshot never contains it;
+    # rsync --delete in revert_to_backup() removes the marker automatically.
+    if [ ! -f "${AIO_MARKER}" ]; then
+        banner "Capturing stock config snapshot"
+        mkdir -p "${SNAPSHOT_DIR}"
+        if ! rsync -a "${CONFIG_DIR}/" "${SNAPSHOT_DIR}/"; then
+            err "Snapshot failed — cannot proceed safely"
+            return 1
         fi
+        ok "Stock snapshot saved to ${SNAPSHOT_DIR}"
+        touch "${AIO_MARKER}" 2>/dev/null || sudo touch "${AIO_MARKER}"
+        ok "AIO marker written: ${AIO_MARKER}"
+    else
+        info "AIO marker present — existing snapshot retained"
     fi
     return 0
 }
@@ -1692,9 +1696,7 @@ ensure_repair_backup() {
 uninstall_bunnybox() {
     banner "Uninstalling BunnyBox / Happy Hare"
     purge_happy_hare_all
-    fix_printer_cfg_after_uninstall
     ok "BunnyBox / Happy Hare uninstalled"
-    info "Backups: ${BACKUP_ROOT}/"
 }
 
 cleanup_aio_runtime_artifacts() {
@@ -1730,84 +1732,10 @@ cleanup_aio_runtime_artifacts() {
     sudo systemctl daemon-reload 2>/dev/null || true
 }
 
-cleanup_aio_config_artifacts() {
-    banner "Cleaning AIO config artifacts"
 
-    uninstall_idle_fan_shutdown
-    cleanup_aio_config_residue
-    fix_printer_cfg_after_uninstall
-}
-
-cleanup_aio_config_residue() {
-    banner "Cleaning AIO config residue"
-
-    for f in \
-        bunnybox_macros.cfg \
-        box_drying.cfg \
-        idle_fan_shutdown.cfg \
-        aio_q2_112_live_restore_proof.cfg \
-        KAMP_Settings.cfg \
-        KAMP_settings.cfg \
-        Adaptive_Meshing.cfg \
-        Adaptive_Mesh.cfg \
-        Line_Purge.cfg \
-        Smart_Park.cfg \
-        mmu_cut_tip.cfg \
-        mmu_form_tip.cfg \
-        mmu_heater_vent.cfg \
-        mmu_leds.cfg \
-        mmu_purge.cfg \
-        mmu_sequence.cfg \
-        mmu_software.cfg \
-        mmu_state.cfg \
-        mmu_parameters.cfg \
-        mmu_macro_vars.cfg \
-        mmu_hardware.cfg \
-        mmu_vars.cfg \
-        mmu.cfg; do
-        if [ -e "${CONFIG_DIR}/${f}" ]; then
-            rm -f "${CONFIG_DIR}/${f}"
-            ok "Removed ${CONFIG_DIR}/${f}"
-        fi
-    done
-
-    while IFS= read -r -d '' f; do
-        rm -f "$f" && ok "Removed $f"
-    done < <(
-        find "$CONFIG_DIR" -maxdepth 1 -type f \
-            \( -name 'mmu*.cfg' \
-               -o -name 'moonraker.conf.aio-bak' \
-               -o -name 'moonraker.conf.bak.helixscreen*' \) \
-            -print0 2>/dev/null
-    )
-
-    while IFS= read -r -d '' d; do
-        sudo rm -rf "$d" && ok "Removed $d" || warn "Could not remove $d"
-    done < <(
-        find "$CONFIG_DIR" -maxdepth 1 -type d \
-            \( -name 'mmu' -o -name 'mmu-*' -o -name 'mmu_*' -o -name 'mmu[0-9]*' \
-               -o -name 'backup_hh_*' -o -name 'backup_revert_*' -o -name 'backup_mmu_*' \
-               -o -name 'backup_bunnybox_*' \) \
-            -print0 2>/dev/null
-    )
-
-    # Do not blindly remove ${CONFIG_DIR}/KAMP. It may be part of the stock
-    # Qidi config tree. Revert uses rsync --delete against the selected stock
-    # snapshot, so an AIO-created KAMP directory is removed only when absent
-    # from that snapshot.
-    local helixscreen_config_dir="${CONFIG_DIR}/helixscreen"
-    if [ -e "$helixscreen_config_dir" ]; then
-        sudo rm -rf "$helixscreen_config_dir" && \
-            ok "Removed $helixscreen_config_dir" || \
-            warn "Could not remove $helixscreen_config_dir"
-    fi
-}
-
-cleanup_aio_install_artifacts() {
-    cleanup_aio_runtime_artifacts
-    cleanup_aio_config_artifacts
-}
-
+# TODO: On firmware 1.1.2+ the stock display service is qidi-client, not
+# makerbase-client. This function does not branch on firmware layout yet.
+# Add detection when AIO gains general 1.1.2+ support.
 restore_stock_display_services() {
     info "Re-enabling Qidi stock display services: $(stock_display_stack_label)"
 
@@ -1866,26 +1794,6 @@ restore_stock_display_services() {
     fi
 }
 
-remove_backup_root_after_revert() {
-    [ -e "$BACKUP_ROOT" ] || { ok "${BACKUP_ROOT}/ already absent"; return 0; }
-
-    banner "Removing AIO backup root"
-    local moved
-    moved="${BACKUP_ROOT}.revert-delete.$(date +%Y%m%d_%H%M%S)"
-
-    if sudo mv "$BACKUP_ROOT" "$moved" 2>/dev/null; then
-        sudo rm -rf "$moved"
-    else
-        warn "Could not move ${BACKUP_ROOT}; trying direct removal"
-        sudo rm -rf "$BACKUP_ROOT"
-    fi
-
-    if [ -e "$BACKUP_ROOT" ]; then
-        warn "Could not remove ${BACKUP_ROOT}/"
-        return 1
-    fi
-    ok "Removed ${BACKUP_ROOT}/ after successful stock restore"
-}
 
 dry_run_path_state() {
     local label="$1"
@@ -1963,62 +1871,6 @@ backup_missing_active_stock_essentials() {
     [ "$missing" = true ]
 }
 
-report_revert_backup_dry_run() {
-    banner "Dry-run backup selection"
-
-    local selected selected_label selected_path selected_delete
-    if ! selected=$(select_revert_backup_source); then
-        warn "No ${BACKUP_ROOT}/ folder found - real revert would have nothing to restore"
-        return 0
-    fi
-
-    IFS='|' read -r selected_label selected_path selected_delete <<< "$selected"
-    ok "Would restore from ${selected_label}: ${selected_path}"
-    info "Would restore into: ${CONFIG_DIR}"
-    if [ "$selected_delete" = true ]; then
-        info "Would use rsync -a --no-owner --no-group --delete"
-    else
-        warn "Would use rsync without --delete because no precise snapshot was found"
-    fi
-
-    dry_run_path_state "Selected backup source" "$selected_path"
-    dry_run_path_state "Backup KAMP directory" "${selected_path}/KAMP"
-    dry_run_path_state "Backup klipper-macros-qd directory" "${selected_path}/klipper-macros-qd"
-    dry_run_path_state "Backup crowsnest.conf" "${selected_path}/crowsnest.conf"
-    dry_run_path_state "Backup timelapse.cfg" "${selected_path}/timelapse.cfg"
-
-    banner "Dry-run backup safety validation"
-    local missing_critical=false
-    local rel active_path backup_path
-    for rel in \
-        klipper-macros-qd \
-        crowsnest.conf \
-        timelapse.cfg \
-        printer.cfg \
-        box.cfg \
-        MCU_ID.cfg; do
-        active_path="${CONFIG_DIR}/${rel}"
-        backup_path="${selected_path}/${rel}"
-        if [ -e "$active_path" ] || [ -L "$active_path" ]; then
-            if [ -e "$backup_path" ] || [ -L "$backup_path" ]; then
-                ok "Backup contains active stock item: ${rel}"
-            else
-                err "Backup is missing active stock item: ${rel}"
-                missing_critical=true
-            fi
-        else
-            info "Active stock item absent, not required in backup: ${rel}"
-        fi
-    done
-
-    if [ "$missing_critical" = true ]; then
-        err "Real 1.1.2 revert is NOT safe with this backup source."
-        warn "A real rsync --delete restore would remove stock files that exist now."
-        warn "Do not enable real 1.1.2 Revert until backup capture/repair preserves these items."
-    else
-        ok "Selected backup contains the active stock essentials checked for this layout"
-    fi
-}
 
 q2_112_stock_essentials_present() {
     banner "Checking 1.1.2 stock essentials"
@@ -3784,45 +3636,20 @@ report_aio_removal_dry_run() {
     info "This is not stock firmware content; dry-run does not remove installer-managed backups."
 }
 
-revert_to_backup_dry_run() {
-    banner "Revert to Backup dry-run (no changes)"
-    warn "This is a report only: no backups, rsync, rm, sed, or systemctl mutations will run."
-    warn "Real Revert to Backup remains blocked on ${AIO_LAYOUT_NAME} until this plan is validated."
-
-    show_layout_report
-    report_revert_backup_dry_run
-    report_q2_112_restore_contract || true
-    report_stock_preservation_dry_run
-    report_aio_removal_dry_run
-    report_qidi_box_object_inventory
-    verify_qidi_box_runtime_sensors
-    report_active_config_graph
-
-    banner "Dry-run complete"
-    info "Review this output for anything stock that would be removed or missing from backup."
-    info "Full install and general real revert remain blocked while the 1.1.2 compatibility lane is tested."
-}
-
 offer_q2_112_baseline_capture() {
     local selected selected_label selected_path selected_delete
 
     [ "$AIO_LAYOUT" = "q2_112" ] || return 0
     if ! selected=$(select_revert_backup_source); then
         warn "No backup source exists yet for this layout."
-        if capture_q2_112_stock_baseline; then
-            banner "Re-running Revert dry-run after baseline capture"
-            revert_to_backup_dry_run
-        fi
+        capture_q2_112_stock_baseline || true
         return 0
     fi
 
     IFS='|' read -r selected_label selected_path selected_delete <<< "$selected"
     if backup_missing_active_stock_essentials "$selected_path"; then
         warn "The selected baseline is missing active 1.1.2 stock essentials."
-        if capture_q2_112_stock_baseline; then
-            banner "Re-running Revert dry-run after baseline capture"
-            revert_to_backup_dry_run
-        fi
+        capture_q2_112_stock_baseline || true
     fi
 }
 
@@ -4146,160 +3973,71 @@ uninstall_helixscreen() {
 revert_to_backup() {
     banner "Revert to Backup (full stock restore)"
 
-    # Delegate to the dedicated uninstall functions so revert picks up every
-    # cleanup step they do (qidi-box-write systemd drop-in, helixscreen state
-    # dir, moonraker bak, restore_aio_disabled_macros, fix_printer_cfg_after_uninstall,
-    # etc.) without duplicating logic here.
+    # 1. Refuse if snapshot missing or empty.
+    if [ ! -d "${SNAPSHOT_DIR}" ] || [ -z "$(ls -A "${SNAPSHOT_DIR}" 2>/dev/null)" ]; then
+        err "No stock snapshot found at ${SNAPSHOT_DIR} — cannot revert safely."
+        info "Run an install action first so a snapshot can be captured, then revert."
+        return 1
+    fi
+
+    # 2. Non-config cleanup (outside printer_data/config).
     if helixscreen_installed; then
         uninstall_helixscreen
     else
         info "HelixScreen not present, skipping"
     fi
 
+    # _purge_happy_hare_nonconfig handles source tree + klipper extras + moonraker
+    # component. Config files (mmu/, mmu*.cfg, etc.) are restored by rsync --delete.
     if [ -d "$HAPPY_HARE_DIR" ] || bunnybox_installed; then
-        uninstall_bunnybox
+        _purge_happy_hare_nonconfig
     else
         info "BunnyBox / Happy Hare not present, skipping"
     fi
 
-    if just_faster_box_installed || just_faster_printer_installed; then
-        info "Removing Just Faster macros..."
-        rm -f "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null || \
-            sudo rm -f "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null || true
-        ok "gcode_macro.cfg removed (will be restored from backup)"
-    else
-        info "Just Faster not present, skipping"
-    fi
-
-    cleanup_aio_install_artifacts
-
-    info "Restoring configs from ${BACKUP_ROOT}..."
-    local restore_ok=false
-    local restore_can_delete=false
-    local restore_src=""
-    if [ -d "$BACKUP_ROOT" ]; then
-        # Prefer the one-time _FIRST_STOCK snapshot (closest to factory).
-        # Fall back to the OLDEST timestamped backup - the first one
-        # written is closer to stock than the newest, which captured
-        # whatever broken state was on disk right before the last action.
-        local src=""
-        if [ -d "${BACKUP_ROOT}/_FIRST_STOCK" ] && \
-            [ -n "$(ls -A "${BACKUP_ROOT}/_FIRST_STOCK" 2>/dev/null)" ]; then
-            src="${BACKUP_ROOT}/_FIRST_STOCK"
-            restore_can_delete=true
-            info "Using first-run stock snapshot: $src"
+    if mainsail_installed; then
+        if path_was_preexisting "$MAINSAIL_DIR"; then
+            info "Keeping pre-existing Mainsail install: ${MAINSAIL_DIR}"
         else
-            local oldest
-            oldest=$(find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d \
-                     -not -name '_*' 2>/dev/null | sort | head -n 1)
-            if [ -n "$oldest" ]; then
-                src="$oldest"
-                restore_can_delete=true
-                warn "_FIRST_STOCK missing - falling back to OLDEST timestamped backup"
-                info "Restoring from: $src"
-            else
-                src="$BACKUP_ROOT"
-                warn "No timestamped backups found - restoring from flat ${BACKUP_ROOT}/"
-            fi
-        fi
-        local rsync_args=(-a --no-owner --no-group)
-        if [ "$restore_can_delete" = true ]; then
-            rsync_args+=(--delete)
-        fi
-        if rsync "${rsync_args[@]}" "${src}/" "${CONFIG_DIR}/"; then
-            ok "Config restore complete"
-            restore_ok=true
-            restore_src="$src"
-        else
-            err "Restore failed"
-        fi
-    else
-        warn "No ${BACKUP_ROOT} folder found - nothing to restore"
-    fi
-
-    # Post-rsync cleanup: even an old "stock" snapshot may have been taken
-    # after a partial AIO/Happy Hare install, so always scrub known config
-    # residue. Only run the printer.cfg repair path for imprecise fallback
-    # restores, where orphan include cleanup may be required.
-    if [ "$restore_ok" = true ]; then
-        cleanup_aio_runtime_artifacts
-        if [ "$restore_can_delete" = true ]; then
-            cleanup_aio_config_residue
-        else
-            cleanup_aio_config_artifacts
-        fi
-        if [ -n "$restore_src" ] && [ -d "${restore_src}/KAMP" ]; then
-            if [ -d "${CONFIG_DIR}/KAMP" ]; then
-                ok "Stock KAMP directory restored from backup"
-            else
-                warn "Backup contained KAMP/, but ${CONFIG_DIR}/KAMP is missing after restore"
-            fi
-        fi
-        if [ "$restore_can_delete" != true ]; then
-            # Re-clean moonraker.conf Happy Hare sections
-            local moon_conf="${CONFIG_DIR}/moonraker.conf"
-            if [ -f "$moon_conf" ] && grep -qE '^\[(update_manager (mmu|happy_hare|bunnybox|happyhare)|mmu_server)\]' "$moon_conf" 2>/dev/null; then
-                sed -i '/^\[\(update_manager \(mmu\|happy_hare\|bunnybox\|happyhare\)\|mmu_server\)\]/,/^\[/{/^\[/!d;}' "$moon_conf"
-                sed -i '/^\[update_manager \(mmu\|happy_hare\|bunnybox\|happyhare\)\]$/d' "$moon_conf"
-                sed -i '/^\[mmu_server\]$/d' "$moon_conf"
-                ok "Post-rsync: cleaned Happy Hare sections from moonraker.conf"
-            fi
-            # Re-clean printer.cfg MMU includes
-            local pcfg="${CONFIG_DIR}/printer.cfg"
-            if [ -f "$pcfg" ] && grep -q '^\[include mmu/' "$pcfg" 2>/dev/null; then
-                sed -i 's|^\[include mmu/[^]]*\]|# AIO: file missing  &|' "$pcfg"
-                ok "Post-rsync: commented out mmu/ includes in printer.cfg"
-            fi
-            # Remove any restored BunnyBox / Happy Hare config files
-            for f in bunnybox_macros.cfg box_drying.cfg; do
-                if [ -f "${CONFIG_DIR}/${f}" ]; then
-                    rm -f "${CONFIG_DIR}/${f}"
-                    ok "Post-rsync: removed restored ${f}"
-                fi
-            done
+            uninstall_mainsail
         fi
     fi
 
-    # Final cleanup: remove optional runtime addons and, after a successful
-    # restore, remove the backup root too so Revert leaves no AIO remnants
-    # behind.
-    if [ "$restore_ok" = true ] || [ ! -d "$BACKUP_ROOT" ]; then
-        # Optional addons that might be installed outside Happy Hare
-        if [ -f "${CONFIG_DIR}/idle_fan_shutdown.cfg" ] || \
-           grep -q '^\[include idle_fan_shutdown\.cfg\]' "${CONFIG_DIR}/printer.cfg" 2>/dev/null; then
-            uninstall_idle_fan_shutdown
-        fi
-        if [ -d "$MAINSAIL_DIR" ] || [ -f "$MAINSAIL_NGINX_SITE_AVAIL" ] || [ -L "$MAINSAIL_NGINX_SITE_ENABLED" ]; then
-            if path_was_preexisting "$MAINSAIL_DIR"; then
-                info "Keeping pre-existing Mainsail install: ${MAINSAIL_DIR}"
-            else
-                uninstall_mainsail
-            fi
-        fi
-        if qidi_box_write_enabled; then
-            uninstall_qidi_box_write
-        fi
-
-        cleanup_aio_runtime_artifacts
-    else
-        warn "Restore failed - leaving backup directories in place for recovery."
-        info "Inspect: ${BACKUP_ROOT}/"
+    if qidi_box_write_enabled; then
+        uninstall_qidi_box_write
     fi
 
-    # Make stock display restoration and backup-root deletion the final
-    # successful-revert actions so no later cleanup can recreate backup markers.
-    if [ "$restore_ok" = true ]; then
-        if restore_stock_display_services; then
-            remove_backup_root_after_revert || true
-        else
-            warn "Keeping ${BACKUP_ROOT}/ because stock display services did not verify"
-            warn "Fix $(stock_display_stack_label), then rerun Revert to Backup to remove AIO backups."
-        fi
+    cleanup_aio_runtime_artifacts
+
+    # 3. Config restore — single rsync --delete, no surgery.
+    # All AIO-written config files (mmu/, mmu*.cfg, KAMP files added by AIO,
+    # bunnybox_macros.cfg, moonraker.conf entries, etc.) are absent from the
+    # pre-install snapshot and are removed automatically by --delete.
+    info "Restoring config from snapshot: ${SNAPSHOT_DIR}"
+    if ! rsync -a --delete --no-owner --no-group "${SNAPSHOT_DIR}/" "${CONFIG_DIR}/"; then
+        err "Config restore failed — snapshot is intact at ${SNAPSHOT_DIR}"
+        return 1
     fi
+    ok "Config restore complete"
+
+    # The .aio_installed marker was created after the snapshot, so it is absent
+    # from the snapshot and rsync --delete removes it automatically.
+    # Verify and clean up as a safety net:
+    if [ -f "${AIO_MARKER}" ]; then
+        warn "AIO marker still present after restore — removing manually"
+        rm -f "${AIO_MARKER}" 2>/dev/null || sudo rm -f "${AIO_MARKER}"
+    fi
+
+    # 4. Restore stock display services (live systemd — not a config file).
+    restore_stock_display_services || \
+        warn "Stock display services did not verify — check $(stock_display_stack_label)"
+
+    # 5. Post-revert sanity check (diagnostic only, no destructive edits).
+    _run_verifiers_core
 
     banner "Revert complete"
     info "Run FIRMWARE_RESTART from Klipper/Moonraker, then sudo reboot."
-    info "After reboot, confirm stock display startup with systemctl status ${STOCK_DISPLAY_SERVICE:-display-manager.service} ${STOCK_UI_SERVICE:-}"
+    info "After reboot, confirm stock display with: systemctl status ${STOCK_DISPLAY_SERVICE:-display-manager.service} ${STOCK_UI_SERVICE:-}"
 }
 
 # ---------- post-install verification --------------------------------
@@ -5123,17 +4861,6 @@ _install_bunnybox() {
     preflight || { press_enter; return 1; }
     do_backup || { press_enter; return 1; }
 
-    # Preserve the stock Qidi box.cfg in BACKUP_DIR so Revert to Backup has
-    # a copy if _FIRST_STOCK is ever missing. The include line in printer.cfg
-    # stays commented out (the BunnyBox template ships it that way) — see
-    # the note below in the printer.cfg fetch block.
-    local BOX_CFG_PRESERVED=""
-    if [ -f "${CONFIG_DIR}/box.cfg" ]; then
-        BOX_CFG_PRESERVED="${BACKUP_DIR}/box.cfg.preserved"
-        cp "${CONFIG_DIR}/box.cfg" "$BOX_CFG_PRESERVED"
-        ok "Preserved stock box.cfg → ${BOX_CFG_PRESERVED}"
-    fi
-
     local INSTALL_LOG
     INSTALL_LOG="${BACKUP_ROOT}/install_$(date +%Y%m%d_%H%M%S).log"
     info "Install log: ${INSTALL_LOG}"
@@ -5226,21 +4953,6 @@ _install_bunnybox() {
             ok "Fixed KAMP include path"
         fi
 
-        # Restore box.cfg on disk (in case BunnyBox's installer removed it)
-        # so Revert to Backup can recover from BACKUP_DIR if _FIRST_STOCK is
-        # missing. Leave [include box.cfg] in printer.cfg commented out: the
-        # Qidi box_extras.so plugin registers CLEAR_TOOLCHANGE_STATE, which
-        # Happy Hare's mmu package also registers — loading both crashes
-        # Klipper on startup. Happy Hare owns the box hardware via its own
-        # [mmu] steppers while BunnyBox is installed, so the Qidi UI's
-        # "Control Box" panel will not be available until BunnyBox is removed
-        # via Revert to Backup (which restores stock printer.cfg with the
-        # include active).
-        if [ -n "$BOX_CFG_PRESERVED" ] && [ -f "$BOX_CFG_PRESERVED" ] && \
-           [ ! -f "${CONFIG_DIR}/box.cfg" ]; then
-            cp "$BOX_CFG_PRESERVED" "${CONFIG_DIR}/box.cfg"
-            ok "Restored box.cfg on disk (include left disabled — conflicts with Happy Hare)"
-        fi
         # Defensive: if a previous AIO version (RC1-RC4) left [include box.cfg]
         # active in printer.cfg, comment it back out. The shipped template has
         # it disabled, so a clean fetch already handles this — but the user's
@@ -5332,7 +5044,7 @@ ${C_BOLD}Next steps:${C_RESET}
   7. Stop drying:    ${C_CYAN}BOX_DRY_STOP${C_RESET}
 
 Install log:    ${INSTALL_LOG}
-Config backup:  ${BACKUP_DIR}
+Config snapshot: ${SNAPSHOT_DIR}
 EOF
 
     press_enter
@@ -5346,7 +5058,6 @@ install_just_faster() {
 
     preflight || { press_enter; return 1; }
     do_backup || { press_enter; return 1; }
-    cleanup_aio_install_artifacts
 
     info "Updating gcode_macro.cfg..."
     fetch "${REPO_BASE}/macros/gcode_macro-JustFasterPrinter.cfg" \
@@ -5378,7 +5089,7 @@ ${C_BOLD}Next steps:${C_RESET}
   2. sudo reboot
   3. Run a bed level + screws_tilt_adjust before your first print.
 
-Config backup:  ${BACKUP_DIR}
+Config snapshot: ${SNAPSHOT_DIR}
 EOF
 
     press_enter
@@ -5389,7 +5100,6 @@ install_just_faster_box() {
 
     preflight || { press_enter; return 1; }
     do_backup || { press_enter; return 1; }
-    cleanup_aio_install_artifacts
 
     info "Updating gcode_macro.cfg..."
     fetch "${REPO_BASE}/macros/gcode_macro-JustFasterBox.cfg" \
@@ -5421,7 +5131,7 @@ ${C_BOLD}Next steps:${C_RESET}
   2. sudo reboot
   3. Run a bed level + screws_tilt_adjust before your first print.
 
-Config backup:  ${BACKUP_DIR}
+Config snapshot: ${SNAPSHOT_DIR}
 EOF
 
     press_enter
@@ -5548,35 +5258,22 @@ ${C_BOLD}1.1.2 loaded runtime-path restore proofs:${C_RESET}
 
 ${C_BOLD}What it can uninstall:${C_RESET}
   - 'Revert to Backup' is the supported full restore path.
-  - Revert removes HelixScreen, BunnyBox/Happy Hare,
-    optional addons, display-service overrides, AIO-created KIAUH dirs,
-    helix_print, and ${BACKUP_ROOT}/ after a successful restore.
-  - On the supported legacy layout, Revert re-enables
-    $(stock_display_stack_label), sets graphical.target,
-    and prints recent service logs if the stock display stack fails.
-    If the stock display stack does not verify, ${BACKUP_ROOT}/ is kept
-    for recovery instead of being deleted.
-  - Config restore prefers ${BACKUP_ROOT}/_FIRST_STOCK, then the
-    oldest timestamped backup, including the stock KAMP/ directory.
-  - On unsupported layouts such as Q2 firmware 1.1.2, option 4 runs a
-    dry-run only report: backup source, preserve checks, removal plan,
-    Box objects/sensors, and active include graph. It does not restore
-    configs, remove files, or change services.
-  - If the 1.1.2 dry-run finds an unsafe _FIRST_STOCK baseline while
-    active stock essentials are present and AIO artifacts are absent,
-    option 4 can quarantine the unsafe baseline and capture a fresh one.
-  - After the 1.1.2 baseline passes, option 4 can capture and validate
-    the broader restore contract without changing active configs/services.
+  - Revert removes HelixScreen, BunnyBox/Happy Hare source tree, klipper
+    extras, and moonraker component, then restores ${CONFIG_DIR}/ from the
+    AIO stock snapshot via rsync --delete (no manual file surgery).
+  - Revert re-enables $(stock_display_stack_label) and sets graphical.target.
+    Service logs are printed if the stock display stack fails to verify.
+  - Config restore uses a single fixed snapshot at ${SNAPSHOT_DIR}/,
+    captured once before the first install action. All AIO-written config
+    files are absent from the snapshot and removed automatically by --delete.
 
 ${C_BOLD}Safety:${C_RESET}
-  Install and repair paths write timestamped backups of ${CONFIG_DIR}/
-  to ${BACKUP_ROOT}/<timestamp>/ before editing configs.
-  Option 1 preserves the first clean config tree as ${BACKUP_ROOT}/_FIRST_STOCK.
-  Health-check repairs also create a backup before editing configs.
+  The first install action snapshots ${CONFIG_DIR}/ to ${SNAPSHOT_DIR}/
+  before making any changes. Subsequent installs skip the snapshot so the
+  pre-AIO state is preserved. A marker file (${AIO_MARKER}) gates this.
+  Health-check repairs also call do_backup() before editing configs.
   Firmware layout detection resolves active home/config/service names.
-  Mutating paths remain blocked on unsupported layouts such as Q2
-  firmware 1.1.2 until the dedicated compatibility lane is ready.
-  Option 8 read-only diagnostics is allowed on unsupported layouts.
+  Option 8 read-only diagnostics is allowed on all layouts.
   Option 4 dry-run reporting is allowed on unsupported layouts.
   Option 4 guarded 1.1.2 baseline capture only writes under ${BACKUP_ROOT}/.
   Option 4 guarded 1.1.2 restore-contract capture only writes under ${BACKUP_ROOT}/.
@@ -5680,13 +5377,7 @@ draw_menu() {
     printf '   %s7)%s About\n'                                                    "$C_CYAN" "$C_RESET"
     printf '   %s8)%s Health Check / Run Verifiers\n'                             "$C_CYAN" "$C_RESET"
     printf '  %sTESTING%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
-    printf '   %s9)%s 1.1.2 Compatibility Probe          (reversible round trip)\n' "$C_CYAN" "$C_RESET"
-    printf '  %s10)%s 1.1.2 Restore Rehearsal             (isolated, no live changes)\n' "$C_CYAN" "$C_RESET"
-    printf '  %s11)%s 1.1.2 Live Restore Proof            (controlled contract restore)\n' "$C_CYAN" "$C_RESET"
-    printf '  %s12)%s 1.1.2 External Restore Audit         (read-only drift report)\n' "$C_CYAN" "$C_RESET"
-    printf '  %s13)%s 1.1.2 Present-Path Restore Proof     (controlled systemd path)\n' "$C_CYAN" "$C_RESET"
-    printf '  %s14)%s 1.1.2 Klipper Extras Restore Proof    (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
-    printf '  %s15)%s 1.1.2 Moonraker Components Proof      (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
+    printf '   %s9)%s Testing\n' "$C_CYAN" "$C_RESET"
     printf '   %s0)%s Exit\n'                                                    "$C_CYAN" "$C_RESET"
     printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
     printf '%sEnter selection:%s ' "$C_BOLD" "$C_RESET"
@@ -5727,6 +5418,72 @@ show_disclaimer() {
     fi
 }
 
+testing_submenu() {
+    while true; do
+        clear 2>/dev/null || true
+        printf '%s============================================%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
+        printf '%s   Testing Tools%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
+        printf '%s============================================%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
+        printf '  %sSNAPSHOT%s\n' "$C_BOLD$C_GREEN" "$C_RESET"
+        printf '   %s1)%s Force Snapshot Capture   (overwrites snapshot with current config)\n' "$C_CYAN" "$C_RESET"
+        printf '   %s2)%s Force Config Restore     (rsync --delete from snapshot to config)\n' "$C_CYAN" "$C_RESET"
+        printf '  %s1.1.2 PROBES%s\n' "$C_BOLD$C_CYAN" "$C_RESET"
+        printf '   %s3)%s 1.1.2 Compatibility Probe          (reversible round trip)\n' "$C_CYAN" "$C_RESET"
+        printf '   %s4)%s 1.1.2 Restore Rehearsal             (isolated, no live changes)\n' "$C_CYAN" "$C_RESET"
+        printf '   %s5)%s 1.1.2 Live Restore Proof            (controlled contract restore)\n' "$C_CYAN" "$C_RESET"
+        printf '   %s6)%s 1.1.2 External Restore Audit         (read-only drift report)\n' "$C_CYAN" "$C_RESET"
+        printf '   %s7)%s 1.1.2 Present-Path Restore Proof     (controlled systemd path)\n' "$C_CYAN" "$C_RESET"
+        printf '   %s8)%s 1.1.2 Klipper Extras Restore Proof    (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
+        printf '   %s9)%s 1.1.2 Moonraker Components Proof      (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
+        printf '   %s0)%s Back\n' "$C_CYAN" "$C_RESET"
+        printf '%s============================================%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
+        printf '%sEnter selection:%s ' "$C_BOLD" "$C_RESET"
+        local choice
+        read -r choice </dev/tty || return 0
+        case "$choice" in
+            1)
+                warn "Force Snapshot Capture will overwrite any existing snapshot."
+                if confirm "Capture current config as snapshot now?"; then
+                    banner "Force Snapshot Capture"
+                    mkdir -p "${SNAPSHOT_DIR}"
+                    if rsync -a "${CONFIG_DIR}/" "${SNAPSHOT_DIR}/"; then
+                        ok "Snapshot written to ${SNAPSHOT_DIR}"
+                    else
+                        err "Snapshot failed"
+                    fi
+                    press_enter
+                fi
+                ;;
+            2)
+                if [ ! -d "${SNAPSHOT_DIR}" ] || [ -z "$(ls -A "${SNAPSHOT_DIR}" 2>/dev/null)" ]; then
+                    err "No snapshot found at ${SNAPSHOT_DIR} — nothing to restore."
+                    press_enter
+                    continue
+                fi
+                warn "Force Config Restore will overwrite ${CONFIG_DIR} from snapshot."
+                if confirm "Restore config from snapshot now?"; then
+                    banner "Force Config Restore"
+                    if rsync -a --delete --no-owner --no-group "${SNAPSHOT_DIR}/" "${CONFIG_DIR}/"; then
+                        ok "Config restored from ${SNAPSHOT_DIR}"
+                    else
+                        err "Restore failed"
+                    fi
+                    press_enter
+                fi
+                ;;
+            3) menu_q2_112_roundtrip_probe ;;
+            4) menu_q2_112_restore_rehearsal ;;
+            5) menu_q2_112_live_restore_proof ;;
+            6) menu_q2_112_external_restore_audit ;;
+            7) menu_q2_112_present_path_restore_proof ;;
+            8) menu_q2_112_klipper_extras_restore_proof ;;
+            9) menu_q2_112_moonraker_components_restore_proof ;;
+            0|q|Q|back) return 0 ;;
+            *) err "Invalid selection: '$choice'"; sleep 1 ;;
+        esac
+    done
+}
+
 main_loop() {
     while true; do
         draw_menu
@@ -5737,15 +5494,8 @@ main_loop() {
             2) install_just_faster ;;
             3) install_just_faster_box ;;
             4)
-                if ! layout_supports_mutation; then
-                    revert_to_backup_dry_run
-                    offer_q2_112_baseline_capture
-                    offer_q2_112_restore_contract_capture
-                    press_enter
-                    continue
-                fi
                 warn "Revert to Backup will uninstall AIO display/MMU changes,"
-                warn "restore configs from ${BACKUP_ROOT}/, and re-enable stock $(stock_display_stack_label)."
+                warn "restore configs from ${SNAPSHOT_DIR}/, and re-enable stock $(stock_display_stack_label)."
                 if confirm "Proceed with full revert?"; then
                     revert_to_backup
                     press_enter
@@ -5773,13 +5523,7 @@ main_loop() {
                     run_readonly_diagnostics
                 fi
                 ;;
-            9) menu_q2_112_roundtrip_probe ;;
-            10) menu_q2_112_restore_rehearsal ;;
-            11) menu_q2_112_live_restore_proof ;;
-            12) menu_q2_112_external_restore_audit ;;
-            13) menu_q2_112_present_path_restore_proof ;;
-            14) menu_q2_112_klipper_extras_restore_proof ;;
-            15) menu_q2_112_moonraker_components_restore_proof ;;
+            9) testing_submenu ;;
             0|q|Q|exit) info "Bye."; exit 0 ;;
             *) err "Invalid selection: '$choice'"; sleep 1 ;;
         esac
