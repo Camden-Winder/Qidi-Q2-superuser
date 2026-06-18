@@ -1,5 +1,29 @@
 # Session Handoff — Qidi Q2 Superuser AIO
 
+## RC2.37 — PR #24 Port + Macro Audit (current branch: `claude/upbeat-brahmagupta-ymemga`)
+
+### Changes made
+
+- **Section 1 (docs):** Updated `Q2/Instructions.md`, `Q2/FAQ-BunnyBox&Helixscreen.md`, `All_in_One_Installer/WHAT_WAS_DONE.md`, and `CLAUDE.md` with PR #24 fix descriptions (KAMP profile, G29/G31/G32, WIPE, retraction tuning).
+- **Section 2:** `M4032`, `SMART_STATUS`, `prepare_filament_dry`, `restore_factory_settings` added to both `Q2/macros/gcode_macro-JustFasterBox.cfg` and `Q2/macros/gcode_macro-JustFasterPrinter.cfg`.
+- **Section 3:** `SET_PRINT_MAIN_STATUS` / `SET_PRINT_SUB_STATUS` calls restored in `M901`, `M4029`, `M603`, `M604` in both files.
+- **Section 4:** `CLEAR_NOZZLE` improvements ported JFP→JFB; `EXTRUSION_AND_FLUSH` loop count fixed in JFB (range(1,6)→range(1,4)); retraction comment added in JFP; `RESUME_1` `printer.mmu.enabled` bug fixed in JFP.
+- **Section 5:** JFP's commented-out `CANCEL_PRINT`/`PAUSE`/`RESUME_PRINT`/`RESUME` block replaced with live, no-box-adapted versions. `DETECT_INTERRUPTION` macro definition uncommented.
+- **Section 7:** `.claude/settings.json` updated with `Edit(*)`, `Write(*)`, `MultiEdit(*)`.
+- **Section 8:** Version bumped to RC2.37 in CLAUDE.md (no `AIO_VERSION` change — installer not modified).
+
+### Known Issue (unfixed) — Problem B: T0–T3 / UNLOAD_T0-T3 not restored on uninstall
+
+**Reported bug:** After reverting from BunnyBox, T0–T3 and UNLOAD_T0-T3 buttons in OrcaSlicer do nothing.
+
+These macros live in `box1.cfg` on the printer (not in this repo). They are disabled by `fix_known_klipper_conflicts()` in `aio_menu.sh` (~lines 5021–5039) using a `## AIO_DISABLED:` prefix when BunnyBox/Happy Hare is active. `restore_aio_disabled_macros()` (see CLAUDE.md, also in `aio_menu.sh`) is supposed to reverse this on uninstall but likely has a bug that causes it to miss these macros.
+
+**Do not fix in this session.** Investigate `fix_known_klipper_conflicts()` and `restore_aio_disabled_macros()` in `aio_menu.sh` in a future session.
+
+---
+
+
+
 ## Project
 
 **Repo:** `Camden-Winder/Qidi-Q2-superuser`

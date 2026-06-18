@@ -19,7 +19,10 @@
       "Bash(git branch:*)",
       "Bash(grep:*)",
       "Bash(find:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Edit(*)",
+      "Write(*)",
+      "MultiEdit(*)"
     ]
   }
 }
