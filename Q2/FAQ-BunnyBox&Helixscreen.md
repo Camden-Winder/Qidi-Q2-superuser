@@ -2,6 +2,29 @@
 
 ---
 
+### How do I toggle adaptive bed leveling on/off?
+
+The AIO macro files use Qidi's `G29`/`G31`/`G32` wrappers:
+
+- `G31` — enables adaptive bed leveling (default state after install). Every `PRINT_START` will call `G29`, which runs a KAMP adaptive mesh over the print area.
+- `G32` — disables adaptive bed leveling. `PRINT_START` will load an existing `default` mesh profile instead of running a new mesh. Useful for fast test prints or debugging.
+
+To re-enable after disabling: run `G31` once from the console, then `FIRMWARE_RESTART` is not needed — the setting takes effect immediately for the next print.
+
+---
+
+### Which profile does KAMP save the bed mesh to?
+
+KAMP saves the adaptive mesh to the `kamp` profile (not `default`). This means your manually-saved `default` mesh is not overwritten by print-start meshing. To load a previously saved KAMP mesh without re-probing, run:
+
+```
+BED_MESH_PROFILE LOAD=kamp
+```
+
+The `kamp` profile is regenerated every print, so there is no benefit to loading it manually — this is mainly useful for debugging mesh data after a print.
+
+---
+
 ### After installing, the console shows a calibration warning and Bunny Box won't work
 
 You'll see something like:

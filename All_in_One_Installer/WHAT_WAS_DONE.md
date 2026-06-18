@@ -18,7 +18,7 @@ This repo hardens the upstream installers and adds per-printer AIO menus so anyt
 
 ## Accomplished
 
-### `All_in_One_Installer/aio_menu.sh` — Q2 AIO Menu (RC2.35)
+### `All_in_One_Installer/aio_menu.sh` — Q2 AIO Menu (RC2.36 / macro files RC2.37)
 
 Single-entry, ANSI-coloured bash menu for the Qidi Q2. Refuses to run as root.
 
@@ -51,6 +51,7 @@ Features:
 - `switch_display_to_helixscreen()` — stops/disables `lightdm` and `makerbase-client`, then enables `helixscreen.service` (fixes fresh-install black screen)
 - Revert to Backup is the single uninstall path; internally delegates to `uninstall_bunnybox()` and `uninstall_helixscreen()` and then rsyncs the newest timestamped stock backup back over `${CONFIG_DIR}`
 - Happier Hare (custom patched HelixScreen binary) subsystem removed in RC2.34; HelixScreen is always pulled from the upstream `main` branch
+- **RC2.37 macro audit** — four missing macros (`M4032`, `SMART_STATUS`, `prepare_filament_dry`, `restore_factory_settings`) restored to JFB and JFP; `SET_PRINT_MAIN_STATUS`/`SET_PRINT_SUB_STATUS` calls re-inserted in `M901`, `M4029`, `M603`, `M604`; `CLEAR_NOZZLE` cross-ported JFP→JFB; `EXTRUSION_AND_FLUSH` loop count fixed; `CANCEL_PRINT`/`PAUSE`/`RESUME_PRINT`/`RESUME` restored to JFP
 
 ### `All_in_One_Installer/aio_menu_max4.sh` — Max 4 AIO Menu (Max4-RC1)
 

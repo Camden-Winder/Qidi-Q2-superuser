@@ -120,9 +120,14 @@ Choose this if you do not have a Qidi Box, or want to keep the stock screen with
 
 What it does:
 - Backs up your current `config/` to `~/mudstockbackups/`
-- Writes optimised Klipper macros (`gcode_macro.cfg`) — faster `PRINT_START`, cleaner `PRINT_END`, adaptive bed meshing
+- Writes optimised Klipper macros (`gcode_macro.cfg`) — faster `PRINT_START`, cleaner `PRINT_END`, adaptive bed meshing via KAMP
 - Patches `printer.cfg` to include the new macro file
 - Keeps the stock Makerbase touchscreen UI unchanged
+
+Bed meshing notes:
+- `G29` runs an adaptive KAMP mesh and saves it to the `kamp` profile. The `default` profile is untouched.
+- `G31` enables adaptive bed leveling (default on). `G32` disables it — useful for diagnosing bed issues or skipping the mesh for a quick test print.
+- `WIPE` runs a nozzle wipe at the trash chute using the live extruder target temperature. It is called automatically by `PRINT_END`.
 
 After install:
 1. Run `FIRMWARE_RESTART`
@@ -137,6 +142,10 @@ What it does:
 - The box-aware macro branches (`BOX_PRINT_START`, box heater control) are live — the stock Qidi Box AMS backend remains in control
 - Does not install Happy Hare, BunnyBox, or HelixScreen
 - Keeps the stock Makerbase touchscreen UI unchanged
+
+Bed meshing notes:
+- Same `G29`/`G31`/`G32` behavior as Option 3. KAMP saves to the `kamp` profile.
+- `WIPE` works the same way — reads the live hotend target and calls `MOVE_TO_TRASH` first so oozing lands in the chute.
 
 After install:
 1. Run `FIRMWARE_RESTART`
