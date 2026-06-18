@@ -145,14 +145,22 @@ When `install_*` fetches a remote file, use the `fetch()` helper, not `curl` dir
 6)  Mainsail                          (web UI on port 100)
 7)  About
 8)  Health Check / Run Verifiers
-9)  1.1.2 Compatibility Probe          (reversible round trip)
-10) 1.1.2 Restore Rehearsal             (isolated, no live changes)
-11) 1.1.2 Live Restore Proof            (controlled contract restore)
-12) 1.1.2 External Restore Audit         (read-only drift report)
-13) 1.1.2 Present-Path Restore Proof     (controlled systemd path)
-14) 1.1.2 Klipper Extras Restore Proof    (controlled runtime path)
-15) 1.1.2 Moonraker Components Proof      (controlled runtime path)
+9)  Testing                           (submenu: snapshot tools + 1.1.2 probes)
 0)  Exit
+```
+
+Testing submenu (option 9):
+```
+1)  Force Snapshot Capture   (overwrites snapshot with current config)
+2)  Force Config Restore     (rsync --delete from snapshot to config)
+3)  1.1.2 Compatibility Probe
+4)  1.1.2 Restore Rehearsal
+5)  1.1.2 Live Restore Proof
+6)  1.1.2 External Restore Audit
+7)  1.1.2 Present-Path Restore Proof
+8)  1.1.2 Klipper Extras Restore Proof
+9)  1.1.2 Moonraker Components Proof
+0)  Back
 ```
 
 Per-component uninstall options (BunnyBox-only / HelixScreen-only / Both) were removed in RC4. Revert to Backup is the single uninstall path and delegates to `uninstall_bunnybox()` and `uninstall_helixscreen()` internally before restoring from `_FIRST_STOCK`.
@@ -165,6 +173,9 @@ Claude may do the following **without asking first**:
 - Create a draft PR after pushing a new branch
 - Run `bash -n`, `python3 -m json.tool`, `shellcheck` (lint/syntax checks)
 - Merge a PR to `main` when the handoff context explicitly says to do so
+- When creating a PR, post a comment on the PR with testing instructions for Camden:
+  specific menu paths, commands to run on the printer, and expected outcomes for all
+  new or changed features.
 
 Claude **must ask first** before:
 
@@ -172,6 +183,18 @@ Claude **must ask first** before:
 - Force-pushing any branch
 - Deleting branches or files not created in the same session
 - Taking actions visible to users outside this repo (posting comments, etc.)
+
+**When creating a PR:** post a comment on the PR explaining how Camden can manually test all new or changed features. Include specific menu paths to navigate, commands to run on the printer over SSH, and expected outcomes for each feature.
+
+## RC2.38 — What's In It
+
+- **Revert to Backup rewritten** — replaced the old incremental-cleanup chain with a snapshot/restore model. `do_backup()` now takes a single fixed snapshot at `${AIO_HOME}/aio_config_backup/` before the first install action (gated by a `.aio_installed` marker in `CONFIG_DIR`). `revert_to_backup()` restores via `rsync -a --delete` with no post-restore surgery.
+- **`_purge_happy_hare_nonconfig()` added** — called by revert to remove Happy Hare source tree, klipper extras, and moonraker component. Config file cleanup (mmu/, mmu*.cfg, KAMP files, etc.) handled by `rsync --delete` from snapshot.
+- **Deleted ~10 obsolete functions** — `fix_printer_cfg_after_uninstall`, `cleanup_aio_config_residue`, `cleanup_aio_config_artifacts`, `cleanup_aio_install_artifacts`, `remove_backup_root_after_revert`, `revert_to_backup_dry_run`, `report_revert_backup_dry_run`, `select_revert_backup_source` (Q2_112 baseline system retains its own copy), `backup_missing_active_stock_essentials`, `dry_run_path_state`.
+- **Testing submenu** — items 9–15 consolidated into a single `9) Testing` top-level entry that opens a submenu containing Force Snapshot Capture, Force Config Restore, and the seven Q2-1.1.2 tools.
+- **Layout gate removed from option 4** — Revert to Backup now works on all layouts; no longer blocked on q2_112 firmware with dry-run redirect.
+- **TODO comment added** near `restore_stock_display_services()` for firmware 1.1.2 display service name branching.
+- **CLAUDE.md** — menu layout updated, PR testing-comment policy added.
 
 ## RC2.37 — What's In It
 
