@@ -4923,9 +4923,6 @@ _install_bunnybox() {
             ok "No existing install found — clean slate"
         fi
 
-        touch "${AIO_MARKER}" 2>/dev/null || sudo touch "${AIO_MARKER}"
-        ok "AIO marker written: ${AIO_MARKER}"
-
         banner "Installing BunnyBox (Happy Hare MMU)"
         run_remote_script "$BUNNYBOX_INSTALLER"
         local bb_exit=$?
@@ -4945,6 +4942,12 @@ _install_bunnybox() {
             exit 99  # caught after the tee pipeline below
         fi
         ok "BunnyBox install step complete"
+
+        # Write marker only after BunnyBox has confirmed installation —
+        # the filament-removal prompt inside the BunnyBox sub-installer
+        # runs before this point, so a cancel there leaves no marker.
+        touch "${AIO_MARKER}" 2>/dev/null || sudo touch "${AIO_MARKER}"
+        ok "AIO marker written: ${AIO_MARKER}"
 
         banner "Installing HelixScreen"
         run_remote_script "$HELIXSCREEN_INSTALLER"
