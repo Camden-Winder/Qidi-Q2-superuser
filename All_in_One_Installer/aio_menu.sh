@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.39'
+AIO_VERSION='RC2.40'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -5010,11 +5010,11 @@ _install_bunnybox() {
         fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || return 1
         ok "KAMP settings and sub-files applied to ${CONFIG_DIR}/KAMP/"
 
-        banner "Applying HelixScreen settings"
+        banner "Applying HelixScreen preset"
         mkdir -p "$HELIX_CONFIG_DIR"
-        fetch "${REPO_BASE}/helixscreen_settings.json" \
+        fetch "${REPO_BASE}/helixscreen_preset.json" \
               "${HELIX_CONFIG_DIR}/settings.json" || return 1
-        ok "HelixScreen settings applied"
+        ok "HelixScreen preset applied (qiauh_q2)"
         switch_display_to_helixscreen
 
         fix_known_klipper_conflicts

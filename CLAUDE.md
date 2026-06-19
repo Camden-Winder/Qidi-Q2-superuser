@@ -186,6 +186,13 @@ Claude **must ask first** before:
 
 **When creating a PR:** post a comment on the PR explaining how Camden can manually test all new or changed features. Include specific menu paths to navigate, commands to run on the printer over SSH, and expected outcomes for each feature.
 
+## RC2.40 — What's In It
+
+- `AIO_VERSION='RC2.40'`
+- **HelixScreen homescreen preset fix** — replaced the full-dump `helixscreen_settings.json` approach with a proper preset file `Q2/helixscreen_preset.json`. The installer now fetches `helixscreen_preset.json` and writes it to `~/helixscreen/config/settings.json`. The preset includes `"preset": "qiauh_q2"` (triggers abbreviated wizard on first boot) and `"wizard_completed": false`, plus all hardware mappings (fans, heaters, LEDs, filament sensors, macros, `panel_widgets`). Deployment-specific fields (`moonraker_host/port`, `type`, runtime snapshots, user preferences) are excluded per preset spec.
+- **`panel_widgets` homescreen layout now takes effect** — this was the root fix; the full-dump approach was not being applied by HelixScreen; the preset mechanism is the correct delivery path.
+- **`Q2/helixscreen_settings.json` retained** — kept as a reference; no longer used by the installer.
+
 ## RC2.38 — What's In It
 
 - **Revert to Backup rewritten** — replaced the old incremental-cleanup chain with a snapshot/restore model. `do_backup()` now takes a single fixed snapshot at `${AIO_HOME}/aio_config_backup/` before the first install action (gated by a `.aio_installed` marker in `CONFIG_DIR`). `revert_to_backup()` restores via `rsync -a --delete` with no post-restore surgery.
