@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.38'
+AIO_VERSION='RC2.39'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -1528,13 +1528,12 @@ bunnybox_installed() {
 
 just_faster_printer_installed() {
     [ -f "${CONFIG_DIR}/gcode_macro.cfg" ] && \
-    grep -q 'PRINTER_PARAM' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null && \
-    ! grep -q 'BOX_PRINT_START' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null
+    grep -q 'Superuser Macros: Just Faster Printer' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null
 }
 
 just_faster_box_installed() {
     [ -f "${CONFIG_DIR}/gcode_macro.cfg" ] && \
-    grep -q 'BOX_PRINT_START' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null
+    grep -q 'Superuser Macros: Just Faster Box' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null
 }
 
 # Scan every path the BunnyBox installer's own detection logic looks at,
@@ -1562,7 +1561,7 @@ detect_bunnybox_artifacts() {
 }
 
 helixscreen_installed() {
-    [ -d "$HELIX_DIR" ] || systemctl is-enabled helixscreen &>/dev/null
+    systemctl is-enabled helixscreen &>/dev/null
 }
 
 preflight() {
@@ -1661,11 +1660,8 @@ should_remove_aio_path() {
     return 0
 }
 
-do_backup() {
-    # If AIO has never run an install on this printer, snapshot the current
-    # config as "stock" — regardless of what's in it (manual installs included).
-    # The marker is created AFTER the snapshot so the snapshot never contains it;
-    # rsync --delete in revert_to_backup() removes the marker automatically.
+take_snapshot() {
+    # Takes the rsync snapshot only. Does NOT write .aio_installed.
     if [ ! -f "${AIO_MARKER}" ]; then
         banner "Capturing stock config snapshot"
         mkdir -p "${SNAPSHOT_DIR}"
@@ -1674,10 +1670,21 @@ do_backup() {
             return 1
         fi
         ok "Stock snapshot saved to ${SNAPSHOT_DIR}"
-        touch "${AIO_MARKER}" 2>/dev/null || sudo touch "${AIO_MARKER}"
-        ok "AIO marker written: ${AIO_MARKER}"
     else
         info "AIO marker present — existing snapshot retained"
+    fi
+    return 0
+}
+
+do_backup() {
+    # If AIO has never run an install on this printer, snapshot the current
+    # config as "stock" — regardless of what's in it (manual installs included).
+    # The marker is created AFTER the snapshot so the snapshot never contains it;
+    # rsync --delete in revert_to_backup() removes the marker automatically.
+    take_snapshot || return 1
+    if [ ! -f "${AIO_MARKER}" ]; then
+        touch "${AIO_MARKER}" 2>/dev/null || sudo touch "${AIO_MARKER}"
+        ok "AIO marker written: ${AIO_MARKER}"
     fi
     return 0
 }
@@ -4106,6 +4113,11 @@ verify_jfb_install() {
             all_ok=false
         fi
     done
+    if grep -q 'Superuser Macros: Just Faster Box' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null; then
+        ok "gcode_macro.cfg identified as Just Faster Box macros"
+    else
+        warn "gcode_macro.cfg does not carry the 'Just Faster Box' identifier — wrong macro file?"
+    fi
     if grep -q 'BOX_PRINT_START' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null; then
         ok "gcode_macro.cfg contains box-aware macros (BOX_PRINT_START)"
     else
@@ -4859,7 +4871,7 @@ _install_bunnybox() {
     banner "Install: BunnyBox & HelixScreen (Q2 with Qidi Box)"
 
     preflight || { press_enter; return 1; }
-    do_backup || { press_enter; return 1; }
+    take_snapshot || { press_enter; return 1; }
 
     local INSTALL_LOG
     INSTALL_LOG="${BACKUP_ROOT}/install_$(date +%Y%m%d_%H%M%S).log"
@@ -4910,6 +4922,9 @@ _install_bunnybox() {
         else
             ok "No existing install found — clean slate"
         fi
+
+        touch "${AIO_MARKER}" 2>/dev/null || sudo touch "${AIO_MARKER}"
+        ok "AIO marker written: ${AIO_MARKER}"
 
         banner "Installing BunnyBox (Happy Hare MMU)"
         run_remote_script "$BUNNYBOX_INSTALLER"
@@ -5296,7 +5311,7 @@ EOF
 
 # ---------- main menu ------------------------------------------------
 show_status_line() {
-    local bb_status display_status idle_status box_write_status mainsail_status camera_status firmware_status just_faster_status
+    local bb_status helixscreen_status idle_status box_write_status mainsail_status camera_status firmware_status just_faster_status
     if layout_supports_mutation; then
         firmware_status="${C_GREEN}$(q2_firmware_layout_label)${C_RESET}"
     else
@@ -5315,9 +5330,9 @@ show_status_line() {
         bb_status="${C_YELLOW}not found${C_RESET}"
     fi
     if helixscreen_installed; then
-        display_status="${C_GREEN}HelixScreen${C_RESET}"
+        helixscreen_status="${C_GREEN}installed${C_RESET}"
     else
-        display_status="${C_YELLOW}none${C_RESET}"
+        helixscreen_status="${C_YELLOW}not found${C_RESET}"
     fi
     if idle_fan_shutdown_installed; then
         idle_status="${C_GREEN}on${C_RESET}"
@@ -5350,8 +5365,8 @@ show_status_line() {
             box_write_status="${C_YELLOW}off${C_RESET}"
         fi
     fi
-    printf '  Just Faster: %b | BunnyBox: %b | Display: %b\n' \
-           "$just_faster_status" "$bb_status" "$display_status"
+    printf '  Just Faster: %b | BunnyBox: %b | Helixscreen: %b\n' \
+           "$just_faster_status" "$bb_status" "$helixscreen_status"
     printf '  IdleFan: %b | BoxWrite: %b | Mainsail: %b | Camera: %b\n' \
            "$idle_status" "$box_write_status" "$mainsail_status" "$camera_status"
     printf '  Firmware: %b\n' "$firmware_status"
