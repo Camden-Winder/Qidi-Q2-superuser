@@ -1,5 +1,25 @@
 # Session Handoff — Qidi Q2 Superuser AIO
 
+## RC2.40 — HelixScreen Homescreen Preset Fix (current branch: `claude/beautiful-einstein-5mibrb`)
+
+### Changes made
+
+- **`Q2/helixscreen_preset.json` created** — new preset-formatted JSON with `"preset": "qiauh_q2"`, `"wizard_completed": false`, and all hardware mappings (fans, heaters, LEDs, filament sensors, macros, `panel_widgets` home layout). Excludes deployment-specific and user-preference fields per preset spec.
+- **`aio_menu.sh` updated** — `install_bunnybox_helixscreen()` now fetches `helixscreen_preset.json` instead of `helixscreen_settings.json` and writes it to `${HELIX_CONFIG_DIR}/settings.json`. Banner and ok messages updated to match.
+- **`AIO_VERSION` bumped to `RC2.40`**.
+- **`CLAUDE.md` updated** — RC2.40 section added.
+- **`Q2/helixscreen_settings.json` retained** — kept as reference; no longer used by the installer.
+
+### Known Issue (unfixed) — Problem B: T0–T3 / UNLOAD_T0-T3 not restored on uninstall
+
+**Reported bug:** After reverting from BunnyBox, T0–T3 and UNLOAD_T0-T3 buttons in OrcaSlicer do nothing.
+
+These macros live in `box1.cfg` on the printer (not in this repo). They are disabled by `fix_known_klipper_conflicts()` in `aio_menu.sh` (~lines 5021–5039) using a `## AIO_DISABLED:` prefix when BunnyBox/Happy Hare is active. `restore_aio_disabled_macros()` is supposed to reverse this on uninstall but likely has a bug.
+
+**Do not fix in this session.** Investigate `fix_known_klipper_conflicts()` and `restore_aio_disabled_macros()` in `aio_menu.sh` in a future session.
+
+---
+
 ## RC2.37 — PR #24 Port + Macro Audit (current branch: `claude/upbeat-brahmagupta-ymemga`)
 
 ### Changes made
