@@ -81,7 +81,7 @@ To find the IP: check your router's DHCP table, or look in the printer touchscre
 ## Step 2 — Download and Run the Installer
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/main/All_in_One_Installer/aio_menu.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/main/Q2/aio_menu.sh)
 ```
 
 The installer will run a disclaimer screen and then show the main menu.

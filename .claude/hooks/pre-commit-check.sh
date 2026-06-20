@@ -34,7 +34,7 @@ done < <(git diff --cached --name-only -z --diff-filter=ACMR | grep -z '\.json$'
 # 3. Warn if aio_menu.sh changed but AIO_VERSION didn't bump
 # ------------------------------------------------------------------
 if git diff --cached --name-only | grep -q 'aio_menu\.sh'; then
-    if ! git diff --cached All_in_One_Installer/aio_menu.sh | grep -q '^+AIO_VERSION='; then
+    if ! git diff --cached Q2/aio_menu.sh | grep -q '^+AIO_VERSION='; then
         WARNINGS+=("aio_menu.sh changed but AIO_VERSION line not updated — consider bumping it")
     fi
 fi

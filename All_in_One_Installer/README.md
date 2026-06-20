@@ -12,8 +12,8 @@ Each installer backs up your config automatically before making any changes and 
 
 | Printer | Installer | Instructions |
 |---|---|---|
-| **Qidi Q2** | `aio_menu.sh` | [Q2/Instructions.md](../Q2/Instructions.md) |
-| **Qidi Max 4** | `aio_menu_max4.sh` | [Max4/Instructions.md](../Max4/Instructions.md) |
+| **Qidi Q2** | [`Q2/aio_menu.sh`](../Q2/aio_menu.sh) | [Q2/Instructions.md](../Q2/Instructions.md) |
+| **Qidi Max 4** | [`Max4/aio_menu_max4.sh`](../Max4/aio_menu_max4.sh) | [Max4/Instructions.md](../Max4/Instructions.md) |
 
 See each printer's `Instructions.md` for SSH credentials, curl commands, menu options, and troubleshooting.
 
