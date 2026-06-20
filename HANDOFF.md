@@ -1,5 +1,27 @@
 # Session Handoff — Qidi Q2 Superuser AIO
 
+## RC2.42 — HelixScreen Dashboard Layout: Rolling Backup Patch (current branch: `claude/cool-ritchie-0wkhiu`)
+
+### Problem fixed
+
+HelixScreen was rejecting the patched `settings.json` on restart, auto-restoring from rolling backup copies in `/var/lib/helixscreen/` and `~/.helixscreen/`, undoing the `panel_widgets` change.
+
+### Changes made
+
+- **`aio_menu.sh` — `apply_helixscreen_dashboard_layout()` updated:**
+  - Stops helixscreen *before* patching (prevents HelixScreen writing a new backup during the patch window)
+  - Adds trailing newline to `json.dump` output to exactly match HelixScreen's own write format
+  - After patching `settings.json`, also patches `~/.helixscreen/settings.json` and `/var/lib/helixscreen/settings.json` so auto-restore cannot undo the layout change
+  - `/var/lib/helixscreen/` is root-owned; the script detects `PermissionError` (exit 2) and retries that path via `sudo tee`
+  - Uses `systemctl start` (not `restart`) after the patch since we already stopped the service
+- **`AIO_VERSION` bumped to `RC2.42`**
+
+### Known Issue (unfixed) — Problem B: T0–T3 / UNLOAD_T0-T3 not restored on uninstall
+
+After reverting from BunnyBox, T0–T3 and UNLOAD_T0-T3 buttons in OrcaSlicer do nothing. Root cause suspected in `restore_aio_disabled_macros()` in `aio_menu.sh`. Do not fix in the next session without explicit instructions.
+
+---
+
 ## RC2.40 — HelixScreen Homescreen Preset Fix (current branch: `claude/beautiful-einstein-5mibrb`)
 
 ### Changes made
