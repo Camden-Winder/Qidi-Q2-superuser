@@ -4868,128 +4868,145 @@ fix_known_klipper_conflicts() {
 
 # ---------- helixscreen: patch dashboard layout ----------------------
 apply_helixscreen_dashboard_layout() {
-    local settings="${HELIX_CONFIG_DIR}/settings.json"
-    local preset_tmp="/tmp/helix_preset_tmp.json"
+    local CANONICAL="/home/mks/printer_data/config/helixscreen/settings.json"
+    local BACKUP2="/home/mks/.helixscreen/settings.json"
+    local BACKUP1="/var/lib/helixscreen/settings.json"
 
-    # Wait up to 30s for settings.json to exist and be valid JSON
-    info "Waiting for HelixScreen to generate settings.json..."
-    local waited=0
-    while [ "$waited" -lt 30 ]; do
-        if [ -s "$settings" ]; then
-            if python3 -c "import json,sys; json.load(sys.stdin)" < "$settings" 2>/dev/null; then
-                break
-            fi
-        fi
-        sleep 2
-        waited=$((waited + 2))
-    done
-    if ! ([ -s "$settings" ] && python3 -c "import json,sys; json.load(sys.stdin)" < "$settings" 2>/dev/null); then
-        err "settings.json did not appear or is not valid JSON after ${waited}s"
-        return 1
-    fi
-    info "settings.json is ready"
-
-    # Fetch preset and validate
-    info "Fetching helixscreen_preset.json..."
-    if ! curl -fsSL "${REPO_BASE}/helixscreen_preset.json" -o "$preset_tmp"; then
-        err "Failed to download helixscreen_preset.json"
-        return 1
-    fi
-    if [ ! -s "$preset_tmp" ]; then
-        err "Downloaded helixscreen_preset.json is empty"
-        rm -f "$preset_tmp"; return 1
-    fi
-    if ! python3 -c "import json,sys; json.load(sys.stdin)" < "$preset_tmp" 2>/dev/null; then
-        err "helixscreen_preset.json is not valid JSON"
-        rm -f "$preset_tmp"; return 1
-    fi
-
-    # Stop helixscreen before patching to prevent it writing a new backup during our patch window
-    info "Stopping helixscreen before patching..."
     sudo systemctl stop helixscreen
 
-    # Patch settings.json and rolling backups atomically via Python
-    if python3 - "$settings" "$preset_tmp" <<'PYEOF'
-import json, sys, os
-
-settings_path = sys.argv[1]
-preset_path   = sys.argv[2]
-
-with open(settings_path) as f:
-    settings = json.load(f)
-with open(preset_path) as f:
-    preset = json.load(f)
-
-settings["printers"]["default"]["panel_widgets"] = \
-    preset["printers"]["default"]["panel_widgets"]
-
-patched_content = json.dumps(settings, indent=2) + "\n"
-
-# Patch the primary settings.json atomically
-tmp = settings_path + ".tmp"
-with open(tmp, "w") as f:
-    f.write(patched_content)
-os.replace(tmp, settings_path)
-print("panel_widgets patched in " + settings_path)
-
-# Patch rolling backup copies so auto-restore cannot undo the change
-backup_paths = [
-    os.path.expanduser("~/.helixscreen/settings.json"),
-    "/var/lib/helixscreen/settings.json",
-]
-for bp in backup_paths:
-    bp_dir = os.path.dirname(bp)
-    if not os.path.isdir(bp_dir):
-        continue
-    bp_tmp = bp + ".tmp"
-    try:
-        with open(bp_tmp, "w") as f:
-            f.write(patched_content)
-        os.replace(bp_tmp, bp)
-        print("Rolling backup patched: " + bp)
-    except PermissionError:
-        print("Warning: no write permission for " + bp + " — will retry with sudo", file=sys.stderr)
-        sys.exit(2)
-    except Exception as e:
-        print("Warning: could not patch backup " + bp + ": " + str(e), file=sys.stderr)
-PYEOF
-    then
-        ok "panel_widgets patched in ${settings}"
-    else
-        local py_exit=$?
-        if [ "$py_exit" -eq 2 ]; then
-            # /var/lib/helixscreen/ is root-owned; retry that path with sudo
-            info "Patching /var/lib/helixscreen/settings.json with sudo..."
-            if [ -d /var/lib/helixscreen ]; then
-                local patched_content
-                patched_content=$(python3 -c "
-import json, sys
-with open('${settings}') as f:
-    s = json.load(f)
-print(json.dumps(s, indent=2))
-")
-                printf '%s\n' "$patched_content" | sudo tee /var/lib/helixscreen/settings.json > /dev/null \
-                    && ok "Rolling backup patched: /var/lib/helixscreen/settings.json" \
-                    || warn "Could not patch /var/lib/helixscreen/settings.json — auto-restore may undo layout"
-            fi
-        else
-            err "Python patch script failed"
-            rm -f "$preset_tmp"
-            sudo systemctl start helixscreen
-            return 1
-        fi
-    fi
-
-    rm -f "$preset_tmp"
-
-    # Start helixscreen to pick up patched files
-    info "Starting helixscreen..."
-    if sudo systemctl start helixscreen; then
-        ok "helixscreen started — dashboard layout applied"
-    else
-        err "helixscreen start failed — check: sudo systemctl status helixscreen"
+    if [ ! -f "$CANONICAL" ]; then
+        err "settings.json not found at ${CANONICAL}"
+        sudo systemctl start helixscreen
         return 1
     fi
+    if ! python3 -c "import json,sys; json.load(sys.stdin)" < "$CANONICAL" 2>/dev/null; then
+        err "settings.json is not valid JSON — cannot patch"
+        sudo systemctl start helixscreen
+        return 1
+    fi
+
+    python3 <<'PYEOF'
+import json, os, sys, tempfile, subprocess
+
+CANONICAL = "/home/mks/printer_data/config/helixscreen/settings.json"
+BACKUP2   = "/home/mks/.helixscreen/settings.json"
+BACKUP1   = "/var/lib/helixscreen/settings.json"
+
+DESIRED_BY_ID = {
+  "printer_image":       {"col": 2,  "colspan": 2, "enabled": True,  "row": 0,  "rowspan": 2},
+  "print_status":        {"col": 0,  "colspan": 2, "enabled": True,  "row": 2,  "rowspan": 2},
+  "tips":                {"col": -1, "colspan": 2, "enabled": False, "row": -1, "rowspan": 2},
+  "temperature":         {"col": 2,  "colspan": 1, "enabled": True,  "row": 2,  "rowspan": 1},
+  "shutdown":            {"col": 5,  "colspan": 1, "enabled": False, "row": 3,  "rowspan": 1},
+  "lock":                {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
+  "power_device":        {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
+  "network":             {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
+  "firmware_restart":    {"col": 4,  "colspan": 1, "enabled": True,  "row": 1,  "rowspan": 1},
+  "ams":                 {"col": 2,  "colspan": 4, "enabled": True,  "row": 3,  "rowspan": 1},
+  "tool_switcher":       {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
+  "led":                 {"col": 4,  "colspan": 1, "enabled": True,  "row": 0,  "rowspan": 1},
+  "led_controls":        {"col": 5,  "colspan": 1, "enabled": False, "row": 0,  "rowspan": 1},
+  "fan_stack":           {"col": 5,  "colspan": 1, "enabled": True,  "row": 2,  "rowspan": 1},
+  "fan":                 {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
+  "nozzle_temps":        {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
+  "temp_stack":          {"col": 3,  "colspan": 1, "enabled": False, "row": 3,  "rowspan": 1},
+  "thermistor":          {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
+  "temp_graph":          {"col": -1, "colspan": 2, "enabled": False, "row": -1, "rowspan": 2},
+  "preheat":             {"col": 0,  "colspan": 2, "enabled": False, "row": 1,  "rowspan": 1,
+                          "config": {"material_index": 3}},
+  "active_spool":        {"col": 4,  "colspan": 1, "enabled": False, "row": 2,  "rowspan": 1},
+  "filament":            {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
+  "humidity":            {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
+  "width_sensor":        {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
+  "favorite_macro":      {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
+  "macros":              {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
+  "motion":              {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
+  "clock":               {"col": 0,  "colspan": 2, "enabled": True,  "row": 0,  "rowspan": 1},
+  "job_queue":           {"col": -1, "colspan": 2, "enabled": False, "row": -1, "rowspan": 2},
+  "clog_detection":      {"col": 0,  "colspan": 2, "enabled": True,  "row": 1,  "rowspan": 1},
+  "print_stats":         {"col": -1, "colspan": 2, "enabled": False, "row": -1, "rowspan": 2},
+  "gcode_console":       {"col": 5,  "colspan": 1, "enabled": True,  "row": 1,  "rowspan": 1},
+  "camera":              {"col": -1, "colspan": 2, "enabled": False, "row": -1, "rowspan": 2},
+  "notifications":       {"col": 5,  "colspan": 1, "enabled": True,  "row": 0,  "rowspan": 1},
+  "bed_temperature":     {"col": 3,  "colspan": 1, "enabled": True,  "row": 2,  "rowspan": 1},
+  "chamber_temperature": {"col": 4,  "colspan": 1, "enabled": True,  "row": 2,  "rowspan": 1},
+  "control_buttons":     {"col": -1, "colspan": 2, "enabled": False, "row": -1, "rowspan": 1},
+}
+
+def check_no_dups(path):
+    def hook(pairs):
+        d = {}
+        for k, v in pairs:
+            if k in d:
+                raise ValueError(f"Duplicate key: {k!r}")
+            d[k] = v
+        return d
+    json.load(open(path), object_pairs_hook=hook)
+
+def write_direct(path, content):
+    """Write directly, following symlinks. Never use os.replace() — it breaks symlinks."""
+    with open(path, "w") as f:
+        f.write(content)
+
+# Load and validate
+check_no_dups(CANONICAL)
+with open(CANONICAL) as f:
+    settings = json.load(f)
+
+# Patch in-place: update each existing widget's fields from DESIRED_BY_ID
+widgets = settings["printers"]["default"]["panel_widgets"]["home"]["pages"][0]["widgets"]
+updated = 0
+for w in widgets:
+    if w["id"] in DESIRED_BY_ID:
+        for k, v in DESIRED_BY_ID[w["id"]].items():
+            w[k] = v
+        updated += 1
+print(f"Updated {updated}/{len(widgets)} widgets")
+
+content = json.dumps(settings, indent=2) + "\n"
+
+# Validate output before writing
+tf_path = None
+try:
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as tf:
+        tf.write(content)
+        tf_path = tf.name
+    check_no_dups(tf_path)
+except ValueError as e:
+    print(f"ABORT: output has duplicate keys: {e}", file=sys.stderr)
+    sys.exit(1)
+finally:
+    if tf_path:
+        try: os.unlink(tf_path)
+        except: pass
+
+# Write all three locations
+write_direct(CANONICAL, content)
+print(f"OK {CANONICAL}")
+
+write_direct(BACKUP2, content)
+print(f"OK {BACKUP2}")
+
+# /var/lib is root-owned — sudo sh -c 'cat >' is the only reliable method
+result = subprocess.run(
+    ["sudo", "sh", "-c", f"cat > {BACKUP1}"],
+    input=content, text=True
+)
+if result.returncode == 0:
+    print(f"OK {BACKUP1}")
+else:
+    print(f"WARNING: could not write {BACKUP1} — layout will apply but may revert on next "
+          f"HelixScreen update", file=sys.stderr)
+PYEOF
+
+    if [ $? -ne 0 ]; then
+        err "Dashboard layout patch failed"
+        sudo systemctl start helixscreen
+        return 1
+    fi
+
+    sudo systemctl start helixscreen
+    ok "HelixScreen dashboard layout applied"
 }
 
 # ---------- install: BunnyBox (shared core + display choice) ---------
@@ -5142,6 +5159,7 @@ _install_bunnybox() {
               "${HELIX_CONFIG_DIR}/settings.json" || return 1
         ok "HelixScreen preset applied (qiauh_q2)"
         switch_display_to_helixscreen
+        apply_helixscreen_dashboard_layout
 
         fix_known_klipper_conflicts
 
