@@ -4868,8 +4868,8 @@ fix_known_klipper_conflicts() {
 
 # ---------- helixscreen: patch dashboard layout ----------------------
 apply_helixscreen_dashboard_layout() {
-    local CANONICAL="/home/mks/printer_data/config/helixscreen/settings.json"
-    local BACKUP2="/home/mks/.helixscreen/settings.json"
+    local CANONICAL="${HELIX_CONFIG_DIR}/settings.json"
+    local BACKUP2="${AIO_HOME}/.helixscreen/settings.json"
     local BACKUP1="/var/lib/helixscreen/settings.json"
 
     sudo systemctl stop helixscreen
@@ -4885,12 +4885,15 @@ apply_helixscreen_dashboard_layout() {
         return 1
     fi
 
+    HELIX_SETTINGS="$CANONICAL" \
+    HELIX_BACKUP2="$BACKUP2" \
+    HELIX_BACKUP1="$BACKUP1" \
     python3 <<'PYEOF'
 import json, os, sys, tempfile, subprocess
 
-CANONICAL = "/home/mks/printer_data/config/helixscreen/settings.json"
-BACKUP2   = "/home/mks/.helixscreen/settings.json"
-BACKUP1   = "/var/lib/helixscreen/settings.json"
+CANONICAL = os.environ["HELIX_SETTINGS"]
+BACKUP2   = os.environ["HELIX_BACKUP2"]
+BACKUP1   = os.environ["HELIX_BACKUP1"]
 
 DESIRED_BY_ID = {
   "printer_image":       {"col": 2,  "colspan": 2, "enabled": True,  "row": 0,  "rowspan": 2},
@@ -5159,7 +5162,23 @@ _install_bunnybox() {
               "${HELIX_CONFIG_DIR}/settings.json" || return 1
         ok "HelixScreen preset applied (qiauh_q2)"
         switch_display_to_helixscreen
-        apply_helixscreen_dashboard_layout
+        # Wait for HelixScreen to generate settings.json before patching
+        local _waited=0
+        info "Waiting for HelixScreen to generate settings.json..."
+        while [ "$_waited" -lt 30 ]; do
+            if [ -s "${HELIX_CONFIG_DIR}/settings.json" ] && \
+               python3 -c "import json,sys; json.load(sys.stdin)" \
+                        < "${HELIX_CONFIG_DIR}/settings.json" 2>/dev/null; then
+                break
+            fi
+            sleep 2
+            _waited=$((_waited + 2))
+        done
+        if [ ! -s "${HELIX_CONFIG_DIR}/settings.json" ]; then
+            warn "settings.json did not appear after 30s — skipping dashboard layout patch"
+        else
+            apply_helixscreen_dashboard_layout
+        fi
 
         fix_known_klipper_conflicts
 

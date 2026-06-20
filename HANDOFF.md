@@ -8,6 +8,21 @@ After reverting from BunnyBox, T0–T3 and UNLOAD_T0-T3 buttons in OrcaSlicer do
 
 ---
 
+## RC2.43 — Fix `apply_helixscreen_dashboard_layout()` path hardcoding + race condition (branch: `claude/focused-dirac-yb1582`)
+
+### What changed
+
+- **`apply_helixscreen_dashboard_layout()` path hardcoding removed** — replaced `local CANONICAL="/home/mks/printer_data/config/helixscreen/settings.json"` with `local CANONICAL="${HELIX_CONFIG_DIR}/settings.json"` and `local BACKUP2` now uses `${AIO_HOME}/.helixscreen/settings.json`. `/var/lib/helixscreen/settings.json` remains hardcoded (systemd `StateDirectory`, user-invariant).
+- **Python heredoc paths de-hardcoded** — paths passed via env vars (`HELIX_SETTINGS`, `HELIX_BACKUP2`, `HELIX_BACKUP1`) and read with `os.environ` inside the heredoc. No `/home/mks/` strings remain in the Python block.
+- **Race condition fixed in install flow** — added a 30-second wait loop between `switch_display_to_helixscreen` and `apply_helixscreen_dashboard_layout` in `install_bunnybox_helixscreen()`. Polls `${HELIX_CONFIG_DIR}/settings.json` every 2 seconds until it exists and is valid JSON. If not ready after 30s, logs a warning and skips the layout patch rather than failing. The wait loop is in the install flow only — Testing submenu option 10 still calls `apply_helixscreen_dashboard_layout` directly (HelixScreen already running there).
+
+### Root causes
+
+1. Pre-migration installs have `settings.json` at `~/helixscreen/config/settings.json` (no symlink to `printer_data`). The hardcoded `printer_data` path doesn't exist on those systems.
+2. `switch_display_to_helixscreen` issues `systemctl restart` and returns immediately. HelixScreen hadn't had time to generate or migrate `settings.json` before `apply_helixscreen_dashboard_layout` checked for it.
+
+---
+
 ## RC2.43 — HANDOFF.md restructure + process fix (branch: `claude/vibrant-mayer-hkdfgt`, PR #36)
 
 ### What changed
