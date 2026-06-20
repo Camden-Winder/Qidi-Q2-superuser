@@ -204,6 +204,16 @@ Every session that modifies `aio_menu.sh` or bumps `AIO_VERSION` **must** update
 ...
 ```
 
+## RC2.47 — What's In It
+
+- `AIO_VERSION='RC2.47'`
+- **New `F)` main-menu option: "01.01.02+ / qidi firmware"** — routes to `q2_112_submenu()`, a dedicated submenu for firmware 01.01.02+ users who cannot use options 1–3 (blocked by layout guard).
+- **`install_jfp_q2_112()`** — installs Just Faster Printer on q2_112: writes `gcode_macro-JustFasterPrinter.cfg` to `${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg` (picked up by the existing `[include klipper-macros-qd/*.cfg]` glob), installs KAMP files to `${CONFIG_DIR}/KAMP/`, and patches `printer.cfg` in-place to add `[include KAMP/KAMP_Settings.cfg]` only if absent. Never overwrites `printer.cfg`.
+- **`install_jfb_q2_112()`** — same as above but fetches `gcode_macro-JustFasterBox.cfg` for Qidi Box users.
+- **`preflight_q2_112()`** — network-only preflight that skips the mutation layout guard; keeps network, config dir, and force_move checks from `preflight()`.
+- **`q2_112_submenu()`** — submenu with layout guard (rejects non-q2_112 callers), JFP install, JFB install, Revert to Backup (delegates to existing `revert_to_backup()` which is already layout-aware), and layout report.
+- **No existing functions modified** — `preflight()`, `install_just_faster()`, `install_just_faster_box()`, `install_bunnybox_helixscreen()`, `require_supported_firmware_layout()` all untouched.
+
 ## RC2.45 — What's In It
 
 - `AIO_VERSION='RC2.45'`

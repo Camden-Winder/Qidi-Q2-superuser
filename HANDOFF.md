@@ -6,6 +6,24 @@ None.
 
 ---
 
+## RC2.47 — Add 01.01.02+ / qidi firmware submenu (branch: `claude/ecstatic-tesla-zyuqek`)
+
+### What changed
+
+- **New `F)` main-menu option** routes to `q2_112_submenu()` for firmware 01.01.02+ users (previously blocked by layout guard on all install paths).
+- **`preflight_q2_112()`** — network-only preflight; skips the mutation layout guard; keeps network, config dir, and force_move checks.
+- **`install_jfp_q2_112()`** — Just Faster Printer for q2_112: writes macro to `klipper-macros-qd/gcode_macro.cfg`, installs KAMP files, patches `printer.cfg` in-place. Never overwrites `printer.cfg`.
+- **`install_jfb_q2_112()`** — same as above for Just Faster Box (`gcode_macro-JustFasterBox.cfg`).
+- **`q2_112_submenu()`** — guarded submenu with JFP, JFB, Revert to Backup (delegates to existing `revert_to_backup()` which is layout-aware), and layout report.
+- **No existing functions modified** — all legacy_mks code paths untouched.
+- **`AIO_VERSION` bumped to `RC2.47`**
+
+### Root cause (issue #17)
+
+Firmware 01.01.02+ made `/home/mks` a root-owned symlink to `/home/qidi`; writes as `mks` fail. The new q2_112 submenu targets `/home/qidi` directly via `AIO_HOME` and never touches `printer.cfg` wholesale.
+
+---
+
 ## RC2.46 — Repo cleanup & documentation pass (branch: `claude/determined-allen-46bm3f`)
 
 ### What changed
