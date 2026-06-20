@@ -2,9 +2,7 @@
 
 ## Known Issues (carry-forward)
 
-### Problem B: T0–T3 / UNLOAD_T0-T3 not restored on BunnyBox uninstall
-
-After reverting from BunnyBox, T0–T3 and UNLOAD_T0-T3 buttons in OrcaSlicer do nothing. These macros live in `box1.cfg` on the printer. They are disabled by `fix_known_klipper_conflicts()` in `aio_menu.sh` using a `## AIO_DISABLED:` prefix when BunnyBox/Happy Hare is active. `restore_aio_disabled_macros()` is supposed to reverse this on uninstall but likely has a bug that causes it to miss these macros. Do not fix without explicit instructions.
+None.
 
 ---
 
