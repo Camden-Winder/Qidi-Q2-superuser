@@ -1,0 +1,13 @@
+services:
+  octoapp-plugin:
+    image: ghcr.io/crysxd/octoapp-plugin:latest
+    environment:
+        # Required - The IP address of the Klipper/Moonraker/Webserver/Printer
+        # Remove the # from the line below and replace XXX.XXX.XXX.XXX with your printer's IP address
+        - PRINTER_IP=XXX.XXX.XXX.XXX
+
+        # Optional Settings
+        - TZ=America/New_York
+
+    volumes:
+      - ./data:/data
