@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.46'
+AIO_VERSION='RC2.47'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -1592,6 +1592,133 @@ preflight() {
 
     ok "Pre-flight complete"
     return 0
+}
+
+# Preflight for q2_112 installs. Skips the mutation layout guard —
+# the q2_112 submenu functions handle their own layout scoping.
+# All other checks (network, config dir, force_move) still apply.
+preflight_q2_112() {
+    banner "Pre-flight checks (01.01.02+ / qidi layout)"
+    if ! curl --fail --silent --head --max-time 10 \
+         'https://raw.githubusercontent.com' >/dev/null 2>&1; then
+        err "Cannot reach raw.githubusercontent.com"
+        err "Check your network connection and try again."
+        return 1
+    fi
+    ok "Network connectivity"
+    if [ ! -d "$CONFIG_DIR" ]; then
+        err "Config directory not found: $CONFIG_DIR"
+        err "Is this a Qidi Q2 running Klipper?"
+        return 1
+    fi
+    ok "Config directory: $CONFIG_DIR"
+    if [ -f "${CONFIG_DIR}/printer.cfg" ]; then
+        if grep -q 'enable_force_move.*True' "${CONFIG_DIR}/printer.cfg" 2>/dev/null; then
+            ok "force_move enabled in printer.cfg"
+        else
+            warn "force_move not found in printer.cfg (spool rotation may not work)"
+        fi
+    fi
+    ok "Pre-flight complete"
+    return 0
+}
+
+install_jfp_q2_112() {
+    banner "Install: Just Faster Printer (01.01.02+ / qidi layout)"
+    preflight_q2_112 || { press_enter; return 1; }
+    do_backup        || { press_enter; return 1; }
+    local macro_dest="${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg"
+    local printer_cfg="${CONFIG_DIR}/printer.cfg"
+    local kamp_include="[include KAMP/KAMP_Settings.cfg]"
+    info "Writing macro file → klipper-macros-qd/gcode_macro.cfg"
+    fetch "${REPO_BASE}/macros/gcode_macro-JustFasterPrinter.cfg" \
+          "$macro_dest" || { press_enter; return 1; }
+    ok "gcode_macro.cfg installed to klipper-macros-qd/"
+    info "Applying KAMP settings..."
+    mkdir -p "${CONFIG_DIR}/KAMP"
+    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
+    ok "KAMP files installed to ${CONFIG_DIR}/KAMP/"
+    if ! grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
+        info "Patching printer.cfg: adding KAMP include"
+        python3 - "$printer_cfg" "$kamp_include" <<'PYEOF'
+import sys, re
+path, line_to_add = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    content = f.read()
+if line_to_add in content:
+    sys.exit(0)
+patched = re.sub(r'(\[include )', line_to_add + '\n' + r'\1', content, count=1)
+with open(path, 'w') as f:
+    f.write(patched)
+PYEOF
+        ok "KAMP include added to printer.cfg"
+    else
+        info "KAMP include already present in printer.cfg — skipping"
+    fi
+    banner "Install complete"
+    cat <<EOF
+${C_BOLD}Just Faster Printer applied (01.01.02+ mode).${C_RESET}
+  Macros written to: ${macro_dest}
+  KAMP files:        ${CONFIG_DIR}/KAMP/
+${C_BOLD}Next steps:${C_RESET}
+  1. FIRMWARE_RESTART (Klipper console or stock screen)
+  2. sudo reboot
+  3. Run a bed level + screws_tilt_adjust before your first print.
+Config snapshot: ${SNAPSHOT_DIR}
+EOF
+    press_enter
+}
+
+install_jfb_q2_112() {
+    banner "Install: Just Faster Box (01.01.02+ / qidi layout)"
+    preflight_q2_112 || { press_enter; return 1; }
+    do_backup        || { press_enter; return 1; }
+    local macro_dest="${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg"
+    local printer_cfg="${CONFIG_DIR}/printer.cfg"
+    local kamp_include="[include KAMP/KAMP_Settings.cfg]"
+    info "Writing macro file → klipper-macros-qd/gcode_macro.cfg"
+    fetch "${REPO_BASE}/macros/gcode_macro-JustFasterBox.cfg" \
+          "$macro_dest" || { press_enter; return 1; }
+    ok "gcode_macro.cfg installed to klipper-macros-qd/"
+    info "Applying KAMP settings..."
+    mkdir -p "${CONFIG_DIR}/KAMP"
+    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
+    ok "KAMP files installed to ${CONFIG_DIR}/KAMP/"
+    if ! grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
+        info "Patching printer.cfg: adding KAMP include"
+        python3 - "$printer_cfg" "$kamp_include" <<'PYEOF'
+import sys, re
+path, line_to_add = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    content = f.read()
+if line_to_add in content:
+    sys.exit(0)
+patched = re.sub(r'(\[include )', line_to_add + '\n' + r'\1', content, count=1)
+with open(path, 'w') as f:
+    f.write(patched)
+PYEOF
+        ok "KAMP include added to printer.cfg"
+    else
+        info "KAMP include already present in printer.cfg — skipping"
+    fi
+    banner "Install complete"
+    cat <<EOF
+${C_BOLD}Just Faster Box applied (01.01.02+ mode).${C_RESET}
+  Macros written to: ${macro_dest}
+  KAMP files:        ${CONFIG_DIR}/KAMP/
+${C_BOLD}Next steps:${C_RESET}
+  1. FIRMWARE_RESTART (Klipper console or stock screen)
+  2. sudo reboot
+  3. Run a bed level + screws_tilt_adjust before your first print.
+Config snapshot: ${SNAPSHOT_DIR}
+EOF
+    press_enter
 }
 
 # Returns the path to the AIO persistent state directory inside BACKUP_ROOT.
@@ -5526,6 +5653,50 @@ show_status_line() {
     printf '  Firmware: %b\n' "$firmware_status"
 }
 
+q2_112_submenu() {
+    if [ "$AIO_LAYOUT" != "q2_112" ]; then
+        err "This submenu is only available on firmware 01.01.02+ (qidi layout)."
+        err "Detected layout: ${AIO_LAYOUT_NAME}"
+        press_enter
+        return 0
+    fi
+    while true; do
+        clear 2>/dev/null || true
+        printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
+        printf '%s   01.01.02+ / qidi firmware%s\n'                "$C_BOLD$C_MAGENTA" "$C_RESET"
+        printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
+        printf '  Layout: %s\n' "$AIO_LAYOUT_NAME"
+        printf '  Home:   %s\n' "$AIO_HOME"
+        printf '%s--------------------------------------------%s\n' "$C_BOLD" "$C_RESET"
+        printf '  %sINSTALL%s\n' "$C_BOLD$C_GREEN" "$C_RESET"
+        printf '   %s1)%s Just Faster Printer   (no Box)\n'          "$C_CYAN" "$C_RESET"
+        printf '   %s2)%s Just Faster Box        (with Qidi Box, no BunnyBox)\n' "$C_CYAN" "$C_RESET"
+        printf '  %sUNINSTALL%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
+        printf '   %s3)%s Revert to Backup       (full uninstall + restore stock)\n' "$C_CYAN" "$C_RESET"
+        printf '  %sINFO%s\n' "$C_BOLD$C_CYAN" "$C_RESET"
+        printf '   %s4)%s Show layout report\n'                       "$C_CYAN" "$C_RESET"
+        printf '   %s0)%s Back\n'                                      "$C_CYAN" "$C_RESET"
+        printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
+        printf '%sEnter selection:%s ' "$C_BOLD" "$C_RESET"
+        local choice
+        read -r choice </dev/tty || return 0
+        case "$choice" in
+            1) install_jfp_q2_112 ;;
+            2) install_jfb_q2_112 ;;
+            3)
+                warn "Revert to Backup will restore configs from ${SNAPSHOT_DIR}/."
+                if confirm "Proceed with full revert?"; then
+                    revert_to_backup
+                    press_enter
+                fi
+                ;;
+            4) show_layout_report; press_enter ;;
+            0|q|Q|back) return 0 ;;
+            *) err "Invalid selection: '$choice'"; sleep 1 ;;
+        esac
+    done
+}
+
 draw_menu() {
     clear 2>/dev/null || true
     printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
@@ -5547,6 +5718,8 @@ draw_menu() {
     printf '   %s8)%s Health Check / Run Verifiers\n'                             "$C_CYAN" "$C_RESET"
     printf '  %sTESTING%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
     printf '   %s9)%s Testing\n' "$C_CYAN" "$C_RESET"
+    printf '  %sFIRMWARE%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
+    printf '   %sF)%s 01.01.02+ / qidi firmware\n' "$C_CYAN" "$C_RESET"
     printf '   %s0)%s Exit\n'                                                    "$C_CYAN" "$C_RESET"
     printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
     printf '%sEnter selection:%s ' "$C_BOLD" "$C_RESET"
@@ -5696,6 +5869,7 @@ main_loop() {
                 fi
                 ;;
             9) testing_submenu ;;
+            F|f) q2_112_submenu ;;
             0|q|Q|exit) info "Bye."; exit 0 ;;
             *) err "Invalid selection: '$choice'"; sleep 1 ;;
         esac
