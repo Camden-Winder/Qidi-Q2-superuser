@@ -107,6 +107,7 @@ Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
 6. **Do not run `aio_menu.sh` as root** — the script self-enforces this.
 7. **`sudo tee` pattern for writing files with elevated perms**, never `echo > file` with sudo.
 8. **Use `banner`, `info`, `warn`, `ok`, `err` helpers** — never raw `echo` in installer logic.
+9. **AIO menu options must always be numbers** — never letters or other characters.
 
 ## Install-Function Conventions
 

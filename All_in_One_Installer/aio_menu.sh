@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.40'
+AIO_VERSION='RC2.41'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -4866,6 +4866,80 @@ fix_known_klipper_conflicts() {
     ok "Conflict resolution complete — FIRMWARE_RESTART to apply"
 }
 
+# ---------- helixscreen: patch dashboard layout ----------------------
+apply_helixscreen_dashboard_layout() {
+    local settings="${HELIX_CONFIG_DIR}/settings.json"
+    local preset_tmp="/tmp/helix_preset_tmp.json"
+
+    # Wait up to 30s for settings.json to exist and be valid JSON
+    info "Waiting for HelixScreen to generate settings.json..."
+    local waited=0
+    while [ "$waited" -lt 30 ]; do
+        if [ -s "$settings" ]; then
+            if python3 -c "import json,sys; json.load(sys.stdin)" < "$settings" 2>/dev/null; then
+                break
+            fi
+        fi
+        sleep 2
+        waited=$((waited + 2))
+    done
+    if ! ([ -s "$settings" ] && python3 -c "import json,sys; json.load(sys.stdin)" < "$settings" 2>/dev/null); then
+        err "settings.json did not appear or is not valid JSON after ${waited}s"
+        return 1
+    fi
+    info "settings.json is ready"
+
+    # Fetch preset and validate
+    info "Fetching helixscreen_preset.json..."
+    if ! curl -fsSL "${REPO_BASE}/helixscreen_preset.json" -o "$preset_tmp"; then
+        err "Failed to download helixscreen_preset.json"
+        return 1
+    fi
+    if [ ! -s "$preset_tmp" ]; then
+        err "Downloaded helixscreen_preset.json is empty"
+        rm -f "$preset_tmp"; return 1
+    fi
+    if ! python3 -c "import json,sys; json.load(sys.stdin)" < "$preset_tmp" 2>/dev/null; then
+        err "helixscreen_preset.json is not valid JSON"
+        rm -f "$preset_tmp"; return 1
+    fi
+
+    # Patch panel_widgets atomically via Python
+    if python3 - "$settings" "$preset_tmp" <<'PYEOF'
+import json, sys, os
+settings_path = sys.argv[1]
+preset_path   = sys.argv[2]
+with open(settings_path) as f:
+    settings = json.load(f)
+with open(preset_path) as f:
+    preset = json.load(f)
+settings["printers"]["default"]["panel_widgets"] = \
+    preset["printers"]["default"]["panel_widgets"]
+tmp = settings_path + ".tmp"
+with open(tmp, "w") as f:
+    json.dump(settings, f, indent=2)
+os.replace(tmp, settings_path)
+print("panel_widgets patched successfully")
+PYEOF
+    then
+        ok "panel_widgets patched in ${settings}"
+    else
+        err "Python patch script failed"
+        rm -f "$preset_tmp"; return 1
+    fi
+
+    rm -f "$preset_tmp"
+
+    # Restart helixscreen to pick up patched file
+    info "Restarting helixscreen..."
+    if sudo systemctl restart helixscreen; then
+        ok "helixscreen restarted — dashboard layout applied"
+    else
+        err "helixscreen restart failed — check: sudo systemctl status helixscreen"
+        return 1
+    fi
+}
+
 # ---------- install: BunnyBox (shared core + display choice) ---------
 _install_bunnybox() {
     banner "Install: BunnyBox & HelixScreen (Q2 with Qidi Box)"
@@ -5453,6 +5527,8 @@ testing_submenu() {
         printf '   %s7)%s 1.1.2 Present-Path Restore Proof     (controlled systemd path)\n' "$C_CYAN" "$C_RESET"
         printf '   %s8)%s 1.1.2 Klipper Extras Restore Proof    (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
         printf '   %s9)%s 1.1.2 Moonraker Components Proof      (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
+        printf '  %sHELIXSCREEN%s\n' "$C_BOLD$C_CYAN" "$C_RESET"
+        printf '   %s10)%s Patch HelixScreen Dashboard Layout  (patches panel_widgets in live settings.json)\n' "$C_CYAN" "$C_RESET"
         printf '   %s0)%s Back\n' "$C_CYAN" "$C_RESET"
         printf '%s============================================%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
         printf '%sEnter selection:%s ' "$C_BOLD" "$C_RESET"
@@ -5496,6 +5572,7 @@ testing_submenu() {
             7) menu_q2_112_present_path_restore_proof ;;
             8) menu_q2_112_klipper_extras_restore_proof ;;
             9) menu_q2_112_moonraker_components_restore_proof ;;
+            10) apply_helixscreen_dashboard_layout; press_enter ;;
             0|q|Q|back) return 0 ;;
             *) err "Invalid selection: '$choice'"; sleep 1 ;;
         esac
