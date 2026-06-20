@@ -7,6 +7,16 @@
 
 ---
 
+## Wiki-RC1.01 — Move wiki to GitHub Wiki tab
+
+- Branch: `claude/wiki-rc1-push`
+- Wiki content pushed to `Qidi-Q2-superuser.wiki.git` (GitHub Wiki tab)
+- `wiki/` folder removed from main repo
+- README links updated to point to `github.com/.../wiki/` URLs
+- WIKI_VERSION bumped to Wiki-RC1.01 in Home.md
+
+---
+
 ## Wiki-RC1.0 — Wiki creation & repo restructure
 
 - Branch: `claude/kind-albattani-0lgk38`

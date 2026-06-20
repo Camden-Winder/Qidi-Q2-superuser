@@ -8,8 +8,8 @@ Everything I use to turn a stock Qidi Q2 or Qidi Max 4 into a faster, cleaner, m
 
 | Printer | Wiki |
 |---|---|
-| Qidi Q2 | [Q2 Install Guide](wiki/Q2-Install-Guide.md) |
-| Qidi Max 4 | [Max 4 Install Guide](wiki/Max4-Install-Guide.md) |
+| Qidi Q2 | [Q2 Install Guide](https://github.com/Camden-Winder/Qidi-Q2-superuser/wiki/Q2-Install-Guide) |
+| Qidi Max 4 | [Max 4 Install Guide](https://github.com/Camden-Winder/Qidi-Q2-superuser/wiki/Max4-Install-Guide) |
 
 ---
 
@@ -25,7 +25,7 @@ Everything I use to turn a stock Qidi Q2 or Qidi Max 4 into a faster, cleaner, m
 
 ## Full Documentation
 
-[wiki/Home.md](wiki/Home.md)
+[GitHub Wiki](https://github.com/Camden-Winder/Qidi-Q2-superuser/wiki)
 
 ---
 
