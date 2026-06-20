@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.42'
+AIO_VERSION='RC2.43'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {

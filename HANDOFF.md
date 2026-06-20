@@ -1,5 +1,37 @@
 # Session Handoff — Qidi Q2 Superuser AIO
 
+## RC2.42 — HelixScreen Dashboard Layout: Final Working Implementation (current branch: `claude/vibrant-mayer-hkdfgt`, PR #36)
+
+### What was done
+
+Three changes in one commit (PR #36):
+
+1. **`apply_helixscreen_dashboard_layout()` fully replaced** in `aio_menu.sh`:
+   - Stops HelixScreen at the top before touching any files
+   - Validates canonical path (`/home/mks/printer_data/config/helixscreen/settings.json`) is present and valid JSON before proceeding
+   - Python patch updates widgets **in-place** from `DESIRED_BY_ID` dict (preserves unknown widget keys HelixScreen may store)
+   - Uses `open(path, 'w')` directly — never `os.replace()`, which replaces the symlink inode instead of writing through it
+   - Validates for duplicate keys before and after patch (guards against nlohmann C++ parser rejecting the file)
+   - Writes all three locations: canonical, `~/.helixscreen/settings.json`, `/var/lib/helixscreen/settings.json` (root-owned, written via `sudo sh -c 'cat >'`)
+   - Starts HelixScreen at the end; aborts cleanly and starts HelixScreen if Python fails
+
+2. **`apply_helixscreen_dashboard_layout()` called from `install_bunnybox_helixscreen()`** immediately after `switch_display_to_helixscreen`. The function handles its own stop/start, so the restart from `switch_display_to_helixscreen` is superseded safely.
+
+3. **`Q2/helixscreen_preset.json` `panel_widgets` updated** to match the final desired layout: `clog_detection` enabled at row 1, `chamber_temperature` added, `ams` colspan 4, `notifications` at row 0, `led` at col 4 row 0, various other corrections from the stale RC2.40 values.
+
+### Root causes that were discovered and fixed (from RC2.41 failures)
+
+- `os.replace()` replaces the symlink inode — writes went to the wrong real file
+- Duplicate keys in settings.json from RC2.40's corrupt write caused nlohmann C++ parser to reject the file and trigger backup restore
+- `/var/lib/helixscreen/` is root-owned mode 0700; `sudo cp` didn't work; `sudo sh -c 'cat >'` does
+- Patching only the canonical path while leaving rolling backups intact meant every restart restored the old layout
+
+### Known Issue (unfixed) — Problem B: T0–T3 / UNLOAD_T0-T3 not restored on uninstall
+
+After reverting from BunnyBox, T0–T3 and UNLOAD_T0-T3 buttons in OrcaSlicer do nothing. Root cause suspected in `restore_aio_disabled_macros()` in `aio_menu.sh`. Do not fix without explicit instructions.
+
+---
+
 ## RC2.42 — HelixScreen Dashboard Layout: Rolling Backup Patch (current branch: `claude/cool-ritchie-0wkhiu`)
 
 ### Problem fixed
