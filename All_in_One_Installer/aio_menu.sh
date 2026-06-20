@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.44'
+AIO_VERSION='RC2.45'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -4870,7 +4870,7 @@ fix_known_klipper_conflicts() {
 apply_helixscreen_dashboard_layout() {
     local CANONICAL="${HELIX_CONFIG_DIR}/settings.json"
     local BACKUP2="${AIO_HOME}/.helixscreen/settings.json"
-    local BACKUP1="/var/lib/helixscreen/settings.json"
+    local BACKUP1="/var/lib/helixscreen/settings.json.backup"
 
     sudo systemctl stop helixscreen
 
@@ -4987,8 +4987,12 @@ finally:
 write_direct(CANONICAL, content)
 print(f"OK {CANONICAL}")
 
-write_direct(BACKUP2, content)
-print(f"OK {BACKUP2}")
+backup2_dir = os.path.dirname(BACKUP2)
+if os.path.isdir(backup2_dir):
+    write_direct(BACKUP2, content)
+    print(f"OK  {BACKUP2}")
+else:
+    print(f"SKIP {BACKUP2} (directory does not exist — HelixScreen will create it on first save)")
 
 # /var/lib is root-owned — sudo sh -c 'cat >' is the only reliable method
 result = subprocess.run(
