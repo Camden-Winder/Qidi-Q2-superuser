@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.43'
+AIO_VERSION='RC2.44'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -5156,26 +5156,26 @@ _install_bunnybox() {
         fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || return 1
         ok "KAMP settings and sub-files applied to ${CONFIG_DIR}/KAMP/"
 
-        banner "Applying HelixScreen preset"
-        mkdir -p "$HELIX_CONFIG_DIR"
-        fetch "${REPO_BASE}/helixscreen_preset.json" \
-              "${HELIX_CONFIG_DIR}/settings.json" || return 1
-        ok "HelixScreen preset applied (qiauh_q2)"
         switch_display_to_helixscreen
-        # Wait for HelixScreen to generate settings.json before patching
-        local _waited=0
-        info "Waiting for HelixScreen to generate settings.json..."
-        while [ "$_waited" -lt 30 ]; do
-            if [ -s "${HELIX_CONFIG_DIR}/settings.json" ] && \
-               python3 -c "import json,sys; json.load(sys.stdin)" \
-                        < "${HELIX_CONFIG_DIR}/settings.json" 2>/dev/null; then
-                break
-            fi
-            sleep 2
-            _waited=$((_waited + 2))
+        info "HelixScreen is running its first-time setup wizard on the printer screen."
+        info "Please walk to the printer, complete the wizard, then return here."
+        printf '\n'
+        while true; do
+            printf '  Have you completed the HelixScreen startup wizard? [y/N]: '
+            read -r _wizard_done
+            case "$_wizard_done" in
+                y|Y|yes|YES) break ;;
+                *) info "Take your time — press y when done." ;;
+            esac
         done
-        if [ ! -s "${HELIX_CONFIG_DIR}/settings.json" ]; then
-            warn "settings.json did not appear after 30s — skipping dashboard layout patch"
+        if ! python3 - "${HELIX_CONFIG_DIR}/settings.json" 2>/dev/null <<'PYCHECK'
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert "panel_widgets" in d.get("printers", {}).get("default", {})
+PYCHECK
+        then
+            warn "settings.json does not yet have panel_widgets — skipping dashboard layout patch"
+            warn "Run Testing > option 10 after completing the HelixScreen wizard to apply the layout"
         else
             apply_helixscreen_dashboard_layout
         fi
