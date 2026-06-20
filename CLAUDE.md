@@ -187,6 +187,23 @@ Claude **must ask first** before:
 
 **When creating a PR:** post a comment on the PR explaining how Camden can manually test all new or changed features. Include specific menu paths to navigate, commands to run on the printer over SSH, and expected outcomes for each feature.
 
+### End-of-session requirements (always, no exceptions)
+
+Every session that modifies `aio_menu.sh` or bumps `AIO_VERSION` **must** update `HANDOFF.md` in the same commit (or a follow-up commit before the session ends):
+
+- Add a new `## <version> — <short title>` section **at the top of the RC log** (below the Known Issues section)
+- Include: current branch, PR number, what changed, and root causes if it was a bug fix
+- Do **not** include carry-forward known issues in the per-version section — those belong in the `## Known Issues (carry-forward)` section pinned at the very top of `HANDOFF.md`
+- The version heading must match `AIO_VERSION` in `aio_menu.sh`
+
+**`HANDOFF.md` structure:**
+```
+## Known Issues (carry-forward)      ← pinned at top, updated in-place
+## RC2.XX — <title>                  ← newest RC entry, added each session
+## RC2.XX-1 — <title>               ← previous entries below
+...
+```
+
 ## RC2.40 — What's In It
 
 - `AIO_VERSION='RC2.40'`

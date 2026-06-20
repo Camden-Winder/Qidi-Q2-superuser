@@ -1,6 +1,52 @@
 # Session Handoff — Qidi Q2 Superuser AIO
 
-## RC2.42 — HelixScreen Dashboard Layout: Rolling Backup Patch (current branch: `claude/cool-ritchie-0wkhiu`)
+## Known Issues (carry-forward)
+
+### Problem B: T0–T3 / UNLOAD_T0-T3 not restored on BunnyBox uninstall
+
+After reverting from BunnyBox, T0–T3 and UNLOAD_T0-T3 buttons in OrcaSlicer do nothing. These macros live in `box1.cfg` on the printer. They are disabled by `fix_known_klipper_conflicts()` in `aio_menu.sh` using a `## AIO_DISABLED:` prefix when BunnyBox/Happy Hare is active. `restore_aio_disabled_macros()` is supposed to reverse this on uninstall but likely has a bug that causes it to miss these macros. Do not fix without explicit instructions.
+
+---
+
+## RC2.43 — HANDOFF.md restructure + process fix (branch: `claude/vibrant-mayer-hkdfgt`, PR #36)
+
+### What changed
+
+- **`CLAUDE.md`** — added "End-of-session requirements" rule to the Autonomous-Session Policy section. Every session that bumps `AIO_VERSION` must update `HANDOFF.md` in the same commit. Carry-forward known issues now live in a single pinned section at the top of `HANDOFF.md` instead of being copied into every per-RC entry.
+- **`HANDOFF.md`** — restructured: `## Known Issues (carry-forward)` section added at top; T0–T3 known issue consolidated there and removed from all per-RC sections; RC2.43 entry added.
+- **`AIO_VERSION` bumped to `RC2.43`** (version bump only, no functional installer changes).
+
+---
+
+## RC2.42 — HelixScreen Dashboard Layout: Final Working Implementation (branch: `claude/vibrant-mayer-hkdfgt`, PR #36)
+
+### What was done
+
+Three changes in one commit (PR #36):
+
+1. **`apply_helixscreen_dashboard_layout()` fully replaced** in `aio_menu.sh`:
+   - Stops HelixScreen at the top before touching any files
+   - Validates canonical path (`/home/mks/printer_data/config/helixscreen/settings.json`) is present and valid JSON before proceeding
+   - Python patch updates widgets **in-place** from `DESIRED_BY_ID` dict (preserves unknown widget keys HelixScreen may store)
+   - Uses `open(path, 'w')` directly — never `os.replace()`, which replaces the symlink inode instead of writing through it
+   - Validates for duplicate keys before and after patch (guards against nlohmann C++ parser rejecting the file)
+   - Writes all three locations: canonical, `~/.helixscreen/settings.json`, `/var/lib/helixscreen/settings.json` (root-owned, written via `sudo sh -c 'cat >'`)
+   - Starts HelixScreen at the end; aborts cleanly and starts HelixScreen if Python fails
+
+2. **`apply_helixscreen_dashboard_layout()` called from `install_bunnybox_helixscreen()`** immediately after `switch_display_to_helixscreen`. The function handles its own stop/start, so the restart from `switch_display_to_helixscreen` is superseded safely.
+
+3. **`Q2/helixscreen_preset.json` `panel_widgets` updated** to match the final desired layout: `clog_detection` enabled at row 1, `chamber_temperature` added, `ams` colspan 4, `notifications` at row 0, `led` at col 4 row 0, various other corrections from the stale RC2.40 values.
+
+### Root causes that were discovered and fixed (from RC2.41 failures)
+
+- `os.replace()` replaces the symlink inode — writes went to the wrong real file
+- Duplicate keys in settings.json from RC2.40's corrupt write caused nlohmann C++ parser to reject the file and trigger backup restore
+- `/var/lib/helixscreen/` is root-owned mode 0700; `sudo cp` didn't work; `sudo sh -c 'cat >'` does
+- Patching only the canonical path while leaving rolling backups intact meant every restart restored the old layout
+
+---
+
+## RC2.42 — HelixScreen Dashboard Layout: Rolling Backup Patch (branch: `claude/cool-ritchie-0wkhiu`)
 
 ### Problem fixed
 
@@ -16,13 +62,9 @@ HelixScreen was rejecting the patched `settings.json` on restart, auto-restoring
   - Uses `systemctl start` (not `restart`) after the patch since we already stopped the service
 - **`AIO_VERSION` bumped to `RC2.42`**
 
-### Known Issue (unfixed) — Problem B: T0–T3 / UNLOAD_T0-T3 not restored on uninstall
-
-After reverting from BunnyBox, T0–T3 and UNLOAD_T0-T3 buttons in OrcaSlicer do nothing. Root cause suspected in `restore_aio_disabled_macros()` in `aio_menu.sh`. Do not fix in the next session without explicit instructions.
-
 ---
 
-## RC2.40 — HelixScreen Homescreen Preset Fix (current branch: `claude/beautiful-einstein-5mibrb`)
+## RC2.40 — HelixScreen Homescreen Preset Fix (branch: `claude/beautiful-einstein-5mibrb`)
 
 ### Changes made
 
@@ -32,17 +74,9 @@ After reverting from BunnyBox, T0–T3 and UNLOAD_T0-T3 buttons in OrcaSlicer do
 - **`CLAUDE.md` updated** — RC2.40 section added.
 - **`Q2/helixscreen_settings.json` retained** — kept as reference; no longer used by the installer.
 
-### Known Issue (unfixed) — Problem B: T0–T3 / UNLOAD_T0-T3 not restored on uninstall
-
-**Reported bug:** After reverting from BunnyBox, T0–T3 and UNLOAD_T0-T3 buttons in OrcaSlicer do nothing.
-
-These macros live in `box1.cfg` on the printer (not in this repo). They are disabled by `fix_known_klipper_conflicts()` in `aio_menu.sh` (~lines 5021–5039) using a `## AIO_DISABLED:` prefix when BunnyBox/Happy Hare is active. `restore_aio_disabled_macros()` is supposed to reverse this on uninstall but likely has a bug.
-
-**Do not fix in this session.** Investigate `fix_known_klipper_conflicts()` and `restore_aio_disabled_macros()` in `aio_menu.sh` in a future session.
-
 ---
 
-## RC2.37 — PR #24 Port + Macro Audit (current branch: `claude/upbeat-brahmagupta-ymemga`)
+## RC2.37 — PR #24 Port + Macro Audit (branch: `claude/upbeat-brahmagupta-ymemga`)
 
 ### Changes made
 
@@ -53,14 +87,6 @@ These macros live in `box1.cfg` on the printer (not in this repo). They are disa
 - **Section 5:** JFP's commented-out `CANCEL_PRINT`/`PAUSE`/`RESUME_PRINT`/`RESUME` block replaced with live, no-box-adapted versions. `DETECT_INTERRUPTION` macro definition uncommented.
 - **Section 7:** `.claude/settings.json` updated with `Edit(*)`, `Write(*)`, `MultiEdit(*)`.
 - **Section 8:** Version bumped to RC2.37 in CLAUDE.md (no `AIO_VERSION` change — installer not modified).
-
-### Known Issue (unfixed) — Problem B: T0–T3 / UNLOAD_T0-T3 not restored on uninstall
-
-**Reported bug:** After reverting from BunnyBox, T0–T3 and UNLOAD_T0-T3 buttons in OrcaSlicer do nothing.
-
-These macros live in `box1.cfg` on the printer (not in this repo). They are disabled by `fix_known_klipper_conflicts()` in `aio_menu.sh` (~lines 5021–5039) using a `## AIO_DISABLED:` prefix when BunnyBox/Happy Hare is active. `restore_aio_disabled_macros()` (see CLAUDE.md, also in `aio_menu.sh`) is supposed to reverse this on uninstall but likely has a bug that causes it to miss these macros.
-
-**Do not fix in this session.** Investigate `fix_known_klipper_conflicts()` and `restore_aio_disabled_macros()` in `aio_menu.sh` in a future session.
 
 ---
 
