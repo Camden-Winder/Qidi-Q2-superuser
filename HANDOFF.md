@@ -8,6 +8,21 @@ After reverting from BunnyBox, T0–T3 and UNLOAD_T0-T3 buttons in OrcaSlicer do
 
 ---
 
+## RC2.44 — Remove preset fetch, fix race condition with wizard prompt (branch: `claude/relaxed-albattani-04n23d`)
+
+### What changed
+
+- **Preset fetch removed from install flow** — the `banner "Applying HelixScreen preset"` block that fetched `helixscreen_preset.json` and wrote it as `${HELIX_CONFIG_DIR}/settings.json` has been deleted entirely from `install_bunnybox_helixscreen()`. This block overwrote HelixScreen's generated settings with a file that lacks `panel_widgets`, causing `KeyError: 'panel_widgets'` in the dashboard layout patch. `Q2/helixscreen_preset.json` is retained in the repo for reference only.
+- **Race condition fixed with wizard prompt** — the 30-second polling wait loop is replaced with a user-facing prompt. After `switch_display_to_helixscreen`, the installer tells the user to walk to the printer and complete the first-run wizard, then waits for `y` confirmation before calling `apply_helixscreen_dashboard_layout`. After confirmation, a Python one-liner validates that `panel_widgets` is present in the settings before patching; if missing, it warns and directs the user to Testing > option 10.
+- **`AIO_VERSION` bumped to `RC2.44`**
+
+### Root causes
+
+1. The preset file approach (RC2.40) was never removed after RC2.43 fixed the path issue, so it still overwrote the real HelixScreen-generated settings.json before patching could run.
+2. The first-run HelixScreen wizard requires physical interaction at the printer screen — a silent timeout loop cannot detect wizard completion; only the user can confirm it.
+
+---
+
 ## RC2.43 — Fix `apply_helixscreen_dashboard_layout()` path hardcoding + race condition (branch: `claude/focused-dirac-yb1582`)
 
 ### What changed

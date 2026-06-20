@@ -204,6 +204,12 @@ Every session that modifies `aio_menu.sh` or bumps `AIO_VERSION` **must** update
 ...
 ```
 
+## RC2.44 — What's In It
+
+- `AIO_VERSION='RC2.44'`
+- **Preset fetch removed from install flow** — the block that fetched `helixscreen_preset.json` and wrote it as `${HELIX_CONFIG_DIR}/settings.json` is deleted. It overwrote HelixScreen's generated settings with a file lacking `panel_widgets`, causing `KeyError: 'panel_widgets'` in the dashboard layout patch. `Q2/helixscreen_preset.json` is kept in the repo for reference only.
+- **Race condition fixed with wizard prompt** — the 30-second polling wait loop is replaced with a user-facing prompt instructing the user to complete the HelixScreen first-run wizard at the printer, then confirm with `y`. After confirmation, a Python check validates `panel_widgets` is present before calling `apply_helixscreen_dashboard_layout`; if missing, warns and directs user to Testing > option 10.
+
 ## RC2.40 — What's In It
 
 - `AIO_VERSION='RC2.40'`
