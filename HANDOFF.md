@@ -3,6 +3,20 @@
 ## Known Issues (carry-forward)
 
 - **JFP + Qidi Box: no warning in installer** — Users who select Just Faster Printer but have a Qidi Box connected get `QDE_004_007: Extruder not loaded` at end of print, because JFP's `PRINT_END` doesn't call `UNLOAD_FILAMENT`. The installer should warn box owners to use Just Faster Box instead. (See issue #33.)
+- **CONTRIBUTING.md missing** — No contributor guide covering the branching convention, `claude/*` branch rule, and how to run the syntax checks.
+
+---
+
+## Wiki-RC1.0 — Wiki creation & repo restructure
+
+- Branch: `claude/kind-albattani-0lgk38`
+- Wiki created — 17 pages under `wiki/` plus `wiki/assets/` (docker-compose-spoolman.yml, docker-compose-octoapp.yml, fan_test.py)
+- README rewritten — clean landing page, Thanks.md content absorbed, links point to wiki
+- `All_in_One_Installer/` renamed to `docs/` — stale git clone Usage section updated to curl one-liners, CLAUDE.md stub deleted, Instructions.md links updated to wiki
+- `Configurations/` dissolved — `Basic Changes/` deleted, `filament configs.txt` moved to `Q2/`, `My Resources.md` → `wiki/References.md`, `Filamet Configurations.md` → `wiki/Filament-Config.md`
+- `Plugins/` dissolved — docker-compose files extracted to `wiki/assets/`, tutorial docs deleted, OctoEverywhere docker-compose deleted (no longer referenced)
+- Deleted: `Beginers/`, `Q2/Instructions.md`, `Q2/FAQ-BunnyBox&Helixscreen.md`, `Max4/Instructions.md`, `Max4/FAQ.md`, `Calibrations/`, `Printables/`, `Thanks.md`
+- No AIO_VERSION bump — docs and structure only
 
 ---
 
