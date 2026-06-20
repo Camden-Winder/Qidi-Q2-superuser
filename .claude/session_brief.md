@@ -29,3 +29,4 @@ A Session Brief is a document prepared by the user (via Claude.ai) before starti
 - Never make changes outside the scope defined in the Session Brief without confirming with the user.
 - All conventions in `CLAUDE.md` apply regardless of what the Session Brief says — the Brief defines *what* to do, `CLAUDE.md` defines *how* to do it.
 - The session brief needs to include any required resources. The user will not provide any extra files to Claude Code, just the session brief.
+- Claude documents should never be out of scope. Claude documents are things like claude.md, handoff.md, the .claude folder, etc
