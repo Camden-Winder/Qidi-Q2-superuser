@@ -6,6 +6,20 @@ None.
 
 ---
 
+## RC2.48 — Fix KAMP_settings.cfg case mismatch (branch: `claude/busy-curie-9gu7tw`)
+
+### What changed
+
+- **Global rename** — all 7 occurrences of `KAMP_Settings.cfg` (capital S) in `Q2/aio_menu.sh` changed to `KAMP_settings.cfg` (lowercase s), matching the source file and the `[include ./KAMP/KAMP_settings.cfg]` directive in `printer-BunnyBox.cfg`.
+- **Dedup block removed** — `fix_known_klipper_conflicts()` contained a block that deleted `KAMP_settings.cfg` (the correct file) when both case variants were present. After the rename, the condition was always a no-op tautology. Block removed entirely.
+- **`AIO_VERSION` bumped to `RC2.48`**
+
+### Root cause
+
+The installer was fetching and writing KAMP config as `KAMP_Settings.cfg` (capital S) while every include directive and the source repo file use `KAMP_settings.cfg` (lowercase s). On Linux (case-sensitive filesystem), Klipper could not find the file at startup. The dedup block then made it worse by deleting the correct lowercase copy if a user somehow had both.
+
+---
+
 ## RC2.46-docs — Claude docs overhaul + installer restructure (branch: `claude/stoic-pasteur-92gmir`)
 
 ### What changed

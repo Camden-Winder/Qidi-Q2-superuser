@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.47'
+AIO_VERSION='RC2.48'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -1376,7 +1376,7 @@ purge_happy_hare_all() {
     # Root-level KAMP files installed by the AIO BunnyBox flow. Do not remove
     # ${CONFIG_DIR}/KAMP here: Qidi stock configs may own that directory and
     # revert_to_backup()'s rsync --delete handles it from the snapshot.
-    for f in KAMP_Settings.cfg Adaptive_Meshing.cfg Line_Purge.cfg Smart_Park.cfg; do
+    for f in KAMP_settings.cfg Adaptive_Meshing.cfg Line_Purge.cfg Smart_Park.cfg; do
         rm -f "${CONFIG_DIR}/${f}"
     done
 
@@ -1490,7 +1490,7 @@ fetch() {
     # Download to /tmp first so the network step is isolated from the
     # write step. Lets us retry the install with sudo when the destination
     # is owned by root from a previous install (e.g. BunnyBox creates
-    # KAMP_Settings.cfg as root, then curl --output to it gets EACCES).
+    # KAMP_settings.cfg as root, then curl --output to it gets EACCES).
     local tmp
     tmp=$(mktemp /tmp/aio_fetch.XXXXXX) || { err "mktemp failed"; return 1; }
     if ! curl --fail --silent --show-error --location "$url" --output "$tmp"; then
@@ -1629,14 +1629,14 @@ install_jfp_q2_112() {
     do_backup        || { press_enter; return 1; }
     local macro_dest="${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg"
     local printer_cfg="${CONFIG_DIR}/printer.cfg"
-    local kamp_include="[include KAMP/KAMP_Settings.cfg]"
+    local kamp_include="[include KAMP/KAMP_settings.cfg]"
     info "Writing macro file → klipper-macros-qd/gcode_macro.cfg"
     fetch "${REPO_BASE}/macros/gcode_macro-JustFasterPrinter.cfg" \
           "$macro_dest" || { press_enter; return 1; }
     ok "gcode_macro.cfg installed to klipper-macros-qd/"
     info "Applying KAMP settings..."
     mkdir -p "${CONFIG_DIR}/KAMP"
-    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
@@ -1678,14 +1678,14 @@ install_jfb_q2_112() {
     do_backup        || { press_enter; return 1; }
     local macro_dest="${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg"
     local printer_cfg="${CONFIG_DIR}/printer.cfg"
-    local kamp_include="[include KAMP/KAMP_Settings.cfg]"
+    local kamp_include="[include KAMP/KAMP_settings.cfg]"
     info "Writing macro file → klipper-macros-qd/gcode_macro.cfg"
     fetch "${REPO_BASE}/macros/gcode_macro-JustFasterBox.cfg" \
           "$macro_dest" || { press_enter; return 1; }
     ok "gcode_macro.cfg installed to klipper-macros-qd/"
     info "Applying KAMP settings..."
     mkdir -p "${CONFIG_DIR}/KAMP"
-    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
@@ -2059,7 +2059,7 @@ q2_112_aio_artifacts_absent() {
         "$Q2_112_PROBE_STATE_DIR" \
         "${CONFIG_DIR}/bunnybox_macros.cfg" \
         "${CONFIG_DIR}/idle_fan_shutdown.cfg" \
-        "${CONFIG_DIR}/KAMP_Settings.cfg" \
+        "${CONFIG_DIR}/KAMP_settings.cfg" \
         "${CONFIG_DIR}/KAMP_settings.cfg" \
         "${CONFIG_DIR}/Adaptive_Meshing.cfg" \
         "${CONFIG_DIR}/Adaptive_Mesh.cfg" \
@@ -3726,7 +3726,7 @@ report_aio_removal_dry_run() {
     for f in \
         "${CONFIG_DIR}/bunnybox_macros.cfg" \
         "${CONFIG_DIR}/idle_fan_shutdown.cfg" \
-        "${CONFIG_DIR}/KAMP_Settings.cfg" \
+        "${CONFIG_DIR}/KAMP_settings.cfg" \
         "${CONFIG_DIR}/KAMP_settings.cfg" \
         "${CONFIG_DIR}/Adaptive_Meshing.cfg" \
         "${CONFIG_DIR}/Adaptive_Mesh.cfg" \
@@ -4185,7 +4185,7 @@ verify_bunnybox_install() {
     banner "Verifying installation"
     local all_ok=true
 
-    for f in printer.cfg gcode_macro.cfg KAMP_Settings.cfg \
+    for f in printer.cfg gcode_macro.cfg KAMP_settings.cfg \
               Adaptive_Meshing.cfg Line_Purge.cfg Smart_Park.cfg; do
         if [ -s "${CONFIG_DIR}/${f}" ]; then
             ok "${f}"
@@ -4220,7 +4220,7 @@ verify_bunnybox_install() {
 verify_jfp_install() {
     banner "Verifying installation"
     local all_ok=true
-    for f in printer.cfg gcode_macro.cfg KAMP/KAMP_Settings.cfg; do
+    for f in printer.cfg gcode_macro.cfg KAMP/KAMP_settings.cfg; do
         if [ -s "${CONFIG_DIR}/${f}" ]; then
             ok "${f}"
         else
@@ -4238,7 +4238,7 @@ verify_jfp_install() {
 verify_jfb_install() {
     banner "Verifying installation"
     local all_ok=true
-    for f in printer.cfg gcode_macro.cfg KAMP/KAMP_Settings.cfg; do
+    for f in printer.cfg gcode_macro.cfg KAMP/KAMP_settings.cfg; do
         if [ -s "${CONFIG_DIR}/${f}" ]; then
             ok "${f}"
         else
@@ -4882,22 +4882,12 @@ find_duplicate_macros() {
 fix_known_klipper_conflicts() {
     banner "Resolving known Klipper macro conflicts"
 
-    # 1. KAMP case-sensitivity: Linux treats KAMP_settings.cfg (lowercase-s)
-    #    and KAMP_Settings.cfg (uppercase-S) as different files. Both define
-    #    [gcode_macro _KAMP_Settings], causing a duplicate error. We install
-    #    to uppercase-S; delete the stale lowercase copy.
-    if [ -f "${CONFIG_DIR}/KAMP_settings.cfg" ] && \
-       [ -f "${CONFIG_DIR}/KAMP_Settings.cfg" ]; then
-        rm -f "${CONFIG_DIR}/KAMP_settings.cfg"
-        ok "Removed stale KAMP_settings.cfg (case-duplicate of KAMP_Settings.cfg)"
-    fi
-
-    # 2. Adaptive_Mesh.cfg is the old KAMP override that redefined
-    #    [gcode_macro BED_MESH_CALIBRATE]. KAMP_Settings.cfg is the current
+    # 1. Adaptive_Mesh.cfg is the old KAMP override that redefined
+    #    [gcode_macro BED_MESH_CALIBRATE]. KAMP_settings.cfg is the current
     #    replacement — delete the old file.
     if [ -f "${CONFIG_DIR}/Adaptive_Mesh.cfg" ]; then
         rm -f "${CONFIG_DIR}/Adaptive_Mesh.cfg"
-        ok "Removed stale Adaptive_Mesh.cfg (superseded by KAMP_Settings.cfg)"
+        ok "Removed stale Adaptive_Mesh.cfg (superseded by KAMP_settings.cfg)"
     fi
 
     # 3. box1.cfg — Qidi stock file (included via box.cfg) that defines T0-T3
@@ -4968,7 +4958,7 @@ fix_known_klipper_conflicts() {
     #    owner of [gcode_macro BED_MESH_CALIBRATE]. Scan all .cfg files in the
     #    config root for additional definitions; comment them out in any file
     #    that is NOT Adaptive_Meshing.cfg.  Also re-fetch our clean
-    #    KAMP_Settings.cfg if it contains an inline definition (older versions).
+    #    KAMP_settings.cfg if it contains an inline definition (older versions).
     local bmc_files
     bmc_files=$(grep -rl '^\[gcode_macro BED_MESH_CALIBRATE\]' "${CONFIG_DIR}"/*.cfg 2>/dev/null || true)
     if [ -n "$bmc_files" ]; then
@@ -4989,11 +4979,11 @@ fix_known_klipper_conflicts() {
             ok "BED_MESH_CALIBRATE: single canonical definition in Adaptive_Meshing.cfg"
         fi
     fi
-    # Legacy: re-fetch KAMP_Settings.cfg if it still carries an inline definition.
-    if grep -q '^\[gcode_macro BED_MESH_CALIBRATE\]' "${CONFIG_DIR}/KAMP_Settings.cfg" 2>/dev/null; then
-        fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg" "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg" \
-            && ok "Re-fetched KAMP_Settings.cfg (removed stale inline BED_MESH_CALIBRATE)" \
-            || warn "Could not re-fetch KAMP_Settings.cfg — comment out [gcode_macro BED_MESH_CALIBRATE] in it manually"
+    # Legacy: re-fetch KAMP_settings.cfg if it still carries an inline definition.
+    if grep -q '^\[gcode_macro BED_MESH_CALIBRATE\]' "${CONFIG_DIR}/KAMP_settings.cfg" 2>/dev/null; then
+        fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg" "${CONFIG_DIR}/KAMP/KAMP_settings.cfg" \
+            && ok "Re-fetched KAMP_settings.cfg (removed stale inline BED_MESH_CALIBRATE)" \
+            || warn "Could not re-fetch KAMP_settings.cfg — comment out [gcode_macro BED_MESH_CALIBRATE] in it manually"
     fi
 
     ok "Conflict resolution complete — FIRMWARE_RESTART to apply"
@@ -5248,8 +5238,8 @@ _install_bunnybox() {
               "${CONFIG_DIR}/printer.cfg" || return 1
 
         # Safety net: fix the KAMP double-nesting bug if it lands.
-        if grep -q '\[include \./KAMP/KAMP_Settings\.cfg\]' "${CONFIG_DIR}/printer.cfg" 2>/dev/null; then
-            sed -i 's|\[include \./KAMP/KAMP_Settings\.cfg\]|[include KAMP_Settings.cfg]|' \
+        if grep -q '\[include \./KAMP/KAMP_settings\.cfg\]' "${CONFIG_DIR}/printer.cfg" 2>/dev/null; then
+            sed -i 's|\[include \./KAMP/KAMP_settings\.cfg\]|[include KAMP_settings.cfg]|' \
                 "${CONFIG_DIR}/printer.cfg"
             ok "Fixed KAMP include path"
         fi
@@ -5267,7 +5257,7 @@ _install_bunnybox() {
 
         banner "Applying KAMP settings"
         mkdir -p "${CONFIG_DIR}/KAMP"
-        fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || return 1
+        fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || return 1
         fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || return 1
         fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || return 1
         fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || return 1
@@ -5369,7 +5359,7 @@ install_just_faster() {
 
     info "Applying KAMP settings..."
     mkdir -p "${CONFIG_DIR}/KAMP"
-    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
@@ -5411,7 +5401,7 @@ install_just_faster_box() {
 
     info "Applying KAMP settings..."
     mkdir -p "${CONFIG_DIR}/KAMP"
-    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_Settings.cfg"    || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
