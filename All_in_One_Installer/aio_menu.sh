@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.45'
+AIO_VERSION='RC2.46'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -741,7 +741,7 @@ menu_idle_fan_shutdown() {
 # Klipper errors on duplicate sections.
 install_idle_fan_shutdown() {
     banner "Installing idle_fan_shutdown.cfg (10m idle → fans off, temp-gated)"
-    fetch "${REPO_BASE}/idle_fan_shutdown.cfg" \
+    fetch "${REPO_BASE}/macros/idle_fan_shutdown.cfg" \
           "${CONFIG_DIR}/idle_fan_shutdown.cfg" || return 1
 
     local pcfg="${CONFIG_DIR}/printer.cfg"
@@ -1346,7 +1346,6 @@ purge_happy_hare_all() {
 
     # Config files Happy Hare / BunnyBox may have written at config root
     rm -f "${CONFIG_DIR}/bunnybox_macros.cfg"
-    rm -f "${CONFIG_DIR}/box_drying.cfg"
     rm -f "${CONFIG_DIR}/mmu_parameters.cfg"
     rm -f "${CONFIG_DIR}/mmu_macro_vars.cfg"
     rm -f "${CONFIG_DIR}/mmu_hardware.cfg"
@@ -1545,7 +1544,6 @@ detect_bunnybox_artifacts() {
         "$HAPPY_HARE_DIR"
         "${CONFIG_DIR}/mmu"
         "${CONFIG_DIR}/bunnybox_macros.cfg"
-        "${CONFIG_DIR}/box_drying.cfg"
         "${KLIPPER_DIR}/klippy/extras/mmu.py"
         "${KLIPPER_DIR}/klippy/extras/mmu_machine.py"
         "${KLIPPER_DIR}/klippy/extras/mmu_leds.py"
@@ -1596,14 +1594,17 @@ preflight() {
     return 0
 }
 
+# Returns the path to the AIO persistent state directory inside BACKUP_ROOT.
 aio_state_dir() {
     printf '%s\n' "${BACKUP_ROOT}/_AIO_STATE"
 }
 
+# Returns the path to the manifest file that lists AIO-managed paths that existed before the first install.
 aio_preexisting_paths_file() {
     printf '%s\n' "$(aio_state_dir)/preexisting_paths"
 }
 
+# On first run, records which AIO-managed paths already existed so uninstall can avoid removing user-preexisting directories.
 capture_first_run_state() {
     local state_dir preexisting path
     state_dir=$(aio_state_dir)
@@ -1643,6 +1644,7 @@ capture_first_run_state() {
     ok "First-run runtime state manifest saved to ${state_dir}"
 }
 
+# Returns true if the given path was present on disk before AIO first ran.
 path_was_preexisting() {
     local path="$1"
     local preexisting
@@ -1650,6 +1652,7 @@ path_was_preexisting() {
     [ -f "$preexisting" ] && grep -Fxq "$path" "$preexisting"
 }
 
+# Returns true if a path exists and was not preexisting — i.e., safe to remove on uninstall.
 should_remove_aio_path() {
     local path="$1"
     [ -e "$path" ] || return 1
@@ -1689,6 +1692,7 @@ do_backup() {
     return 0
 }
 
+# Takes a safety snapshot before verifier auto-repairs; idempotent — only backs up once per session.
 ensure_repair_backup() {
     if [ "${AIO_REPAIR_BACKUP_DONE:-false}" = true ]; then
         return 0
@@ -1706,6 +1710,7 @@ uninstall_bunnybox() {
     ok "BunnyBox / Happy Hare uninstalled"
 }
 
+# Removes all AIO-created runtime directories and systemd/udev/polkit files installed by HelixScreen and BunnyBox.
 cleanup_aio_runtime_artifacts() {
     banner "Cleaning AIO runtime artifacts"
 
@@ -1802,6 +1807,7 @@ restore_stock_display_services() {
 }
 
 
+# Prints whether a given path is present/absent/symlink without making any changes (used in dry-run reports).
 dry_run_path_state() {
     local label="$1"
     local path="$2"
@@ -1819,6 +1825,7 @@ dry_run_path_state() {
     fi
 }
 
+# Prints whether a path would be kept or removed on uninstall, based on the preexisting-path manifest.
 dry_run_removal_state() {
     local path="$1"
 
@@ -1854,6 +1861,7 @@ select_revert_backup_source() {
     return 0
 }
 
+# Checks whether key stock config files are present in the selected backup source and warns if any are missing before a restore.
 backup_missing_active_stock_essentials() {
     local selected_path="$1"
     local missing=false
@@ -1923,7 +1931,6 @@ q2_112_aio_artifacts_absent() {
         "$MAINSAIL_DIR" \
         "$Q2_112_PROBE_STATE_DIR" \
         "${CONFIG_DIR}/bunnybox_macros.cfg" \
-        "${CONFIG_DIR}/box_drying.cfg" \
         "${CONFIG_DIR}/idle_fan_shutdown.cfg" \
         "${CONFIG_DIR}/KAMP_Settings.cfg" \
         "${CONFIG_DIR}/KAMP_settings.cfg" \
@@ -3591,7 +3598,6 @@ report_aio_removal_dry_run() {
 
     for f in \
         "${CONFIG_DIR}/bunnybox_macros.cfg" \
-        "${CONFIG_DIR}/box_drying.cfg" \
         "${CONFIG_DIR}/idle_fan_shutdown.cfg" \
         "${CONFIG_DIR}/KAMP_Settings.cfg" \
         "${CONFIG_DIR}/KAMP_settings.cfg" \
@@ -4052,7 +4058,7 @@ verify_bunnybox_install() {
     banner "Verifying installation"
     local all_ok=true
 
-    for f in printer.cfg gcode_macro.cfg box_drying.cfg KAMP_Settings.cfg \
+    for f in printer.cfg gcode_macro.cfg KAMP_Settings.cfg \
               Adaptive_Meshing.cfg Line_Purge.cfg Smart_Park.cfg; do
         if [ -s "${CONFIG_DIR}/${f}" ]; then
             ok "${f}"
@@ -5111,7 +5117,7 @@ _install_bunnybox() {
         banner "Installing unified gcode_macro.cfg & printer.cfg"
         fetch "${REPO_BASE}/macros/gcode_macro-BunnyBox.cfg" \
               "${CONFIG_DIR}/gcode_macro.cfg" || return 1
-        fetch "${REPO_BASE}/printer-BunnyBox.cfg" \
+        fetch "${REPO_BASE}/macros/printer-BunnyBox.cfg" \
               "${CONFIG_DIR}/printer.cfg" || return 1
 
         # Safety net: fix the KAMP double-nesting bug if it lands.
@@ -5131,26 +5137,6 @@ _install_bunnybox() {
             ok "Disabled stale [include box.cfg] in printer.cfg (conflicts with Happy Hare)"
         fi
         ok "Unified configs installed"
-
-        banner "Installing box_drying.cfg"
-        fetch "${REPO_BASE}/box_drying.cfg" "${CONFIG_DIR}/box_drying.cfg" || return 1
-        ok "box_drying.cfg installed"
-
-        banner "Wiring spool rotation into Happy Hare drying"
-        local mmu_params
-        mmu_params="$(find_mmu_params)" || true
-        if [ -n "$mmu_params" ]; then
-            # heater_vent_macro is a general periodic callback fired by
-            # MMU_HEATER every heater_vent_interval minutes during drying.
-            # Point it at _QIDI_BOX_VENT so the gear steppers rotate spools
-            # throughout each drying cycle. Direction alternates each call
-            # so net filament travel stays near zero.
-            sed -i 's|^heater_vent_macro:.*|heater_vent_macro: _QIDI_BOX_VENT|' "$mmu_params"
-            sed -i 's|^heater_vent_interval:.*|heater_vent_interval: 5|' "$mmu_params"
-            ok "mmu_parameters.cfg: heater_vent_macro → _QIDI_BOX_VENT, interval → 5 min"
-        else
-            warn "mmu_parameters.cfg not found — spool rotation not wired; re-run option 1 or 2 after BunnyBox installs"
-        fi
 
         banner "Applying KAMP settings"
         mkdir -p "${CONFIG_DIR}/KAMP"
@@ -5250,7 +5236,7 @@ install_just_faster() {
     ok "gcode_macro.cfg installed"
 
     info "Updating printer.cfg..."
-    fetch "${REPO_BASE}/JustFasterPrinter.cfg" \
+    fetch "${REPO_BASE}/macros/JustFasterPrinter.cfg" \
           "${CONFIG_DIR}/printer.cfg" || { press_enter; return 1; }
     ok "printer.cfg installed"
 
@@ -5292,7 +5278,7 @@ install_just_faster_box() {
     ok "gcode_macro.cfg installed"
 
     info "Updating printer.cfg..."
-    fetch "${REPO_BASE}/JustFasterPrinter.cfg" \
+    fetch "${REPO_BASE}/macros/JustFasterPrinter.cfg" \
           "${CONFIG_DIR}/printer.cfg" || { press_enter; return 1; }
     ok "printer.cfg installed"
 
@@ -5344,8 +5330,6 @@ ${C_BOLD}What it can install:${C_RESET}
     - Happy Hare MMU firmware/macros for four-slot multi-material printing
     - HelixScreen replacement touchscreen UI
     - Unified printer.cfg + gcode_macro.cfg and KAMP adaptive meshing
-    - box_drying.cfg macros with automatic spool rotation
-      through Happy Hare's Environment Manager and the Box AHT10 sensor
     - ${C_CYAN}Strips the HELIX_QIDI_BOX_WRITE drop-in${C_RESET} if present so
       Happy Hare alone owns Qidi Box write commands and avoids contention
     - AMS spool style set to '3d' for Qidi Box slot visualization

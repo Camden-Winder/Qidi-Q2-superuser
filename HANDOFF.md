@@ -6,6 +6,21 @@ None.
 
 ---
 
+## RC2.46 — Repo cleanup & documentation pass (branch: `claude/determined-allen-46bm3f`)
+
+### What changed
+
+- **`box_drying.cfg` removed** — deleted from repo; `[include box_drying.cfg]` removed from `printer-BunnyBox.cfg`; box_drying install blocks, heater_vent_macro wiring, and all path-list references removed from `aio_menu.sh`. Spool rotation during drying is now handled upstream by BunnyBox/Happy Hare.
+- **Config files moved to `Q2/macros/`** — `printer-BunnyBox.cfg`, `JustFasterPrinter.cfg`, and `idle_fan_shutdown.cfg` moved from `Q2/` root to `Q2/macros/`. Fetch paths in `aio_menu.sh` updated accordingly (3 call sites for JustFasterPrinter.cfg, 1 each for the others).
+- **Stale G31 comment fixed** — `PRINT_END` in `gcode_macro-BunnyBox.cfg` now reads `G31 # Reset bed leveling mode to adaptive (KAMP) — see G31/G32 macro definitions`.
+- **Header comments added** to 10 undocumented utility functions: `aio_state_dir`, `aio_preexisting_paths_file`, `capture_first_run_state`, `path_was_preexisting`, `should_remove_aio_path`, `ensure_repair_backup`, `cleanup_aio_runtime_artifacts`, `dry_run_path_state`, `dry_run_removal_state`, `backup_missing_active_stock_essentials`.
+- **FAQ reordered** — "What is BunnyBox?" and "What is HelixScreen?" moved to the top of `Q2/FAQ-BunnyBox&Helixscreen.md`.
+- **README restructured** — AIO installer is now Chapter 1 (was buried after Plugins); chapters renumbered accordingly.
+- **`Thanks.md` updated** — Sykocis (Discord) / Chance Vegas (GitHub) credited as creator of the AIO groundwork.
+- **`AIO_VERSION` bumped to `RC2.46`**
+
+---
+
 ## RC2.45 — Fix backup paths in `apply_helixscreen_dashboard_layout()` (branch: `claude/optimistic-newton-c2kena`)
 
 ### What changed

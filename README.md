@@ -6,7 +6,7 @@ Join the Discord: https://discord.gg/aZGUk69Mp
 
 ---
 
-# What’s in this guide
+# What's in this guide
 
 This repo covers:
 
@@ -17,26 +17,43 @@ This repo covers:
 - One‑line install and uninstall tools  
 - Recommended printables  
 
-Everything here is optional — take what you want, skip what you don’t.
+Everything here is optional — take what you want, skip what you don't.
 
 ---
 
-# Chapter 0 – True Beginners
+# Chapter 1 – All-in-One Installer (AIO)
+
+The AIO is a single ANSI-coloured bash menu per printer that handles every supported install, uninstall, and addon path — no need to remember which `.sh` to run for which variant.
+
+## Supported Printers
+
+| Printer | Instructions |
+|---|---|
+| **Qidi Q2** | [Q2/Instructions.md](Q2/Instructions.md) |
+| **Qidi Max 4** | [Max4/Instructions.md](Max4/Instructions.md) |
+
+Each printer's `Instructions.md` has the SSH command, curl one-liner, menu walkthrough, and troubleshooting steps.
+
+Full documentation and changelog → [All_in_One_Installer/README.md](All_in_One_Installer/README.md)
+
+---
+
+# Chapter 2 – True Beginners
 
 If this is your first 3D printer (or your first Klipper printer), start here.  
-This section walks you through slicer setup, basic usage, and the “what do I do first?” questions.
+This section walks you through slicer setup, basic usage, and the "what do I do first?" questions.
 
 [Beginner Setup](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Beginers/First%20Setup.md)
 
 ---
 
-# Chapter 1 – Plugins
+# Chapter 3 – Plugins
 
 ## Remote Access
 
 I used to recommend OctoEverywhere, but recent reliability issues and aggressive paywalling make it hard to suggest now.
 
-I’m moving toward Tailscale‑based remote access. Once I’ve fully tested it, I’ll publish a full guide.
+I'm moving toward Tailscale‑based remote access. Once I've fully tested it, I'll publish a full guide.
 
 Alternatives worth considering: **Obico**
 
@@ -54,7 +71,7 @@ Alternative: **Mobilraker**
 
 ---
 
-# Filament Tracking
+## Filament Tracking
 
 I use **Spoolman** for filament tracking.  
 This becomes especially useful once Bunny Box is installed on the Qidi Box.
@@ -63,24 +80,7 @@ This becomes especially useful once Bunny Box is installed on the Qidi Box.
 
 ---
 
-# All-in-One Installer (AIO)
-
-The AIO is a single ANSI-coloured bash menu per printer that handles every supported install, uninstall, and addon path — no need to remember which `.sh` to run for which variant.
-
-## Supported Printers
-
-| Printer | Instructions |
-|---|---|
-| **Qidi Q2** | [Q2/Instructions.md](Q2/Instructions.md) |
-| **Qidi Max 4** | [Max4/Instructions.md](Max4/Instructions.md) |
-
-Each printer's `Instructions.md` has the SSH command, curl one-liner, menu walkthrough, and troubleshooting steps.
-
-Full documentation and changelog → [All_in_One_Installer/README.md](All_in_One_Installer/README.md)
-
----
-
-# Printer Configs
+# Chapter 4 – Printer Configs
 
 Both the Q2 and Max 4 ship with heavy PRINT_START macros and a lot of vendor‑specific glue code.  
 This repo documents what those macros do and provides faster, cleaner replacements.
@@ -92,7 +92,7 @@ All macro adjustments are handled by the AIO installer above. For reference conf
 
 ---
 
-# Printables
+# Chapter 5 – Printables
 
 Once your printer is running smoothly, here are prints that may improve the machine. Note: most printables listed are designed for the Q2.
 
@@ -100,11 +100,11 @@ Once your printer is running smoothly, here are prints that may improve the mach
 
 ---
 
-# You’re Done
+# You're Done
 
-Congratulations — you’ve reached the end of the guide.
+Congratulations — you've reached the end of the guide.
 
 If you have ideas, corrections, or additional tips, feel free to open an issue or PR.  
-I’m always improving this setup and appreciate good suggestions.
+I'm always improving this setup and appreciate good suggestions.
 
 [Thanks](https://github.com/Camden-Winder/Qidi-Q2-superuser/blob/main/Thanks.md)
