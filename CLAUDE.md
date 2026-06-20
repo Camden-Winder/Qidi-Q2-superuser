@@ -204,6 +204,12 @@ Every session that modifies `aio_menu.sh` or bumps `AIO_VERSION` **must** update
 ...
 ```
 
+## RC2.45 — What's In It
+
+- `AIO_VERSION='RC2.45'`
+- **`BACKUP1` filename corrected** — `local BACKUP1` in `apply_helixscreen_dashboard_layout()` now targets `/var/lib/helixscreen/settings.json.backup` (was `.../settings.json`). HelixScreen's `/var/lib` backup is always named `settings.json.backup`; the old path did not exist.
+- **`BACKUP2` write made conditional** — the Python heredoc now checks `os.path.isdir(backup2_dir)` before calling `write_direct(BACKUP2, content)`. After a clean install, `~/.helixscreen/` does not exist until HelixScreen's first `Config::save()`; the unconditional write raised `FileNotFoundError` and caused the Python block to exit non-zero, falsely reporting a failed patch.
+
 ## RC2.44 — What's In It
 
 - `AIO_VERSION='RC2.44'`

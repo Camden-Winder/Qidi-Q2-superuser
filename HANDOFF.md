@@ -8,6 +8,21 @@ After reverting from BunnyBox, T0–T3 and UNLOAD_T0-T3 buttons in OrcaSlicer do
 
 ---
 
+## RC2.45 — Fix backup paths in `apply_helixscreen_dashboard_layout()` (branch: `claude/optimistic-newton-c2kena`)
+
+### What changed
+
+- **`BACKUP1` filename corrected** — changed `local BACKUP1="/var/lib/helixscreen/settings.json"` to `local BACKUP1="/var/lib/helixscreen/settings.json.backup"`. HelixScreen writes its `/var/lib` backup as `settings.json.backup`, not `settings.json`; the old path did not exist.
+- **`BACKUP2` write made conditional** — the `write_direct(BACKUP2, content)` call is now gated on `os.path.isdir(backup2_dir)`. After a clean install the `~/.helixscreen/` directory does not yet exist (HelixScreen creates it lazily on first `Config::save()`). The unconditional write raised `FileNotFoundError` and caused the entire Python block to exit non-zero, reporting `[ERR] Dashboard layout patch failed` even though the canonical file was patched correctly.
+- **`AIO_VERSION` bumped to `RC2.45`**
+
+### Root causes
+
+1. The `/var/lib/helixscreen/` directory contains `settings.json.backup` (and `helixscreen.env.backup`), confirmed on-printer. The previous path targeted a file that never exists.
+2. `~/.helixscreen/` is created lazily by HelixScreen; it is absent after a fresh install + wizard completion. The unconditional write failed immediately, masking the successful canonical patch.
+
+---
+
 ## RC2.44 — Remove preset fetch, fix race condition with wizard prompt (branch: `claude/relaxed-albattani-04n23d`)
 
 ### What changed
