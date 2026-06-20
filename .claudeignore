@@ -1,0 +1,11 @@
+# Read-only stock Qidi mirrors — never modify
+Configurations/
+Plugins/
+# Reference only — not used by installer
+Q2/helixscreen_preset.json
+# Git
+.git/
+# IDE
+.vscode/
+.idea/
+.DS_Store

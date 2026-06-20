@@ -2,7 +2,7 @@
 
 ## Before Every Commit
 
-- [ ] `bash -n All_in_One_Installer/aio_menu.sh` — no syntax errors
+- [ ] `bash -n Q2/aio_menu.sh` — no syntax errors
 - [ ] `python3 -m json.tool Q2/helixscreen_settings.json` — valid JSON
 - [ ] `AIO_VERSION` bumped if `aio_menu.sh` changed (currently `RC1`)
 - [ ] No raw `echo` in installer logic — use `banner`, `info`, `warn`, `ok`, `err`

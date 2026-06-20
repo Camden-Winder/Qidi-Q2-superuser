@@ -26,43 +26,42 @@ For the Max 4, only paths 1 and 2 are in scope. Path 3 does not exist on the Max
 Always run these before committing:
 
 ```bash
-bash -n All_in_One_Installer/aio_menu.sh          # shell syntax check (Q2)
-bash -n All_in_One_Installer/aio_menu_max4.sh     # shell syntax check (Max 4)
+bash -n Q2/aio_menu.sh                            # shell syntax check (Q2)
+bash -n Max4/aio_menu_max4.sh                     # shell syntax check (Max 4)
 python3 -m json.tool Q2/helixscreen_settings.json  # JSON lint
-shellcheck -S warning All_in_One_Installer/aio_menu.sh         # style (advisory)
-shellcheck -S warning All_in_One_Installer/aio_menu_max4.sh    # style (advisory)
+shellcheck -S warning Q2/aio_menu.sh              # style (advisory)
+shellcheck -S warning Max4/aio_menu_max4.sh       # style (advisory)
 ```
 
 ## Repo Layout
 
 ```
-All_in_One_Installer/
-  aio_menu.sh              ← Q2 installer. All Q2 logic lives here. DO NOT MODIFY for Max 4.
-  aio_menu_max4.sh         ← Max 4 installer. Sibling to aio_menu.sh.
-  README.md
-  WHAT_WAS_DONE.md
-
 Q2/
-  printer-BunnyBox.cfg     ← BunnyBox printer.cfg template
-  JustFasterPrinter.cfg    ← JFP printer.cfg template
-  helixscreen_settings.json← Shipped to /home/mks/.config/helixscreen/settings.json
+  aio_menu.sh              ← Q2 installer. All Q2 logic lives here. DO NOT MODIFY for Max 4.
+  CLAUDE.md                ← Q2-scoped conventions and key paths
+  helixscreen_settings.json← Reference copy of HelixScreen settings
   KAMP/
     KAMP_settings.cfg      ← KAMP settings (installed to CONFIG_DIR/KAMP/)
     Adaptive_Meshing.cfg   ← Vendored upstream KAMP file
     Line_Purge.cfg         ← Vendored upstream KAMP file
     Smart_Park.cfg         ← Vendored upstream KAMP file
-  idle_fan_shutdown.cfg
-  box_drying.cfg
   mmu/                     ← Happy Hare / BunnyBox Klipper config files
   macros/                  ← gcode_macro cfg templates
   Printer Presets/         ← OrcaSlicer printer profiles
 
 Max4/
+  aio_menu_max4.sh         ← Max 4 installer. Sibling to Q2/aio_menu.sh.
+  CLAUDE.md                ← Max4-scoped conventions and key paths
   macros/
     gcode_macro-JustFasterPrinter.cfg ← JFP macro file (no box)
     gcode_macro-JustFasterBox.cfg     ← JFB macro file (with box)
   Instructions.md          ← User-facing SSH + install guide
   FAQ.md                   ← Fan assignments, NeoPixel, Z offset, polar cooler, misc
+
+All_in_One_Installer/
+  CLAUDE.md                ← Redirect to Q2/ and Max4/ script locations
+  README.md
+  WHAT_WAS_DONE.md
 
 Configurations/            ← Stock Qidi reference files. DO NOT MODIFY.
 Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
@@ -71,6 +70,9 @@ Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
   settings.json            ← Pre-approved Bash/WebFetch permissions
   hooks/pre-commit-check.sh← Auto-lint on every commit
   checklist.md             ← Pre-flight checklists
+  LESSONS.md               ← Known gotchas; read before touching any file
+  commands/start.md        ← /start slash command: session startup protocol
+  github-issue-response.md ← Issue response format, tone rules, diagnostic commands
 ```
 
 ## Target Environments
@@ -103,11 +105,12 @@ Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
 
 1. **Never modify** `Configurations/` or `Plugins/` — read-only stock Qidi mirrors.
 2. **Never push to `main` directly** — all work goes on a `claude/*` branch; merge via PR.
-3. **Bump `AIO_VERSION`** whenever `aio_menu.sh` changes. Version format is `RC<major>.<minor>` (e.g. `RC1.14`). Increment the minor on each change; bump the major for a breaking generational shift.
-6. **Do not run `aio_menu.sh` as root** — the script self-enforces this.
-7. **`sudo tee` pattern for writing files with elevated perms**, never `echo > file` with sudo.
-8. **Use `banner`, `info`, `warn`, `ok`, `err` helpers** — never raw `echo` in installer logic.
-9. **AIO menu options must always be numbers** — never letters or other characters.
+3. **Bump `AIO_VERSION`** whenever `Q2/aio_menu.sh` changes. Version format is `RC<major>.<minor>` (e.g. `RC1.14`). Increment the minor on each change; bump the major for a breaking generational shift.
+4. **Version history belongs in HANDOFF.md only.** Do not add RC entries to CLAUDE.md. After a session, add the new entry to HANDOFF.md. Replace any history here with: **Version history:** See HANDOFF.md — newest entries at top.
+5. **Do not run `Q2/aio_menu.sh` as root** — the script self-enforces this.
+6. **`sudo tee` pattern for writing files with elevated perms**, never `echo > file` with sudo.
+7. **Use `banner`, `info`, `warn`, `ok`, `err` helpers** — never raw `echo` in installer logic.
+8. **AIO menu options must always be numbers** — never letters or other characters.
 
 ## Install-Function Conventions
 
@@ -166,6 +169,16 @@ Testing submenu (option 9):
 
 Per-component uninstall options (BunnyBox-only / HelixScreen-only / Both) were removed in RC4. Revert to Backup is the single uninstall path and delegates to `uninstall_bunnybox()` and `uninstall_helixscreen()` internally before restoring from `_FIRST_STOCK`.
 
+## Troubleshooting Protocol
+
+When a task fails or produces unexpected output:
+
+1. **Diagnose before asking.** Check logs, run the syntax check, inspect the relevant function. Form a hypothesis before surfacing the problem to the user.
+2. **3-attempt limit.** After 3 failed attempts on the same problem, stop. Report: what you tried, why each attempt failed, current hypothesis, and what information from the user would unblock you. Do not keep iterating blindly.
+3. **When telling the user what to do:** give one specific command or action, not a list of things to try. If multiple paths exist, recommend one and explain why.
+4. **Printer-side actions:** always include the expected output alongside any command you ask the user to run.
+5. **Don't narrate obvious steps.** Show the change, state what it fixes.
+
 ## Autonomous-Session Policy
 
 Claude may do the following **without asking first**:
@@ -204,181 +217,7 @@ Every session that modifies `aio_menu.sh` or bumps `AIO_VERSION` **must** update
 ...
 ```
 
-## RC2.47 — What's In It
-
-- `AIO_VERSION='RC2.47'`
-- **New `F)` main-menu option: "01.01.02+ / qidi firmware"** — routes to `q2_112_submenu()`, a dedicated submenu for firmware 01.01.02+ users who cannot use options 1–3 (blocked by layout guard).
-- **`install_jfp_q2_112()`** — installs Just Faster Printer on q2_112: writes `gcode_macro-JustFasterPrinter.cfg` to `${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg` (picked up by the existing `[include klipper-macros-qd/*.cfg]` glob), installs KAMP files to `${CONFIG_DIR}/KAMP/`, and patches `printer.cfg` in-place to add `[include KAMP/KAMP_Settings.cfg]` only if absent. Never overwrites `printer.cfg`.
-- **`install_jfb_q2_112()`** — same as above but fetches `gcode_macro-JustFasterBox.cfg` for Qidi Box users.
-- **`preflight_q2_112()`** — network-only preflight that skips the mutation layout guard; keeps network, config dir, and force_move checks from `preflight()`.
-- **`q2_112_submenu()`** — submenu with layout guard (rejects non-q2_112 callers), JFP install, JFB install, Revert to Backup (delegates to existing `revert_to_backup()` which is already layout-aware), and layout report.
-- **No existing functions modified** — `preflight()`, `install_just_faster()`, `install_just_faster_box()`, `install_bunnybox_helixscreen()`, `require_supported_firmware_layout()` all untouched.
-
-## RC2.45 — What's In It
-
-- `AIO_VERSION='RC2.45'`
-- **`BACKUP1` filename corrected** — `local BACKUP1` in `apply_helixscreen_dashboard_layout()` now targets `/var/lib/helixscreen/settings.json.backup` (was `.../settings.json`). HelixScreen's `/var/lib` backup is always named `settings.json.backup`; the old path did not exist.
-- **`BACKUP2` write made conditional** — the Python heredoc now checks `os.path.isdir(backup2_dir)` before calling `write_direct(BACKUP2, content)`. After a clean install, `~/.helixscreen/` does not exist until HelixScreen's first `Config::save()`; the unconditional write raised `FileNotFoundError` and caused the Python block to exit non-zero, falsely reporting a failed patch.
-
-## RC2.44 — What's In It
-
-- `AIO_VERSION='RC2.44'`
-- **Preset fetch removed from install flow** — the block that fetched `helixscreen_preset.json` and wrote it as `${HELIX_CONFIG_DIR}/settings.json` is deleted. It overwrote HelixScreen's generated settings with a file lacking `panel_widgets`, causing `KeyError: 'panel_widgets'` in the dashboard layout patch. `Q2/helixscreen_preset.json` is kept in the repo for reference only.
-- **Race condition fixed with wizard prompt** — the 30-second polling wait loop is replaced with a user-facing prompt instructing the user to complete the HelixScreen first-run wizard at the printer, then confirm with `y`. After confirmation, a Python check validates `panel_widgets` is present before calling `apply_helixscreen_dashboard_layout`; if missing, warns and directs user to Testing > option 10.
-
-## RC2.40 — What's In It
-
-- `AIO_VERSION='RC2.40'`
-- **HelixScreen homescreen preset fix** — replaced the full-dump `helixscreen_settings.json` approach with a proper preset file `Q2/helixscreen_preset.json`. The installer now fetches `helixscreen_preset.json` and writes it to `~/helixscreen/config/settings.json`. The preset includes `"preset": "qiauh_q2"` (triggers abbreviated wizard on first boot) and `"wizard_completed": false`, plus all hardware mappings (fans, heaters, LEDs, filament sensors, macros, `panel_widgets`). Deployment-specific fields (`moonraker_host/port`, `type`, runtime snapshots, user preferences) are excluded per preset spec.
-- **`panel_widgets` homescreen layout now takes effect** — this was the root fix; the full-dump approach was not being applied by HelixScreen; the preset mechanism is the correct delivery path.
-- **`Q2/helixscreen_settings.json` retained** — kept as a reference; no longer used by the installer.
-
-## RC2.38 — What's In It
-
-- **Revert to Backup rewritten** — replaced the old incremental-cleanup chain with a snapshot/restore model. `do_backup()` now takes a single fixed snapshot at `${AIO_HOME}/aio_config_backup/` before the first install action (gated by a `.aio_installed` marker in `CONFIG_DIR`). `revert_to_backup()` restores via `rsync -a --delete` with no post-restore surgery.
-- **`_purge_happy_hare_nonconfig()` added** — called by revert to remove Happy Hare source tree, klipper extras, and moonraker component. Config file cleanup (mmu/, mmu*.cfg, KAMP files, etc.) handled by `rsync --delete` from snapshot.
-- **Deleted ~10 obsolete functions** — `fix_printer_cfg_after_uninstall`, `cleanup_aio_config_residue`, `cleanup_aio_config_artifacts`, `cleanup_aio_install_artifacts`, `remove_backup_root_after_revert`, `revert_to_backup_dry_run`, `report_revert_backup_dry_run`, `select_revert_backup_source` (Q2_112 baseline system retains its own copy), `backup_missing_active_stock_essentials`, `dry_run_path_state`.
-- **Testing submenu** — items 9–15 consolidated into a single `9) Testing` top-level entry that opens a submenu containing Force Snapshot Capture, Force Config Restore, and the seven Q2-1.1.2 tools.
-- **Layout gate removed from option 4** — Revert to Backup now works on all layouts; no longer blocked on q2_112 firmware with dry-run redirect.
-- **TODO comment added** near `restore_stock_display_services()` for firmware 1.1.2 display service name branching.
-- **CLAUDE.md** — menu layout updated, PR testing-comment policy added.
-
-## RC2.37 — What's In It
-
-- **PR #24 documented** — four fixes already in macro files are now reflected in user-facing docs: KAMP saves to `kamp` profile (not `default`); `G29`/`G31`/`G32` correctly toggle adaptive meshing; `WIPE` reads live extruder target and calls `MOVE_TO_TRASH` first; oozing/retraction tuned at print start.
-- **Missing macros restored to JFB and JFP** — `M4032` (factory quick-calibrate), `SMART_STATUS` (LED/screen/timelapse), `prepare_filament_dry`, and `restore_factory_settings` were absent from both files; copied verbatim from stock.
-- **UI status calls restored** — `SET_PRINT_MAIN_STATUS` / `SET_PRINT_SUB_STATUS` re-inserted in `M901`, `M4029`, `M603`, and `M604` in both JFB and JFP; drives touchscreen progress display.
-- **Cross-file divergences fixed** — `CLEAR_NOZZLE` JFP improvements ported to JFB (dynamic cooldown temp, active temp wait, M118 status lines); `EXTRUSION_AND_FLUSH` loop count corrected in JFB (6→3); retraction comment added to JFP; `RESUME_1` `printer.mmu.enabled` bug fixed in JFP → `enable_box == 1`.
-- **JFP pause/resume/cancel restored** — `CANCEL_PRINT`, `PAUSE`, `RESUME_PRINT`, `RESUME` were entirely commented out in JFP; replaced with live, no-box-adapted versions. `DETECT_INTERRUPTION` macro definition uncommented to match JFB.
-- **`.claude/settings.json`** — added `Edit(*)`, `Write(*)`, `MultiEdit(*)` to allow permissions.
-- **Known issue flagged** — T0–T3 / UNLOAD_T0-T3 macros not restored on BunnyBox uninstall; root cause suspected in `restore_aio_disabled_macros()`. Logged in HANDOFF.md for a future session.
-
-## RC2.36 — What's In It
-
-- `AIO_VERSION='RC2.36'`
-- **Just Faster Box added to Q2 AIO** — Option 4 (`install_just_faster_box()`) installs `gcode_macro-JustFasterBox.cfg` + `JustFasterPrinter.cfg` + KAMP files. Same structure as JFP but with live box branches (`BOX_PRINT_START`, box heater control). No Happy Hare, no HelixScreen.
-- **Detection helpers** — `just_faster_printer_installed()` and `just_faster_box_installed()` fingerprint on `PRINTER_PARAM` / `BOX_PRINT_START` in `gcode_macro.cfg`.
-- **Status line updated** — `Just Faster: Just Faster Box / Just Faster Printer / not found` now shown alongside BunnyBox/Display.
-- **`verify_jfb_install()`** — post-install check confirms files present and `BOX_PRINT_START` in macro file.
-- **`revert_to_backup()` updated** — removes `gcode_macro.cfg` when JFP or JFB detected before restoring from backup.
-- **Menu renumbered** — Revert→5, Idle Fan→6, Mainsail→7, About→8, Health Check→9, Testing 9–15→10–16.
-- **Q2/Instructions.md** — JFB row added to path table, Option 4 subsection added, AIO menu preview added, option number references updated.
-
-## Max4-RC1.01 — What's In It
-
-- `AIO_VERSION='Max4-RC1.01'`
-- No functional changes to the Max 4 installer.
-- **Max4/Instructions.md** — AIO menu preview section added showing current Max 4 menu layout.
-
-## RC2.13 — What's In It
-
-Merged via PR #13 (2026-05-28):
-
-- `AIO_VERSION='RC2.13'`
-- **KlipperScreen install disabled** — Option 2 now shows a warning that KlipperScreen install is unavailable in this version. Removed due to reliability issues.
-- **Full MMU config suite** (`Q2/mmu/`) — complete Happy Hare config file set shipped with the installer.
-- **`helixscreen_settings.json` updated** — AMS/display settings updated for Qidi Box.
-
-## RC1.26 — What's In It
-
-- `AIO_VERSION='RC1.26'`
-- **Option 2 is now standalone `install_klipperscreen()`** — installs KlipperScreen Happy Hare Edition only. No longer bundles BunnyBox, config templates, KAMP, or drying macros. Completely decoupled from `_install_bunnybox()`.
-- **`_install_bunnybox()` simplified** — no longer accepts a `display_ui` parameter; always installs HelixScreen. All KlipperScreen conditionals removed.
-- **`prepare_display_for_klipperscreen()`** replaces `switch_display_to_klipperscreen()`: stops/disables/masks `makerbase-client` and `helixscreen` only — no lightdm or graphical.target manipulation. The upstream installer handles its own X/console setup.
-- **`NETWORK=N`** still passed to prevent the installer killing dhcpcd/NetworkManager. `xserver-xorg-legacy` still stripped (not available on Debian Bullseye ARM).
-- **`uninstall_klipperscreen()`** simplified: removes service/dirs, restores `graphical.target`, unmasks/enables lightdm and makerbase-client. No lightdm.conf backup/restore needed.
-- Removed all custom xinit/xsetup/lightdm.conf constants (`KLIPPERSCREEN_UNIT`, `KLIPPERSCREEN_XSETUP`, `LIGHTDM_CONF`).
-
-## RC1 — What's In It
-
-Merged to `main` via PR #1 (2026-05-20):
-
-- `AIO_VERSION='RC1'` constant; rendered in banner and About screen
-- `verify_qidi_box_helixscreen()` — post-install check (warns, never fails)
-- `install_qidi_box_write()` — systemd drop-in for `HELIX_QIDI_BOX_WRITE=1`; `BoxWrite:` status line
-- `helixscreen_settings.json`: `"ams": { "spool_style": "3d" }` for Qidi Box AMS view
-
-## RC2 — Candidate Features (not yet implemented)
-
-- `update_qidi_box_dropin` migration helper
-- `/release` slash command for version bump + changelog + tag + push
-
-## RC11 — What's In It
-
-- `AIO_VERSION='RC11'`
-- **`Option 'gcode' is not valid in section 'bed_mesh'` fixed**: `check_invalid_klipper_options()` now also detects and removes `gcode:` keys (and their indented body) that appear inside `[bed_mesh]`. Some Qidi stock `printer.cfg` versions place the entire `[idle_timeout]` body inside `[bed_mesh]` with no section header; Klipper rejects both `timeout:` (already caught in RC8) and `gcode:`.
-- **`BED_MESH_CALIBRATE already registered` fix hardened**: `fix_known_klipper_conflicts()` check #6 now scans ALL `.cfg` files at the config root for `[gcode_macro BED_MESH_CALIBRATE]` definitions, not just `KAMP_Settings.cfg`. Any file that is NOT `Adaptive_Meshing.cfg` gets its duplicate definition commented out with `## AIO_DISABLED:`.
-- **PIPESTATUS install-abort bug fixed**: `install_bunnybox_helixscreen()` previously only aborted on exit code 99 (user BunnyBox cancel). Any other non-zero exit (e.g., a failed `fetch()` for `printer.cfg`) would silently print "Install complete" and leave the printer with partial/broken configs. Now any non-zero exit code aborts the install with an error message pointing to the log file.
-
-## RC10 — What's In It
-
-- `AIO_VERSION='RC10'`
-- **Fresh-install black screen fixed**: HelixScreen now activates correctly after option 1. Added `switch_display_to_helixscreen()` which stops/disables/masks `lightdm` and `makerbase-client`, then enables/starts `helixscreen.service`. Called automatically at the end of `install_bunnybox_helixscreen()`.
-
-## RC8 — Candidate Features (not yet implemented)
-
-- Symmetric `uninstall_just_faster()` (option 2 currently has no individual uninstall path; Revert to Backup is the only way to undo it)
-
-## RC8 — What's In It
-
-- `AIO_VERSION='RC8'`
-- **Post-revert sanity check**: `revert_to_backup()` now runs the full verifier sweep (`_run_verifiers_core`) at the end so any leftover problems (orphan includes, leftover MMU extras, duplicate macros, invalid Klipper options) are caught before the user is told the revert is complete. The same checks run from menu option 7.
-- **`check_invalid_klipper_options()`** — catches `timeout: 43200` misplaced inside `[bed_mesh]` (some Qidi stock printer.cfg versions ship it there; Klipper rejects with "Option 'timeout' is not valid in section 'bed_mesh'"). Prompts before fixing.
-- **`check_orphan_includes()`** — finds `[include X]` lines whose target file doesn't exist on disk and offers to comment them out. Prevents "Unable to open config file" boot failures.
-- **`check_leftover_mmu_artifacts()`** — detects surviving Happy Hare v3 `extras/mmu/` package, `mmu_*.py` symlinks, and active `[mmu*]` sections that escaped uninstall. Prompts before each cleanup.
-- **`run_all_verifiers()` refactored**: split into `_run_verifiers_core()` (no press_enter, callable from anywhere) and `run_all_verifiers()` (core + press_enter for the menu).
-
-## RC7 — What's In It
-
-- `AIO_VERSION='RC7'`
-- **Mainsail install added as menu option 5**: delegates to Camden-Winder's `install-mainsail.sh` (same `curl | bash` pattern we use for BunnyBox and HelixScreen). Mainsail listens on port 100; Qidi's stock lighttpd on port 80 is untouched.
-- **`install_mainsail()` / `uninstall_mainsail()` / `mainsail_installed()` / `verify_mainsail()` / `menu_mainsail()`** added per the install-function convention.
-- **Revert to Backup** now uninstalls Mainsail too (removes nginx site, `/home/mks/mainsail`, reloads nginx). Moonraker CORS entries are left in place (harmless).
-- **Status line** now shows `Mainsail: installed/not found`.
-- **Menu renumbered**: About → 6, Run all verifiers → 7.
-
-## RC6 — What's In It
-
-- `AIO_VERSION='RC6'`
-- **`BED_MESH_CALIBRATE` duplicate fixed**: `fix_known_klipper_conflicts()` now detects when `KAMP_Settings.cfg` defines `[gcode_macro BED_MESH_CALIBRATE]` inline (older BunnyBox/KAMP versions put this at line ~46) while `Adaptive_Meshing.cfg` also defines it. The correct structure has `KAMP_Settings.cfg` using `[include ./Adaptive_Meshing.cfg]` only — not redefining the macro inline. When the conflict is detected, AIO re-fetches the correct `KAMP_Settings.cfg` from the repo, resolving the duplicate without manual intervention.
-- **Verifier order fixed**: `run_all_verifiers()` (option 6) now runs `fix_known_klipper_conflicts` *before* `find_duplicate_macros` so conflicts are healed before the scan report. Previously the scan ran first, showing problems that `fix_known_klipper_conflicts` would have fixed a moment later.
-
-## RC5 — What's In It
-
-- `AIO_VERSION='RC5'`
-- **Fresh-install crash fixed**: `install_bunnybox_helixscreen()` no longer re-enables `[include box.cfg]` in `printer.cfg`. Including `box.cfg` loads Qidi's `box_extras.so` plugin, which registers `CLEAR_TOOLCHANGE_STATE` — the same gcode command Happy Hare's `mmu/` package registers. Loading both crashes Klipper on startup. The shipped `printer(BunnyBox&HelixScreen).cfg` template already ships with the include commented out (BunnyBox's installer disables it); RC1–RC4 had explicit code to re-enable it for the Qidi UI "Control Box" panel, which was the source of the crash.
-- **Trade-off documented**: while BunnyBox is installed, the Qidi UI's "Control Box" panel does NOT work — Happy Hare owns box hardware via `[mmu]` steppers and its own gcode commands. Revert to Backup restores stock `printer.cfg` with `[include box.cfg]` active, bringing the Qidi UI panel back.
-- **Defensive disable**: install now also comments out any existing `^[include box.cfg]` line in `printer.cfg`, so users carrying state from RC1–RC4 are healed by re-running option 1.
-- **`verify_qidi_box_helixscreen()` flipped**: with BunnyBox installed, `[include box.cfg]` active is now flagged as an error (it WILL crash Klipper) instead of being treated as the desired state.
-
-## RC4 — What's In It
-
-- `AIO_VERSION='RC4'`
-- **`purge_happy_hare_all()`** now removes Happy Hare v3's package layout: `~/klipper/klippy/extras/mmu/` directory and all `mmu_*.py` symlinks (mmu_espooler, mmu_servo, mmu_led_effect). The previous v2-style file list missed everything in v3, leaving the mmu package live in Klipper after uninstall — which caused `CLEAR_TOOLCHANGE_STATE already registered` crashes when `box_extras.so` tried to re-register the same command.
-- **`purge_happy_hare_all()`** now removes root-level KAMP files (`KAMP_Settings.cfg`, `Adaptive_Meshing.cfg`, `Line_Purge.cfg`, `Smart_Park.cfg`). The stale BunnyBox-shipped `KAMP_Settings.cfg` was defining `BED_MESH_CALIBRATE` and clashing with `Adaptive_Meshing.cfg`. `fix_printer_cfg_after_uninstall()` handles the resulting orphan `[include]` lines.
-- **`restore_aio_disabled_macros()`** (new) — reverses the `## AIO_DISABLED:` prefixes that `fix_known_klipper_conflicts()` applies to `box1.cfg` (T0-T3, UNLOAD_T0-T3) and `gcode_macro.cfg` (EXTRUSION_AND_FLUSH). Called from `purge_happy_hare_all()` so uninstall restores Qidi's native tool-change buttons and the flush macro.
-- **Menu simplified**: options 3 (Uninstall BunnyBox), 4 (Uninstall HelixScreen), 5 (Uninstall Both) removed. Revert to Backup is the single uninstall path; it now delegates to `uninstall_helixscreen()` and `uninstall_bunnybox()` internally so it picks up every cleanup step (qidi-box-write systemd drop-in, helixscreen state dir, moonraker bak, restore_aio_disabled_macros, fix_printer_cfg_after_uninstall).
-- Remaining menu numbers: `3) Revert`, `4) Idle Fan Shutdown`, `5) About`, `6) Run all verifiers`.
-
-## RC3 — What's In It
-
-- `AIO_VERSION='RC3'`
-- Removed `heater_vent_macro` / `heater_vent_interval` patching in `mmu_parameters.cfg`. Happy Hare's vent macro is for MMU enclosures with motorized vents; Q2's box has a manual vent.
-- Removed the `wget | bash -- --revert` call in `revert_to_backup()` — Camden-Winder's BunnyBox installer has no `--revert` flag. `purge_happy_hare_all()` handles the full teardown.
-- `install_bunnybox_helixscreen()` now strips the `HELIX_QIDI_BOX_WRITE` drop-in (instead of installing it). HelixScreen ENV docs confirm the flag gates `load_filament`, `unload_filament`, `change_tool`, `set_tool_mapping` on the **native Qidi Box AMS backend** — exactly what BunnyBox + Happy Hare own when installed.
-- Verifier and status line flipped: with BunnyBox installed, drop-in **absent** is the desired state (`BoxWrite: off` shown green).
-
-## Known Bugs Fixed in RC2 (merged)
-
-| PR | Fix |
-|---|---|
-| #7 | Duplicate gcode_macro conflict resolver (`fix_known_klipper_conflicts`) |
-| #8 | Install KAMP sub-files alongside `KAMP_Settings.cfg` |
-| #9 | Fix bogus flags to Happy Hare (`-u`) and HelixScreen (`--remove`) uninstallers |
-| #10 | Clean backup dirs, HelixScreen dir, moonraker bak on uninstall |
-| #11 | Patch `printer.cfg` broken includes after uninstall; drop pre-revert backup |
-| #12 | Comment out `TOOL_CHANGE_START/END` in `bunnybox_macros.cfg` (Qidi Python plugin owns them) |
-| #13 | Detect `box_extras.so` (Qidi ships compiled `.so`, not `.py`) |
+**Version history:** See HANDOFF.md — newest entries at top.
 
 ## External Resources
 
