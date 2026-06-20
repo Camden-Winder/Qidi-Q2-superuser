@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.41'
+AIO_VERSION='RC2.42'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -4904,38 +4904,90 @@ apply_helixscreen_dashboard_layout() {
         rm -f "$preset_tmp"; return 1
     fi
 
-    # Patch panel_widgets atomically via Python
+    # Stop helixscreen before patching to prevent it writing a new backup during our patch window
+    info "Stopping helixscreen before patching..."
+    sudo systemctl stop helixscreen
+
+    # Patch settings.json and rolling backups atomically via Python
     if python3 - "$settings" "$preset_tmp" <<'PYEOF'
 import json, sys, os
+
 settings_path = sys.argv[1]
 preset_path   = sys.argv[2]
+
 with open(settings_path) as f:
     settings = json.load(f)
 with open(preset_path) as f:
     preset = json.load(f)
+
 settings["printers"]["default"]["panel_widgets"] = \
     preset["printers"]["default"]["panel_widgets"]
+
+patched_content = json.dumps(settings, indent=2) + "\n"
+
+# Patch the primary settings.json atomically
 tmp = settings_path + ".tmp"
 with open(tmp, "w") as f:
-    json.dump(settings, f, indent=2)
+    f.write(patched_content)
 os.replace(tmp, settings_path)
-print("panel_widgets patched successfully")
+print("panel_widgets patched in " + settings_path)
+
+# Patch rolling backup copies so auto-restore cannot undo the change
+backup_paths = [
+    os.path.expanduser("~/.helixscreen/settings.json"),
+    "/var/lib/helixscreen/settings.json",
+]
+for bp in backup_paths:
+    bp_dir = os.path.dirname(bp)
+    if not os.path.isdir(bp_dir):
+        continue
+    bp_tmp = bp + ".tmp"
+    try:
+        with open(bp_tmp, "w") as f:
+            f.write(patched_content)
+        os.replace(bp_tmp, bp)
+        print("Rolling backup patched: " + bp)
+    except PermissionError:
+        print("Warning: no write permission for " + bp + " — will retry with sudo", file=sys.stderr)
+        sys.exit(2)
+    except Exception as e:
+        print("Warning: could not patch backup " + bp + ": " + str(e), file=sys.stderr)
 PYEOF
     then
         ok "panel_widgets patched in ${settings}"
     else
-        err "Python patch script failed"
-        rm -f "$preset_tmp"; return 1
+        local py_exit=$?
+        if [ "$py_exit" -eq 2 ]; then
+            # /var/lib/helixscreen/ is root-owned; retry that path with sudo
+            info "Patching /var/lib/helixscreen/settings.json with sudo..."
+            if [ -d /var/lib/helixscreen ]; then
+                local patched_content
+                patched_content=$(python3 -c "
+import json, sys
+with open('${settings}') as f:
+    s = json.load(f)
+print(json.dumps(s, indent=2))
+")
+                printf '%s\n' "$patched_content" | sudo tee /var/lib/helixscreen/settings.json > /dev/null \
+                    && ok "Rolling backup patched: /var/lib/helixscreen/settings.json" \
+                    || warn "Could not patch /var/lib/helixscreen/settings.json — auto-restore may undo layout"
+            fi
+        else
+            err "Python patch script failed"
+            rm -f "$preset_tmp"
+            sudo systemctl start helixscreen
+            return 1
+        fi
     fi
 
     rm -f "$preset_tmp"
 
-    # Restart helixscreen to pick up patched file
-    info "Restarting helixscreen..."
-    if sudo systemctl restart helixscreen; then
-        ok "helixscreen restarted — dashboard layout applied"
+    # Start helixscreen to pick up patched files
+    info "Starting helixscreen..."
+    if sudo systemctl start helixscreen; then
+        ok "helixscreen started — dashboard layout applied"
     else
-        err "helixscreen restart failed — check: sudo systemctl status helixscreen"
+        err "helixscreen start failed — check: sudo systemctl status helixscreen"
         return 1
     fi
 }
