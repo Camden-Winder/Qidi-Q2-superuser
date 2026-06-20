@@ -2,7 +2,7 @@
 
 ## Known Issues (carry-forward)
 
-None.
+- **JFP + Qidi Box: no warning in installer** — Users who select Just Faster Printer but have a Qidi Box connected get `QDE_004_007: Extruder not loaded` at end of print, because JFP's `PRINT_END` doesn't call `UNLOAD_FILAMENT`. The installer should warn box owners to use Just Faster Box instead. (See issue #33.)
 
 ---
 
