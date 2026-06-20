@@ -36,6 +36,17 @@
 > Even when refactoring shared patterns, do not touch `Max4/aio_menu_max4.sh` without
 > explicit user instruction.
 
+## [L007] KAMP_settings.cfg — installer must use lowercase 's'
+- **Category:** gotcha
+- **Context:** KAMP install / fix_known_klipper_conflicts
+> The source file and all include directives use `KAMP_settings.cfg` (lowercase s).
+> Linux filesystems are case-sensitive, so installing as `KAMP_Settings.cfg` (capital S)
+> causes Klipper to fail at startup with "Include file does not exist".
+> Additionally, a now-removed dedup block in `fix_known_klipper_conflicts()` was actively
+> deleting the correct lowercase file as "stale" — compounding the bug.
+> Always use lowercase `KAMP_settings.cfg` in fetch calls, include patches, and any comment
+> referencing the filename.
+
 ## [L006] sudo tee pattern for elevated file writes
 - **Category:** pattern
 - **Context:** installer script conventions
