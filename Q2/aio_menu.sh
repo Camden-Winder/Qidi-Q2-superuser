@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.48'
+AIO_VERSION='RC2.49'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -396,6 +396,23 @@ verify_helixscreen_runtime_health() {
 
     if helixscreen_installed; then
         verify_systemd_service_health helixscreen "HelixScreen" true
+
+        if ! systemctl is-active --quiet helixscreen 2>/dev/null; then
+            warn "HelixScreen: not active — attempting restart"
+            if sudo systemctl restart helixscreen 2>/dev/null; then
+                sleep 2
+                if systemctl is-active --quiet helixscreen 2>/dev/null; then
+                    ok "HelixScreen: restarted successfully"
+                else
+                    err "HelixScreen: restart failed — if this persists, re-run the installer"
+                    show_systemd_journal_tail helixscreen "HelixScreen"
+                fi
+            else
+                err "HelixScreen: restart failed — if this persists, re-run the installer"
+                show_systemd_journal_tail helixscreen "HelixScreen"
+            fi
+        fi
+
         local v
         v=$(helixscreen_version)
         if [ -n "$v" ]; then
