@@ -30,6 +30,16 @@
 
 ---
 
+## RC2.49 — HelixScreen health check auto-restart (branch: `claude/magical-ptolemy-padrcs`)
+
+### What changed
+
+- **`verify_helixscreen_runtime_health()`** now attempts `sudo systemctl restart helixscreen` automatically when the service is found inactive during a health check (option 8). If the restart succeeds it prints `ok "HelixScreen: restarted successfully"`; if it fails it prints an `err` and tails the journal via `show_systemd_journal_tail`. Previously the function only reported an error and told users to re-run the installer.
+- **`AIO_VERSION` bumped to `RC2.49`**
+- Closes issue #48.
+
+---
+
 ## RC2.48 — Fix KAMP_settings.cfg case mismatch (branch: `claude/busy-curie-9gu7tw`)
 
 ### What changed
