@@ -7,6 +7,17 @@
 
 ---
 
+## Wiki-RC1.1.0 — Wiki audit from issue #48
+
+- Wiki-only session — no AIO_VERSION bump
+- 3 new pages: `Q2-Troubleshooting.md`, `Max4-Troubleshooting.md`, `Q2-JustFaster.md`
+- `Troubleshooting.md` deleted (content split into printer-specific pages)
+- 9 pages updated: Q2-Install-Guide, SSH-Guide, Q2-BunnyBox-HelixScreen, Plugins, Printables, Max4-Install-Guide, Q2-FAQ, _Sidebar, Home
+- WIKI_VERSION bumped to Wiki-RC1.1.0
+- Closes issue #48
+
+---
+
 ## Wiki-RC1.01 — Move wiki to GitHub Wiki tab
 
 - Branch: `claude/wiki-rc1-push`
