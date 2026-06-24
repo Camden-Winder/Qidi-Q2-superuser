@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.49'
+AIO_VERSION='RC2.50'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -1534,6 +1534,15 @@ fetch() {
     return 1
 }
 
+clean_kamp_dir() {
+    # Remove any file in config root with "kamp" in the name (case-insensitive)
+    find "${CONFIG_DIR}" -maxdepth 1 -iname "*kamp*" -type f -delete 2>/dev/null
+    # Remove the entire KAMP folder and all contents
+    rm -rf "${CONFIG_DIR}/KAMP" 2>/dev/null || sudo rm -rf "${CONFIG_DIR}/KAMP" 2>/dev/null
+    # Create a fresh KAMP directory
+    mkdir -p "${CONFIG_DIR}/KAMP" 2>/dev/null || sudo mkdir -p "${CONFIG_DIR}/KAMP" 2>/dev/null
+}
+
 bunnybox_installed() {
     # Look for mmu_parameters.cfg anywhere under ${CONFIG_DIR}/mmu/ so
     # we work with both flat (current) and base/ (legacy) layouts.
@@ -1652,7 +1661,7 @@ install_jfp_q2_112() {
           "$macro_dest" || { press_enter; return 1; }
     ok "gcode_macro.cfg installed to klipper-macros-qd/"
     info "Applying KAMP settings..."
-    mkdir -p "${CONFIG_DIR}/KAMP"
+    clean_kamp_dir
     fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
@@ -1701,7 +1710,7 @@ install_jfb_q2_112() {
           "$macro_dest" || { press_enter; return 1; }
     ok "gcode_macro.cfg installed to klipper-macros-qd/"
     info "Applying KAMP settings..."
-    mkdir -p "${CONFIG_DIR}/KAMP"
+    clean_kamp_dir
     fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
@@ -5273,7 +5282,7 @@ _install_bunnybox() {
         ok "Unified configs installed"
 
         banner "Applying KAMP settings"
-        mkdir -p "${CONFIG_DIR}/KAMP"
+        clean_kamp_dir
         fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || return 1
         fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || return 1
         fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || return 1
@@ -5375,7 +5384,7 @@ install_just_faster() {
     ok "printer.cfg installed"
 
     info "Applying KAMP settings..."
-    mkdir -p "${CONFIG_DIR}/KAMP"
+    clean_kamp_dir
     fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
@@ -5417,7 +5426,7 @@ install_just_faster_box() {
     ok "printer.cfg installed"
 
     info "Applying KAMP settings..."
-    mkdir -p "${CONFIG_DIR}/KAMP"
+    clean_kamp_dir
     fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
@@ -5758,6 +5767,11 @@ show_disclaimer() {
     printf '\n'
     printf '  %sQidi states that any modifications to files on their\n' "$C_BOLD"
     printf '  printers may void the manufacturer warranty.%s\n' "$C_RESET"
+    printf '\n'
+    printf '  %sNote: This tool will make significant changes to your%s\n' "$C_BOLD" "$C_RESET"
+    printf '  %sprinter'"'"'s configuration files. If you have made custom%s\n' "$C_BOLD" "$C_RESET"
+    printf '  %smodifications to your configuration, they may be%s\n' "$C_BOLD" "$C_RESET"
+    printf '  %soverwritten. Review your setup before proceeding.%s\n' "$C_BOLD" "$C_RESET"
     printf '\n'
     printf '%s============================================%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
     printf '\n'

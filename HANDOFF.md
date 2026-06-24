@@ -41,6 +41,22 @@
 
 ---
 
+## RC2.50 — Harden KAMP install + update warranty warning (branch: `claude/nice-goodall-1d3n7r`)
+
+### What changed
+
+- **`clean_kamp_dir()` helper added** — new function that wipes all KAMP-related files from `CONFIG_DIR` root (case-insensitive), removes the `KAMP/` folder entirely, then re-creates it fresh. Prevents duplicate/stale files (`KAMP_Settings.cfg`, `KAMP_Settings (1).cfg`, root-level copies) from conflicting with the AIO's canonical install.
+- **5 install sites updated** — `mkdir -p "${CONFIG_DIR}/KAMP"` replaced with `clean_kamp_dir` in `install_just_faster()`, `install_just_faster_box()`, `install_bunnybox_helixscreen()`, and both 1.1.2 migration paths. `fix_known_klipper_conflicts()` (~line 4999) left untouched.
+- **Warranty warning updated** — added a bold "Note: This tool will make significant changes to your printer's configuration files..." paragraph before the closing `===` line.
+- **`CLAUDE.md` updated** — added wiki screenshot rule: when `AIO_VERSION` ends in `0` or `5`, update the wiki preview screenshot. If the wiki repo is not accessible, add a carry-forward to-do.
+- **`AIO_VERSION` bumped to `RC2.50`**
+
+### Wiki preview to-do (carry-forward)
+
+RC2.50 ends in `0` — the wiki menu preview screenshot should be updated. The GitHub Wiki repo (`camden-winder/qidi-q2-superuser.wiki`) was not accessible in this session. **TODO:** In a future session (or manually), update the AIO menu preview image in the wiki to reflect the current menu layout.
+
+---
+
 ## RC2.49 — HelixScreen health check auto-restart (branch: `claude/magical-ptolemy-padrcs`)
 
 ### What changed
