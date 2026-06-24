@@ -106,6 +106,7 @@ Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
 1. **Never modify** `Configurations/` or `Plugins/` — read-only stock Qidi mirrors.
 2. **Never push to `main` directly** — all work goes on a `claude/*` branch; merge via PR.
 3. **Bump `AIO_VERSION`** whenever `Q2/aio_menu.sh` changes. Version format is `RC<major>.<minor>` (e.g. `RC1.14`). Increment the minor on each change; bump the major for a breaking generational shift.
+   - **Wiki screenshot rule:** Whenever `AIO_VERSION` is bumped to a number ending in `0` or `5`, the AIO menu preview screenshot in the wiki must be updated to reflect the current menu layout. At the start of any session targeting one of these versions, Claude Code should attempt to reach the wiki repo and push the updated preview. If the wiki repo is not accessible in that session, notify the user and add a to-do item to the session's carry-forward in `HANDOFF.md`.
 4. **Version history belongs in HANDOFF.md only.** Do not add RC entries to CLAUDE.md. After a session, add the new entry to HANDOFF.md. Replace any history here with: **Version history:** See HANDOFF.md — newest entries at top.
 5. **Do not run `Q2/aio_menu.sh` as root** — the script self-enforces this.
 6. **`sudo tee` pattern for writing files with elevated perms**, never `echo > file` with sudo.
