@@ -4,6 +4,23 @@
 
 - **JFP + Qidi Box: no warning in installer** — Users who select Just Faster Printer but have a Qidi Box connected get `QDE_004_007: Extruder not loaded` at end of print, because JFP's `PRINT_END` doesn't call `UNLOAD_FILAMENT`. The installer should warn box owners to use Just Faster Box instead. (See issue #33.)
 - **CONTRIBUTING.md missing** — No contributor guide covering the branching convention, `claude/*` branch rule, and how to run the syntax checks.
+- [ ] Wiki AOI preview screenshot needs updating — menu options renumbered in RC2.51 (Mainsail 5, About 6, Health Check 7, Testing 8)
+
+---
+
+## RC2.51 — Remove Idle Fan Shutdown as AOI Addon
+
+### What changed
+
+- **`Q2/macros/idle_fan_shutdown.cfg` deleted** — idle fan shutdown logic now lives in the stock gcode_macro configs as the default behavior
+- **`idle_fan_shutdown_installed()`, `uninstall_idle_fan_shutdown()`, `menu_idle_fan_shutdown()`, `install_idle_fan_shutdown()` removed** from `aio_menu.sh`
+- **Menu option 5 (Idle Fan Shutdown) removed** — options renumbered: Mainsail 5, About 6, Health Check 7, Testing 8
+- **`show_status_line()`** — `IdleFan` status indicator removed
+- **Health check** — idle fan verifier block removed
+- **`revert_to_backup()`** — `[idle_timeout]` un-patch moved here from the deleted `uninstall_idle_fan_shutdown()` to preserve backward compatibility for users who had the old addon
+- **`show_about()`** — idle fan shutdown line removed from addon list
+- **`CLAUDE.md`** — replaced `idle_fan_shutdown` examples with `mainsail`; updated menu layout
+- **`docs/WHAT_WAS_DONE.md`** — updated `_IDLE_SHUTDOWN` entry; removed install path row
 
 ---
 

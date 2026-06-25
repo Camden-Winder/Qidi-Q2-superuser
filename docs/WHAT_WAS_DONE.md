@@ -86,7 +86,7 @@ Replaced the old `Install-Script/` folder in RC2.33. All Q2-specific source file
 | `printer-BunnyBox.cfg` | `printer.cfg` template for BunnyBox + HelixScreen path |
 | `JustFasterPrinter.cfg` | `printer.cfg` template for Just Faster Printer path |
 | `helixscreen_settings.json` | Shipped to `/home/mks/.config/helixscreen/settings.json`; includes `"spool_style": "3d"` for Qidi Box AMS view |
-| `idle_fan_shutdown.cfg` | 10-minute idle fan + heater shutdown config |
+| `_IDLE_SHUTDOWN` gcode macro | 5-minute idle fan + heater shutdown — moved into stock macro configs in RC2.51; no longer a standalone file |
 | `box_drying.cfg` | Spool rotation during filament drying via Happy Hare Environment Manager |
 | `macros/` | `gcode_macro.cfg` templates for each install path |
 | `KAMP/` | `KAMP_settings.cfg` + vendored `Adaptive_Meshing.cfg`, `Line_Purge.cfg`, `Smart_Park.cfg` (moved into subdirectory in RC2.34) |
@@ -151,7 +151,6 @@ Every install capability follows this pattern:
 | `Q2/helixscreen_settings.json` | `/home/mks/.config/helixscreen/settings.json` |
 | `Q2/macros/gcode_macro-JustFasterPrinter.cfg` | `/home/mks/printer_data/config/gcode_macro.cfg` |
 | `Q2/JustFasterPrinter.cfg` | `/home/mks/printer_data/config/printer.cfg` |
-| `Q2/idle_fan_shutdown.cfg` | `/home/mks/printer_data/config/idle_fan_shutdown.cfg` |
 | Backups | `/home/mks/mudstockbackups/YYYYMMDD_HHMMSS/` |
 
 ### Max 4
