@@ -30,10 +30,10 @@ Menu items:
 | 2 | Install Just Faster Printer (Q2 without Box, stock screen) |
 | 3 | Install Just Faster Box (Q2 with Qidi Box, no BunnyBox) |
 | 4 | Revert to Backup (full uninstall + restore stock) |
-| 5 | Idle Fan Shutdown (10 min idle, temp-gated) |
-| 6 | Mainsail (web UI on port 100) |
-| 7 | About |
-| 8 | Health Check / Run Verifiers |
+| 5 | Mainsail (web UI on port 100) |
+| 6 | About |
+| 7 | Health Check / Run Verifiers |
+| 8 | Testing |
 | 0 | Exit |
 
 Features:
@@ -131,7 +131,6 @@ Every install capability follows this pattern:
 - **`screws_tilt_adjust`** for guided manual bed levelling.
 - **Faster, cleaner `PRINT_START` / `PRINT_END`** macros.
 - **Spoolman hooks** for filament inventory.
-- **Idle Fan Shutdown** — fans and heaters turn off after 10 minutes of idle (temp-gated).
 - **Mainsail web UI** — parallel web interface on port 100; stock lighttpd on port 80 is untouched.
 - **System Optimizations** (Max 4) — DNS, APT, service, and boot-animation improvements.
 - **Full backup/restore safety net** — every install writes a timestamped backup; Revert to Backup is one menu choice away.
