@@ -18,7 +18,7 @@ This repo hardens the upstream installers and adds per-printer AIO menus so anyt
 
 ## Accomplished
 
-### `Q2/aio_menu.sh` — Q2 AIO Menu (RC2.36 / macro files RC2.37)
+### `Q2/aio_menu.sh` — Q2 AIO Menu (RC2.52)
 
 Single-entry, ANSI-coloured bash menu for the Qidi Q2. Refuses to run as root.
 
@@ -29,12 +29,16 @@ Menu items:
 | 1 | Install BunnyBox & HelixScreen (Q2 with Qidi Box) |
 | 2 | Install Just Faster Printer (Q2 without Box, stock screen) |
 | 3 | Install Just Faster Box (Q2 with Qidi Box, no BunnyBox) |
-| 4 | Revert to Backup (full uninstall + restore stock) |
-| 5 | Mainsail (web UI on port 100) |
-| 6 | About |
-| 7 | Health Check / Run Verifiers |
-| 8 | Testing |
+| 4 | Update Macros (re-fetch AOI-owned macro files for installed group) |
+| 5 | Revert to Backup (full uninstall + restore stock) |
+| 6 | Mainsail (web UI on port 100) |
+| 7 | About |
+| 8 | Health Check / Run Verifiers |
+| 9 | Testing |
+| 10 | 01.01.02+ / qidi firmware |
 | 0 | Exit |
+
+> **Keep current:** whenever `AIO_VERSION` is bumped to a number ending in `0` or `5`, update this menu table to reflect the current layout.
 
 Features:
 - Preflight (network reachability to GitHub, `${CONFIG_DIR}` present, `enable_force_move` sanity check)
@@ -46,6 +50,15 @@ Features:
 - Post-install verifiers: `verify_qidi_box_helixscreen()`, `verify_mainsail()`, etc.
 - `run_all_verifiers()` (option 8) sweeps for orphan includes, duplicate macros, invalid Klipper options, and leftover MMU artifacts — also auto-runs at the end of `revert_to_backup()`
 - `fix_known_klipper_conflicts()` — detects and resolves: duplicate `BED_MESH_CALIBRATE` macro definitions across config files; `timeout:` / `gcode:` keys misplaced inside `[bed_mesh]`; `[include box.cfg]` active while BunnyBox is installed (crashes Klipper)
+- **Webcam/camera support** — plug in a USB camera and the installer sets it up automatically; live view appears inside Mainsail with no manual config (`install_camera()` / `uninstall_camera()` / `verify_camera()`)
+- **Safe first-install detection** — the installer records which folders already existed before it ran, so Revert to Backup never deletes files you had before AIO (`capture_first_run_state()` / `path_was_preexisting()` / `should_remove_aio_path()`)
+- **Revert preview (dry-run)** — before committing to a revert, the installer can show you exactly what will be removed and what will be kept, without touching anything (`report_stock_preservation_dry_run()` / `report_aio_removal_dry_run()`)
+- **HelixScreen dashboard layout** — after installing HelixScreen the installer patches the dashboard widget layout automatically (printer image, temperatures, print status) so you get a useful layout out of the box (`apply_helixscreen_dashboard_layout()`)
+- **Config include graph analysis** — the installer can walk your full Klipper config tree to find duplicate macro definitions and offer to fix them automatically (`list_active_klipper_configs()` / `find_duplicate_macros()`)
+- **Update Macros (option 4)** — re-downloads the latest AIO macro files for whichever install path you're on, without re-running the full installer (`update_macros()`)
+- **Install state tracking (`aoi.ini`)** — replaces the old empty `.aio_installed` marker; records your install path, version, and date so menu options can show accurate status and future updates know what's installed (`write_aoi_ini()` / `read_aoi_ini()`)
+- **Firmware 01.01.02+ support (option 10)** — dedicated install paths for users on newer Q2 firmware where `/home/mks` became a root-owned symlink; writes macros to the correct location without breaking the stock setup (`install_jfp_q2_112()` / `install_jfb_q2_112()`)
+- **01.01.02+ safety contract** — before touching a 01.01.02+ printer, the installer takes a cryptographic snapshot of your config; a full rehearsal and per-subsystem restore proofs verify it can undo its own changes before anything is committed (`capture_q2_112_restore_contract()` / `validate_q2_112_restore_contract()` / `run_q2_112_restore_rehearsal()` and related proofs)
 - `check_orphan_includes()` — finds `[include X]` lines whose target doesn't exist and offers to comment them out
 - `check_leftover_mmu_artifacts()` — detects surviving Happy Hare v3 `extras/mmu/` package and `mmu_*.py` symlinks
 - `switch_display_to_helixscreen()` — stops/disables `lightdm` and `makerbase-client`, then enables `helixscreen.service` (fixes fresh-install black screen)
@@ -87,11 +100,12 @@ Replaced the old `Install-Script/` folder in RC2.33. All Q2-specific source file
 | `JustFasterPrinter.cfg` | `printer.cfg` template for Just Faster Printer path |
 | `helixscreen_settings.json` | Shipped to `/home/mks/.config/helixscreen/settings.json`; includes `"spool_style": "3d"` for Qidi Box AMS view |
 | `_IDLE_SHUTDOWN` gcode macro | 5-minute idle fan + heater shutdown — moved into stock macro configs in RC2.51; no longer a standalone file |
-| `box_drying.cfg` | Spool rotation during filament drying via Happy Hare Environment Manager |
+| ~~`box_drying.cfg`~~ | Removed in RC2.46 — spool rotation during drying is now handled upstream by Happy Hare's Environment Manager |
 | `macros/` | `gcode_macro.cfg` templates for each install path |
 | `KAMP/` | `KAMP_settings.cfg` + vendored `Adaptive_Meshing.cfg`, `Line_Purge.cfg`, `Smart_Park.cfg` (moved into subdirectory in RC2.34) |
 | `mmu/` | Complete Happy Hare Klipper config file set shipped with the BunnyBox installer |
 | `Printer Presets/` | OrcaSlicer printer profiles |
+| `aoi.ini` (written to printer) | `/home/mks/printer_data/config/aoi.ini` — AIO state file; stores install group, install version, macro version, install date |
 
 ### `Max4/` — Max 4 Config Templates
 
@@ -101,14 +115,6 @@ Replaced the old `Install-Script/` folder in RC2.33. All Q2-specific source file
 | `macros/gcode_macro-JustFasterBox.cfg` | Macro file for Max 4 with Qidi Box |
 | `Instructions.md` | User-facing SSH + install guide |
 | `FAQ.md` | Fan assignments, NeoPixel, Z offset, polar cooler, misc |
-
-### `Q2/box_drying.cfg`
-
-Klipper config that restores spool rotation during filament drying using Happy Hare's Environment Manager:
-
-- `BOX_DRY [TEMP=] [TIME=] [HUMIDITY=]` — wraps `MMU_HEATER DRY=1` with humidity-based early termination via the AHT2X sensor
-- `BOX_DRY_STOP`, `BOX_DRY_STATUS`, `BOX_ROTATE_SPOOLS`
-- `_QIDI_BOX_VENT` — called by Happy Hare on its venting interval; rotates spools via `FORCE_MOVE` so heat penetrates evenly
 
 ### Install-Function Conventions
 
@@ -145,7 +151,6 @@ Every install capability follows this pattern:
 |---|---|
 | `Q2/macros/gcode_macro-BunnyBox.cfg` | `/home/mks/printer_data/config/gcode_macro.cfg` |
 | `Q2/printer-BunnyBox.cfg` | `/home/mks/printer_data/config/printer.cfg` |
-| `Q2/box_drying.cfg` | `/home/mks/printer_data/config/box_drying.cfg` |
 | `Q2/KAMP/KAMP_settings.cfg` | `/home/mks/printer_data/config/KAMP/KAMP_Settings.cfg` |
 | `Q2/helixscreen_settings.json` | `/home/mks/.config/helixscreen/settings.json` |
 | `Q2/macros/gcode_macro-JustFasterPrinter.cfg` | `/home/mks/printer_data/config/gcode_macro.cfg` |
