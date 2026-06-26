@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.50'
+AIO_VERSION='RC2.51'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -701,85 +701,6 @@ uninstall_qidi_box_write() {
     sudo systemctl daemon-reload 2>/dev/null || true
     sudo systemctl restart helixscreen 2>/dev/null || true
     ok "HELIX_QIDI_BOX_WRITE disabled"
-}
-
-idle_fan_shutdown_installed() {
-    [ -f "${CONFIG_DIR}/idle_fan_shutdown.cfg" ] && \
-    grep -q '^\[include idle_fan_shutdown\.cfg\]' "${CONFIG_DIR}/printer.cfg" 2>/dev/null
-}
-
-uninstall_idle_fan_shutdown() {
-    banner "Removing idle_fan_shutdown addon"
-    local pcfg="${CONFIG_DIR}/printer.cfg"
-    if [ -f "$pcfg" ]; then
-        if grep -q '^\[include idle_fan_shutdown\.cfg\]' "$pcfg"; then
-            sed -i '/^\[include idle_fan_shutdown\.cfg\]/d' "$pcfg"
-            ok "Removed [include idle_fan_shutdown.cfg] from printer.cfg"
-        fi
-        # Re-enable any [idle_timeout] section we previously disabled.
-        if grep -q '^#\[idle_timeout\] # disabled by AIO' "$pcfg"; then
-            sed -i 's|^#\[idle_timeout\] # disabled by AIO - see idle_fan_shutdown.cfg|[idle_timeout]|' "$pcfg"
-            ok "Re-enabled previously-disabled [idle_timeout] in printer.cfg"
-        fi
-    fi
-    rm -f "${CONFIG_DIR}/idle_fan_shutdown.cfg"
-    ok "idle_fan_shutdown addon removed"
-}
-
-# Menu wrapper - present an install/uninstall/cancel choice depending
-# on current state.
-menu_idle_fan_shutdown() {
-    banner "Idle Fan Shutdown addon"
-    if idle_fan_shutdown_installed; then
-        info "Status: INSTALLED"
-        info "After 10 minutes idle, fans + heaters power down unless"
-        info "any temperature sensor reports an unsafe value."
-        if confirm "Uninstall Idle Fan Shutdown addon?"; then
-            uninstall_idle_fan_shutdown
-        fi
-    else
-        info "Status: not installed"
-        info "Powers down all fans + heaters after 10 minutes idle,"
-        info "unless extruder/bed/chamber temps are still hot."
-        info "Re-checks every 60s while temps remain unsafe."
-        if confirm "Install Idle Fan Shutdown addon now?"; then
-            preflight || { press_enter; return 1; }
-            do_backup || { press_enter; return 1; }
-            install_idle_fan_shutdown || warn "Setup had problems (see above)"
-            info "Run FIRMWARE_RESTART, then sudo reboot to activate."
-        fi
-    fi
-    press_enter
-}
-
-# Drop idle_fan_shutdown.cfg into CONFIG_DIR and patch printer.cfg so
-# it's included. Idempotent - safe to re-run. Comments out any
-# pre-existing [idle_timeout] section in printer.cfg first because
-# Klipper errors on duplicate sections.
-install_idle_fan_shutdown() {
-    banner "Installing idle_fan_shutdown.cfg (10m idle → fans off, temp-gated)"
-    fetch "${REPO_BASE}/macros/idle_fan_shutdown.cfg" \
-          "${CONFIG_DIR}/idle_fan_shutdown.cfg" || return 1
-
-    local pcfg="${CONFIG_DIR}/printer.cfg"
-    if [ -f "$pcfg" ]; then
-        # Neutralise any existing [idle_timeout] - our include owns it.
-        if grep -q '^\[idle_timeout\]' "$pcfg"; then
-            sed -i 's/^\[idle_timeout\]/#[idle_timeout] # disabled by AIO - see idle_fan_shutdown.cfg/' "$pcfg"
-            ok "Disabled pre-existing [idle_timeout] in printer.cfg"
-        fi
-        if ! grep -q '^\[include idle_fan_shutdown\.cfg\]' "$pcfg"; then
-            # Insert near the other [include ...] lines at the top.
-            sed -i '0,/^\[include /{ /^\[include / i\
-[include idle_fan_shutdown.cfg]  # 10m idle fan/heater shutdown (AIO)
-}' "$pcfg"
-            ok "Added [include idle_fan_shutdown.cfg] to printer.cfg"
-        else
-            ok "[include idle_fan_shutdown.cfg] already present"
-        fi
-    else
-        warn "printer.cfg not found - idle_fan_shutdown.cfg installed but not included"
-    fi
 }
 
 # ---------- Mainsail (delegated to Camden-Winder's installer) --------
@@ -2084,7 +2005,6 @@ q2_112_aio_artifacts_absent() {
         "$MAINSAIL_DIR" \
         "$Q2_112_PROBE_STATE_DIR" \
         "${CONFIG_DIR}/bunnybox_macros.cfg" \
-        "${CONFIG_DIR}/idle_fan_shutdown.cfg" \
         "${CONFIG_DIR}/KAMP_settings.cfg" \
         "${CONFIG_DIR}/KAMP_settings.cfg" \
         "${CONFIG_DIR}/Adaptive_Meshing.cfg" \
@@ -3751,7 +3671,6 @@ report_aio_removal_dry_run() {
 
     for f in \
         "${CONFIG_DIR}/bunnybox_macros.cfg" \
-        "${CONFIG_DIR}/idle_fan_shutdown.cfg" \
         "${CONFIG_DIR}/KAMP_settings.cfg" \
         "${CONFIG_DIR}/KAMP_settings.cfg" \
         "${CONFIG_DIR}/Adaptive_Meshing.cfg" \
@@ -4186,6 +4105,13 @@ revert_to_backup() {
     fi
     ok "Config restore complete"
 
+    # Re-enable any [idle_timeout] previously disabled by the idle_fan_shutdown addon
+    local pcfg="${CONFIG_DIR}/printer.cfg"
+    if [ -f "$pcfg" ] && grep -q '^#\[idle_timeout\] # disabled by AIO' "$pcfg"; then
+        sed -i 's|^#\[idle_timeout\] # disabled by AIO - see idle_fan_shutdown.cfg|[idle_timeout]|' "$pcfg"
+        ok "Re-enabled previously-disabled [idle_timeout] in printer.cfg"
+    fi
+
     # The .aio_installed marker was created after the snapshot, so it is absent
     # from the snapshot and rsync --delete removes it automatically.
     # Verify and clean up as a safety net:
@@ -4458,11 +4384,6 @@ _run_verifiers_core() {
         verify_bunnybox_install
     else
         info "BunnyBox not installed — skipping MMU + Qidi Box checks"
-    fi
-    if idle_fan_shutdown_installed; then
-        ok "idle_fan_shutdown.cfg installed and included in printer.cfg"
-    else
-        info "Idle Fan Shutdown not installed"
     fi
     if mainsail_installed; then
         verify_mainsail
@@ -5483,7 +5404,6 @@ ${C_BOLD}What it can install:${C_RESET}
     - No UI changes - stock Qidi screen stays
 
 ${C_BOLD}Optional addons:${C_RESET}
-  - Idle Fan Shutdown: temperature-gated fan/heater shutdown after 10m idle
   - Mainsail: web UI on port ${MAINSAIL_PORT}, including camera proxy setup
 
 ${C_BOLD}Health Check / Run Verifiers:${C_RESET}
@@ -5608,7 +5528,7 @@ EOF
 
 # ---------- main menu ------------------------------------------------
 show_status_line() {
-    local bb_status helixscreen_status idle_status box_write_status mainsail_status camera_status firmware_status just_faster_status
+    local bb_status helixscreen_status box_write_status mainsail_status camera_status firmware_status just_faster_status
     if layout_supports_mutation; then
         firmware_status="${C_GREEN}$(q2_firmware_layout_label)${C_RESET}"
     else
@@ -5630,11 +5550,6 @@ show_status_line() {
         helixscreen_status="${C_GREEN}installed${C_RESET}"
     else
         helixscreen_status="${C_YELLOW}not found${C_RESET}"
-    fi
-    if idle_fan_shutdown_installed; then
-        idle_status="${C_GREEN}on${C_RESET}"
-    else
-        idle_status="${C_YELLOW}off${C_RESET}"
     fi
     if mainsail_installed; then
         mainsail_status="${C_GREEN}installed${C_RESET}"
@@ -5664,8 +5579,8 @@ show_status_line() {
     fi
     printf '  Just Faster: %b | BunnyBox: %b | Helixscreen: %b\n' \
            "$just_faster_status" "$bb_status" "$helixscreen_status"
-    printf '  IdleFan: %b | BoxWrite: %b | Mainsail: %b | Camera: %b\n' \
-           "$idle_status" "$box_write_status" "$mainsail_status" "$camera_status"
+    printf '  BoxWrite: %b | Mainsail: %b | Camera: %b\n' \
+           "$box_write_status" "$mainsail_status" "$camera_status"
     printf '  Firmware: %b\n' "$firmware_status"
 }
 
@@ -5727,13 +5642,12 @@ draw_menu() {
     printf '  %sUNINSTALL%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
     printf '   %s4)%s Revert to Backup                  (full uninstall + restore stock)\n' "$C_CYAN" "$C_RESET"
     printf '  %sADDONS%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
-    printf '   %s5)%s Idle Fan Shutdown                 (10m idle, temp-gated)\n' "$C_CYAN" "$C_RESET"
-    printf '   %s6)%s Mainsail                          (web UI on port 100)\n'   "$C_CYAN" "$C_RESET"
+    printf '   %s5)%s Mainsail                          (web UI on port 100)\n'   "$C_CYAN" "$C_RESET"
     printf '  %sINFO%s\n' "$C_BOLD$C_CYAN" "$C_RESET"
-    printf '   %s7)%s About\n'                                                    "$C_CYAN" "$C_RESET"
-    printf '   %s8)%s Health Check / Run Verifiers\n'                             "$C_CYAN" "$C_RESET"
+    printf '   %s6)%s About\n'                                                    "$C_CYAN" "$C_RESET"
+    printf '   %s7)%s Health Check / Run Verifiers\n'                             "$C_CYAN" "$C_RESET"
     printf '  %sTESTING%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
-    printf '   %s9)%s Testing\n' "$C_CYAN" "$C_RESET"
+    printf '   %s8)%s Testing\n' "$C_CYAN" "$C_RESET"
     printf '  %sFIRMWARE%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
     printf '   %sF)%s 01.01.02+ / qidi firmware\n' "$C_CYAN" "$C_RESET"
     printf '   %s0)%s Exit\n'                                                    "$C_CYAN" "$C_RESET"
@@ -5868,28 +5782,21 @@ main_loop() {
                 fi
                 ;;
             5)
-                if require_supported_firmware_layout "Idle Fan Shutdown addon"; then
-                    menu_idle_fan_shutdown
-                else
-                    press_enter
-                fi
-                ;;
-            6)
                 if require_supported_firmware_layout "Mainsail addon"; then
                     menu_mainsail
                 else
                     press_enter
                 fi
                 ;;
-            7) show_about ;;
-            8)
+            6) show_about ;;
+            7)
                 if layout_supports_mutation; then
                     run_all_verifiers
                 else
                     run_readonly_diagnostics
                 fi
                 ;;
-            9) testing_submenu ;;
+            8) testing_submenu ;;
             F|f) q2_112_submenu ;;
             0|q|Q|exit) info "Bye."; exit 0 ;;
             *) err "Invalid selection: '$choice'"; sleep 1 ;;

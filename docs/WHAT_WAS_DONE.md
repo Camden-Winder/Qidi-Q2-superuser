@@ -30,10 +30,10 @@ Menu items:
 | 2 | Install Just Faster Printer (Q2 without Box, stock screen) |
 | 3 | Install Just Faster Box (Q2 with Qidi Box, no BunnyBox) |
 | 4 | Revert to Backup (full uninstall + restore stock) |
-| 5 | Idle Fan Shutdown (10 min idle, temp-gated) |
-| 6 | Mainsail (web UI on port 100) |
-| 7 | About |
-| 8 | Health Check / Run Verifiers |
+| 5 | Mainsail (web UI on port 100) |
+| 6 | About |
+| 7 | Health Check / Run Verifiers |
+| 8 | Testing |
 | 0 | Exit |
 
 Features:
@@ -86,7 +86,7 @@ Replaced the old `Install-Script/` folder in RC2.33. All Q2-specific source file
 | `printer-BunnyBox.cfg` | `printer.cfg` template for BunnyBox + HelixScreen path |
 | `JustFasterPrinter.cfg` | `printer.cfg` template for Just Faster Printer path |
 | `helixscreen_settings.json` | Shipped to `/home/mks/.config/helixscreen/settings.json`; includes `"spool_style": "3d"` for Qidi Box AMS view |
-| `idle_fan_shutdown.cfg` | 10-minute idle fan + heater shutdown config |
+| `_IDLE_SHUTDOWN` gcode macro | 5-minute idle fan + heater shutdown — moved into stock macro configs in RC2.51; no longer a standalone file |
 | `box_drying.cfg` | Spool rotation during filament drying via Happy Hare Environment Manager |
 | `macros/` | `gcode_macro.cfg` templates for each install path |
 | `KAMP/` | `KAMP_settings.cfg` + vendored `Adaptive_Meshing.cfg`, `Line_Purge.cfg`, `Smart_Park.cfg` (moved into subdirectory in RC2.34) |
@@ -131,7 +131,6 @@ Every install capability follows this pattern:
 - **`screws_tilt_adjust`** for guided manual bed levelling.
 - **Faster, cleaner `PRINT_START` / `PRINT_END`** macros.
 - **Spoolman hooks** for filament inventory.
-- **Idle Fan Shutdown** — fans and heaters turn off after 10 minutes of idle (temp-gated).
 - **Mainsail web UI** — parallel web interface on port 100; stock lighttpd on port 80 is untouched.
 - **System Optimizations** (Max 4) — DNS, APT, service, and boot-animation improvements.
 - **Full backup/restore safety net** — every install writes a timestamped backup; Revert to Backup is one menu choice away.
@@ -151,7 +150,6 @@ Every install capability follows this pattern:
 | `Q2/helixscreen_settings.json` | `/home/mks/.config/helixscreen/settings.json` |
 | `Q2/macros/gcode_macro-JustFasterPrinter.cfg` | `/home/mks/printer_data/config/gcode_macro.cfg` |
 | `Q2/JustFasterPrinter.cfg` | `/home/mks/printer_data/config/printer.cfg` |
-| `Q2/idle_fan_shutdown.cfg` | `/home/mks/printer_data/config/idle_fan_shutdown.cfg` |
 | Backups | `/home/mks/mudstockbackups/YYYYMMDD_HHMMSS/` |
 
 ### Max 4
