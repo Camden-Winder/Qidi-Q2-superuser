@@ -135,6 +135,7 @@ When `install_*` fetches a remote file, use the `fetch()` helper, not `curl` dir
 | `install_bunnybox_helixscreen()` | Happy Hare + HelixScreen | `BunnyBox: installed/not found`, `Display: HelixScreen/none` |
 | `install_just_faster()` | JustFasterPrinter macros (Q2) | `Just Faster: Just Faster Printer` |
 | `install_just_faster_box()` | JustFasterBox macros (Q2) | `Just Faster: Just Faster Box` |
+| `update_macros()` | Re-fetch AOI-owned macro files for installed group | — |
 | `install_qidi_box_write()` | HelixScreen HELIX_QIDI_BOX_WRITE drop-in | `BoxWrite: on/off` |
 | `install_mainsail()` | Mainsail web UI (delegates to Camden-Winder's installer) | `Mainsail: installed/not found` |
 
@@ -144,11 +145,13 @@ When `install_*` fetches a remote file, use the `fetch()` helper, not `curl` dir
 1)  Install BunnyBox & HelixScreen    (Q2 with Qidi Box)
 2)  Install Just Faster Printer       (Q2 without Box)
 3)  Install Just Faster Box           (Q2 with Qidi Box, no BunnyBox)
-4)  Revert to Backup                  (full uninstall + restore stock)
-5)  Mainsail                          (web UI on port 100)
-6)  About
-7)  Health Check / Run Verifiers
-8)  Testing                           (submenu: snapshot tools + 1.1.2 probes)
+4)  Update Macros                     (re-fetch AOI macro files)
+5)  Revert to Backup                  (full uninstall + restore stock)
+6)  Mainsail                          (web UI on port 100)
+7)  About
+8)  Health Check / Run Verifiers
+9)  Testing                           (submenu: snapshot tools + 1.1.2 probes)
+10) 01.01.02+ / qidi firmware
 0)  Exit
 ```
 

@@ -4,7 +4,25 @@
 
 - **JFP + Qidi Box: no warning in installer** — Users who select Just Faster Printer but have a Qidi Box connected get `QDE_004_007: Extruder not loaded` at end of print, because JFP's `PRINT_END` doesn't call `UNLOAD_FILAMENT`. The installer should warn box owners to use Just Faster Box instead. (See issue #33.)
 - **CONTRIBUTING.md missing** — No contributor guide covering the branching convention, `claude/*` branch rule, and how to run the syntax checks.
-- [ ] Wiki AOI preview screenshot needs updating — menu options renumbered in RC2.51 (Mainsail 5, About 6, Health Check 7, Testing 8)
+- [ ] Wiki AOI preview screenshot needs updating — menu renumbered in RC2.52 (Update Macros added as option 4, firmware submenu moved to 10)
+
+---
+
+## RC2.52 — aoi.ini State File, Update Macros Option, Menu Renumber (Issue #57)
+
+Branch: `claude/friendly-knuth-qtvkpb` | PR: #61
+
+### What changed
+
+- **`aoi.ini`** — replaces empty `.aio_installed` marker. Stores `install_version`, `macro_version`, `install_group`, `install_date` in INI key=value format. `AIO_MARKER` repointed to `${CONFIG_DIR}/aoi.ini`.
+- **`write_aoi_ini()`** — new helper; writes all four fields atomically using `install -m 0644`.
+- **`read_aoi_ini()`** — new helper; reads a single key from `aoi.ini`.
+- **`update_macros()`** — new function (menu option 4); reads `install_group` from `aoi.ini`, warns user of overwrite, re-fetches all AOI-owned macro files and KAMP folder for the detected group, updates `macro_version` in `aoi.ini`.
+- **Migration** — on first run after upgrade, `.aio_installed` is deleted and `aoi.ini` is written in its place (in `do_backup()`).
+- **Marker writes updated** — BB, JFP, and JFB installers now call `write_aoi_ini()` with their group name instead of bare `touch`.
+- **Menu option 4 (Update Macros)** added; Revert → 5, Mainsail → 6, About → 7, Health Check → 8, Testing → 9.
+- **`F)` → `10)`** — firmware submenu renumbered to comply with standing rule (issue #57).
+- **`CLAUDE.md`** — menu layout and install functions table updated.
 
 ---
 
