@@ -24,5 +24,10 @@
       "Write(*)",
       "MultiEdit(*)"
     ]
+  },
+  "attribution": {
+    "commit": "",
+    "pr": "",
+    "sessionUrl": false
   }
 }
