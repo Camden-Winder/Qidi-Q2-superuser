@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.52'
+AIO_VERSION='RC2.53'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -148,8 +148,7 @@ Q2_112_MOONRAKER_COMPONENTS_PROOF_DIR="${BACKUP_ROOT}/_Q2_112_MOONRAKER_COMPONEN
 Q2_112_MOONRAKER_COMPONENTS_PROOF_TARGET="${MOONRAKER_DIR}/moonraker/components"
 Q2_112_MOONRAKER_COMPONENTS_PROOF_MARKER="${Q2_112_MOONRAKER_COMPONENTS_PROOF_TARGET}/.aio-q2-112-restore-proof.marker"
 
-# Returns the installed HelixScreen version string (e.g. "0.99.66") or
-# empty if it can't be determined. Tries the binary, then a VERSION file.
+# Returns the installed HelixScreen version string (e.g. "0.99.66"), or empty if undetermined; tries the binary first, then a VERSION file.
 helixscreen_version() {
     local v=""
     if [ -x "${HELIX_DIR}/helixscreen" ]; then
@@ -594,8 +593,7 @@ verify_runtime_health() {
     fi
 }
 
-# Post-install sanity check for the Qidi Box read-path on HelixScreen.
-# Warns on missing pieces, never fails - the install is already done.
+# Post-install sanity check for the Qidi Box / HelixScreen read-path; warns on missing box.cfg, filament list, version, and [include box.cfg] conflicts. Never fails.
 verify_qidi_box_helixscreen() {
     banner "Verifying Qidi Box read-path (HelixScreen >= v0.99.66)"
 
@@ -647,14 +645,13 @@ verify_qidi_box_helixscreen() {
 
 QIDI_BOX_WRITE_DROPIN='/etc/systemd/system/helixscreen.service.d/qidi-box-write.conf'
 
+# Returns 0 if the HELIX_QIDI_BOX_WRITE=1 systemd drop-in is installed and active.
 qidi_box_write_enabled() {
     [ -f "$QIDI_BOX_WRITE_DROPIN" ] && \
     grep -q 'HELIX_QIDI_BOX_WRITE=1' "$QIDI_BOX_WRITE_DROPIN" 2>/dev/null
 }
 
-# Enable HelixScreen's experimental Qidi Box WRITE ops (load_filament,
-# unload_filament, change_tool, set_tool_mapping). Upstream flags this
-# as field-testing; a confirm prompt (5s default yes) gates the install.
+# Installs a systemd drop-in that sets HELIX_QIDI_BOX_WRITE=1, enabling HelixScreen's experimental Qidi Box write ops (load/unload filament, change_tool). Prompts with 5s default-yes before writing.
 install_qidi_box_write() {
     banner "Enabling HELIX_QIDI_BOX_WRITE (Qidi Box interactive control)"
     warn "Upstream marks this as field-testing. Read/write Qidi Box ops"
@@ -704,10 +701,8 @@ uninstall_qidi_box_write() {
 }
 
 # ---------- Mainsail (delegated to Camden-Winder's installer) --------
-# Mainsail is a standalone web UI; Camden's installer handles nginx,
-# moonraker CORS, and the port-100 mapping (Qidi's stock UI keeps port
-# 80). AIO just runs the installer and provides detection + uninstall.
 
+# Returns true if Mainsail's index.html and nginx site config are both present.
 mainsail_installed() {
     [ -f "${MAINSAIL_DIR}/index.html" ] && \
     [ -f "$MAINSAIL_NGINX_SITE_AVAIL" ]
@@ -798,19 +793,13 @@ verify_mainsail() {
 }
 
 # ---------- Camera streaming (ustreamer, bundled with Mainsail) ------
-# ustreamer streams the Q2's built-in USB camera as MJPEG on port 8080.
-# Installed automatically alongside Mainsail; removed when Mainsail is
-# removed. Moonraker's [webcam] section registers the stream URL so
-# Mainsail's camera panel works out of the box.
 
+# Returns true if the ustreamer systemd service unit is enabled.
 camera_installed() {
     systemctl is-enabled --quiet "$USTREAMER_SERVICE" 2>/dev/null
 }
 
-# Returns 0 if the existing camera config matches the RC13 design (ustreamer
-# bound to 127.0.0.1, Mainsail nginx /webcam/ proxy present, moonraker.conf
-# stream_url uses the nginx proxy path). Used by install_camera() to decide
-# whether to short-circuit or migrate from RC12.
+# Returns 0 if the camera config matches the current design: ustreamer bound to 127.0.0.1, nginx /webcam/ proxy present, and moonraker.conf stream_url using the proxy path.
 camera_config_is_current() {
     [ -f "$USTREAMER_UNIT" ] || return 1
     grep -q 'host=127.0.0.1' "$USTREAMER_UNIT" || return 1
@@ -820,8 +809,7 @@ camera_config_is_current() {
     return 0
 }
 
-# Insert a /webcam/ proxy location block before the last `}` of the Mainsail
-# nginx server config. Idempotent. Returns 0 if added or already present.
+# Inserts a /webcam/ proxy location block into the Mainsail nginx config before its closing brace; idempotent.
 add_webcam_to_mainsail_nginx() {
     local conf="$MAINSAIL_NGINX_SITE_AVAIL"
     [ -f "$conf" ] || return 1
@@ -879,9 +867,7 @@ remove_webcam_from_mainsail_nginx() {
     return $rc
 }
 
-# Query Moonraker's webcam API and offer to delete any UI-added (database-source)
-# webcam entries.  Called from install_camera() after moonraker restart so only
-# one [webcam printer] entry exists in Mainsail.
+# Queries Moonraker's webcam API and offers to delete database-source (UI-added) webcam entries so only one [webcam printer] entry remains in Mainsail.
 purge_mainsail_ui_webcams() {
     local api="http://127.0.0.1:${MOONRAKER_PORT}"
     local response
@@ -1274,9 +1260,7 @@ menu_mainsail() {
     press_enter
 }
 
-# Locate mmu_parameters.cfg at runtime - Happy Hare puts it directly
-# under ${CONFIG_DIR}/mmu/ in current versions, but older installs and
-# the original handoff doc reference ${CONFIG_DIR}/mmu/base/. Check both.
+# Echoes the path to mmu_parameters.cfg, checking both mmu/ (current) and mmu/base/ (older Happy Hare installs).
 find_mmu_params() {
     for p in "${CONFIG_DIR}/mmu/mmu_parameters.cfg" \
              "${CONFIG_DIR}/mmu/base/mmu_parameters.cfg"; do
@@ -1288,10 +1272,7 @@ find_mmu_params() {
     return 1
 }
 
-# Reverse the ## AIO_DISABLED: comments that fix_known_klipper_conflicts()
-# applied to Qidi stock files (box1.cfg, gcode_macro.cfg) when BunnyBox was
-# installed. Called during uninstall so Qidi's native T0-T3/UNLOAD_T0-T3 and
-# EXTRUSION_AND_FLUSH macros are active again once Happy Hare is removed.
+# Restores macros in box1.cfg and gcode_macro.cfg that fix_known_klipper_conflicts() commented out with ## AIO_DISABLED: during BunnyBox install.
 restore_aio_disabled_macros() {
     local changed=0
     for cfg in "${CONFIG_DIR}/box1.cfg" "${CONFIG_DIR}/gcode_macro.cfg"; do
@@ -1304,10 +1285,8 @@ restore_aio_disabled_macros() {
     [ "$changed" -eq 0 ] && info "No AIO_DISABLED macros to restore"
 }
 
-# Non-config cleanup for Happy Hare / BunnyBox. Called from revert_to_backup()
-# only. Handles everything outside CONFIG_DIR: source tree, klipper extras,
-# moonraker component. Config files (mmu/, mmu*.cfg, etc.) are restored
-# automatically by rsync --delete in revert_to_backup().
+# Removes Happy Hare / BunnyBox artifacts outside CONFIG_DIR: source tree, klipper extras, and the moonraker mmu_server component.
+# Config files are handled separately by rsync --delete in revert_to_backup(), which is the only caller.
 _purge_happy_hare_nonconfig() {
     banner "Removing Happy Hare / BunnyBox (non-config cleanup)"
 
@@ -1347,9 +1326,8 @@ _purge_happy_hare_nonconfig() {
     fi
 }
 
-# Exhaustively remove every Happy Hare / BunnyBox footprint we know
-# about, regardless of whether the upstream uninstallers ran. Called
-# from uninstall_bunnybox() and the verifier repair path.
+# Exhaustively removes every known Happy Hare / BunnyBox footprint regardless of whether upstream uninstallers ran.
+# Called from both uninstall_bunnybox() and the verifier repair path.
 purge_happy_hare_all() {
     banner "Purging all Happy Hare / BunnyBox artifacts"
 
@@ -1582,9 +1560,7 @@ just_faster_box_installed() {
     grep -q 'Superuser Macros: Just Faster Box' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null
 }
 
-# Scan every path the BunnyBox installer's own detection logic looks at,
-# plus a few extras. Returns 0 if any artifact is present (and prints
-# what was found), 1 if the slate is truly clean.
+# Scans well-known BunnyBox artifact paths; prints any found and returns 0 if any are present, 1 if clean.
 detect_bunnybox_artifacts() {
     local found=0
     local paths=(
@@ -1641,9 +1617,7 @@ preflight() {
     return 0
 }
 
-# Preflight for q2_112 installs. Skips the mutation layout guard —
-# the q2_112 submenu functions handle their own layout scoping.
-# All other checks (network, config dir, force_move) still apply.
+# Variant of preflight() for q2_112 installs; skips the mutation layout guard since q2_112 submenu functions scope their own layout checks.
 preflight_q2_112() {
     banner "Pre-flight checks (01.01.02+ / qidi layout)"
     if ! curl --fail --silent --head --max-time 10 \
@@ -1954,9 +1928,7 @@ cleanup_aio_runtime_artifacts() {
 }
 
 
-# TODO: On firmware 1.1.2+ the stock display service is qidi-client, not
-# makerbase-client. This function does not branch on firmware layout yet.
-# Add detection when AIO gains general 1.1.2+ support.
+# Unmasks, enables, and starts the Qidi stock display services (STOCK_DISPLAY_SERVICE and STOCK_UI_SERVICE), undoing HelixScreen's service masking and boot-target override.
 restore_stock_display_services() {
     info "Re-enabling Qidi stock display services: $(stock_display_stack_label)"
 
@@ -4111,14 +4083,8 @@ menu_q2_112_roundtrip_probe() {
     press_enter
 }
 
-# Switch the Q2's active display from the stock Qidi services to HelixScreen.
-# Inverse of the unmask/enable/restart block in uninstall_helixscreen().
-#
-# Why this exists: HelixScreen's upstream installer was written for the
-# Artillery M1 Pro and doesn't know about Qidi-specific display services.
-# Without this swap, the stock UI service keeps the vendor UI on the
-# physical screen and HelixScreen never appears, even though the package
-# was installed correctly.
+# Stops and masks the Qidi stock display services, then enables and restarts helixscreen so HelixScreen owns the physical screen.
+# Needed because HelixScreen's upstream installer was written for the Artillery M1 Pro and has no knowledge of Qidi display services.
 switch_display_to_helixscreen() {
     banner "Switching active display: stock Qidi → HelixScreen"
     if [ ! -f /etc/systemd/system/helixscreen.service ]; then
@@ -4187,9 +4153,7 @@ uninstall_helixscreen() {
     fi
 }
 
-# Full upstream-style revert: re-enables the stock display stack and
-# restores from the selected AIO backup via rsync (mirrors Camden-Winder
-# uninstall.sh).
+# Performs a full stock restore: re-enables the stock display stack, runs all uninstallers, and rsync-restores the config from the selected AIO backup snapshot.
 revert_to_backup() {
     banner "Revert to Backup (full stock restore)"
 
@@ -4351,9 +4315,7 @@ verify_jfb_install() {
     fi
 }
 
-# Catch known Klipper config errors that prevent boot — currently the
-# `timeout: <n>` line that some Qidi stock printer.cfg versions misplace
-# inside [bed_mesh] (it belongs in [idle_timeout]). Prompts before fixing.
+# Scans printer.cfg for known boot-breaking misplacements (timeout: and gcode: inside [bed_mesh]) and offers to remove them after confirming.
 check_invalid_klipper_options() {
     banner "Checking for invalid Klipper config options"
     local pcfg="${CONFIG_DIR}/printer.cfg"
@@ -4405,8 +4367,7 @@ check_invalid_klipper_options() {
     fi
 }
 
-# Find [include X] lines whose target file doesn't exist on disk. Klipper
-# halts with "Unable to open config file" if any include is broken.
+# Finds [include X] lines in printer.cfg whose target file does not exist on disk and offers to comment them out.
 check_orphan_includes() {
     banner "Checking for orphan [include] lines"
     local pcfg="${CONFIG_DIR}/printer.cfg"
@@ -4457,9 +4418,7 @@ check_orphan_includes() {
     fi
 }
 
-# Detect Happy Hare / MMU artifacts that survived an uninstall. The Klipper
-# extras dir is the main risk — if mmu_*.py or extras/mmu/ are still there
-# after revert, Klipper will try to re-register MMU gcode commands and crash.
+# Detects Happy Hare / MMU artifacts (extras/mmu/, mmu_*.py, mmu_server.py) that survived an uninstall and offers to remove them interactively.
 check_leftover_mmu_artifacts() {
     banner "Checking for leftover MMU / Happy Hare artifacts"
     local extras="${HOME}/klipper/klippy/extras"
@@ -4511,8 +4470,7 @@ check_leftover_mmu_artifacts() {
     fi
 }
 
-# Core verifier sequence. Runs from both menu option 8 and the tail of
-# revert_to_backup(). Does NOT call press_enter — that's the caller's job.
+# Runs the full verifier sequence (runtime health, install checks, conflict scans); shared by menu option 8 and revert_to_backup(). Does not call press_enter.
 _run_verifiers_core() {
     verify_runtime_health
 
@@ -4872,9 +4830,7 @@ run_readonly_diagnostics() {
     press_enter
 }
 
-# Print the active Klipper config graph as NUL-delimited paths. This mirrors
-# Klipper's include handling: includes resolve relative to the file containing
-# them, globs are supported, and commented-out include lines are ignored.
+# Prints the active Klipper config graph as NUL-delimited absolute paths, recursively following [include] lines (glob-aware, skips commented includes).
 list_active_klipper_configs() {
     local pcfg="${CONFIG_DIR}/printer.cfg"
     [ -f "$pcfg" ] || return 1
@@ -4913,9 +4869,7 @@ walk(sys.argv[1])
 PY
 }
 
-# Scan the active printer.cfg include graph for duplicate [gcode_macro NAME]
-# declarations. Files preserved on disk for stock restore are intentionally not
-# scanned unless printer.cfg can reach them through an active [include] line.
+# Scans the active printer.cfg include graph for duplicate [gcode_macro NAME] declarations and warns on any found; only reaches files referenced by active [include] lines.
 find_duplicate_macros() {
     banner "Scanning for duplicate gcode_macro declarations"
 
@@ -4959,9 +4913,7 @@ find_duplicate_macros() {
     return 1
 }
 
-# Remove or neutralise config files known to cause "gcode command X already
-# registered" errors when BunnyBox + HelixScreen is installed alongside the
-# Qidi stock config files. Idempotent — safe to run multiple times.
+# Removes or comments out config files and macros known to cause "gcode command already registered" Klipper crashes when BunnyBox is installed alongside stock Qidi configs. Idempotent.
 fix_known_klipper_conflicts() {
     banner "Resolving known Klipper macro conflicts"
 

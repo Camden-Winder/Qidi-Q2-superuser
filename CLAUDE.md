@@ -129,6 +129,31 @@ Every new capability that installs something must follow this checklist:
 
 When `install_*` fetches a remote file, use the `fetch()` helper, not `curl` directly.
 
+### Function Comment Standard
+
+Every `install_*`, `uninstall_*`, `verify_*`, `*_installed`, and any function over 20 lines must have a comment immediately above the `functionname()` line.
+
+Rules:
+- One line maximum. Two lines only if a genuinely distinct second thought is needed.
+- Prose style, third person. No structured fields (`# Purpose:`, `# Side effects:`, etc.).
+- Written by reading the function body directly — do not copy or reformat the existing comment.
+- Blank line between the comment and any preceding code block, but no blank line between the comment and the function definition.
+
+Examples:
+
+**One line (single thought):**
+```bash
+# Removes Happy Hare/BunnyBox artifacts outside CONFIG_DIR (source tree, klipper extras, moonraker component). Called from revert_to_backup() only.
+uninstall_bunnybox_system() {
+```
+
+**Two lines (two distinct thoughts):**
+```bash
+# Removes every known Happy Hare/BunnyBox footprint regardless of whether upstream uninstallers ran.
+# Called from both uninstall_bunnybox() and the verifier repair path.
+purge_bunnybox_footprint() {
+```
+
 ### Current Install Functions
 
 | Function | Feature | Status indicator |
