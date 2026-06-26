@@ -8,6 +8,19 @@
 
 ---
 
+## RC2.53 — Function Comment Standard (Issue #55)
+
+Branch: `claude/serene-thompson-kaqxsu`
+
+### What changed
+
+- **`CLAUDE.md`** — added Function Comment Standard: 1–2 line prose comments required above all `install_*`, `uninstall_*`, `verify_*`, `*_installed`, and functions over 20 lines.
+- **`Q2/aio_menu.sh`** — all functions updated to comply with the standard; missing comments added, multi-line comments condensed.
+
+References #55
+
+---
+
 ## RC2.52 — aoi.ini State File, Update Macros Option, Menu Renumber (Issue #57)
 
 Branch: `claude/friendly-knuth-qtvkpb` | PR: #61
