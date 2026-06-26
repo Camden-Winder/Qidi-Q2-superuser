@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.51'
+AIO_VERSION='RC2.52'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -97,7 +97,7 @@ MAINSAIL_INSTALLER='https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-supe
 CONFIG_DIR="${AIO_HOME}/printer_data/config"
 BACKUP_ROOT="${AIO_HOME}/mudstockbackups"
 SNAPSHOT_DIR="${AIO_HOME}/aio_config_backup"
-AIO_MARKER="${CONFIG_DIR}/.aio_installed"
+AIO_MARKER="${CONFIG_DIR}/aoi.ini"
 HELIX_DIR="${AIO_HOME}/helixscreen"
 HELIX_PRINT_DIR="${AIO_HOME}/helix_print"
 HELIX_CONFIG_DIR="${HELIX_DIR}/config"
@@ -1120,6 +1120,106 @@ verify_camera() {
     fi
 }
 
+update_macros() {
+    banner "Update Macros"
+
+    local group
+    if ! group=$(read_aoi_ini "install_group"); then
+        err "aoi.ini not found or install_group missing — please reinstall using option 1, 2, or 3"
+        press_enter
+        return 1
+    fi
+
+    if [ "$group" = "unknown" ]; then
+        err "Install group is unknown in aoi.ini — please reinstall using option 1, 2, or 3"
+        press_enter
+        return 1
+    fi
+
+    warn "This will overwrite your current macro files with the latest AOI versions."
+    warn "Any custom modifications to these files will be lost."
+    warn "Detected install group: ${group}"
+    if ! confirm "Proceed with macro update?"; then
+        info "Macro update cancelled"
+        press_enter
+        return 0
+    fi
+
+    case "$group" in
+        BunnyBox)
+            info "Updating gcode_macro.cfg..."
+            fetch "${REPO_BASE}/macros/gcode_macro-BunnyBox.cfg" \
+                  "${CONFIG_DIR}/gcode_macro.cfg" || { press_enter; return 1; }
+            ok "gcode_macro.cfg updated"
+            info "Updating printer.cfg..."
+            fetch "${REPO_BASE}/macros/printer-BunnyBox.cfg" \
+                  "${CONFIG_DIR}/printer.cfg" || { press_enter; return 1; }
+            ok "printer.cfg updated"
+            ;;
+        JustFasterPrinter)
+            info "Updating gcode_macro.cfg..."
+            fetch "${REPO_BASE}/macros/gcode_macro-JustFasterPrinter.cfg" \
+                  "${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg" || { press_enter; return 1; }
+            ok "gcode_macro.cfg updated"
+            local kamp_include="[include KAMP/KAMP_settings.cfg]"
+            local printer_cfg="${CONFIG_DIR}/printer.cfg"
+            if ! grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
+                info "Re-patching printer.cfg: KAMP include missing"
+                python3 - "$printer_cfg" "$kamp_include" <<'PYEOF'
+import sys
+cfg, line = sys.argv[1], sys.argv[2]
+txt = open(cfg).read()
+if line not in txt:
+    txt = txt.rstrip('\n') + '\n' + line + '\n'
+    open(cfg, 'w').write(txt)
+PYEOF
+                ok "KAMP include re-added to printer.cfg"
+            fi
+            ;;
+        JustFasterBox)
+            info "Updating gcode_macro.cfg..."
+            fetch "${REPO_BASE}/macros/gcode_macro-JustFasterBox.cfg" \
+                  "${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg" || { press_enter; return 1; }
+            ok "gcode_macro.cfg updated"
+            local kamp_include="[include KAMP/KAMP_settings.cfg]"
+            local printer_cfg="${CONFIG_DIR}/printer.cfg"
+            if ! grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
+                info "Re-patching printer.cfg: KAMP include missing"
+                python3 - "$printer_cfg" "$kamp_include" <<'PYEOF'
+import sys
+cfg, line = sys.argv[1], sys.argv[2]
+txt = open(cfg).read()
+if line not in txt:
+    txt = txt.rstrip('\n') + '\n' + line + '\n'
+    open(cfg, 'w').write(txt)
+PYEOF
+                ok "KAMP include re-added to printer.cfg"
+            fi
+            ;;
+        *)
+            err "Unknown install group '${group}' in aoi.ini — please reinstall"
+            press_enter
+            return 1
+            ;;
+    esac
+
+    info "Updating KAMP files..."
+    clean_kamp_dir
+    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
+    fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
+    ok "KAMP files updated"
+
+    local install_ver install_group
+    install_ver=$(read_aoi_ini "install_version") || install_ver="unknown"
+    install_group=$(read_aoi_ini "install_group") || install_group="$group"
+    write_aoi_ini "$install_group" "$install_ver" "${AIO_VERSION}"
+
+    ok "Macro update complete — macro_version set to ${AIO_VERSION}"
+    press_enter
+}
+
 menu_mainsail() {
     banner "Mainsail addon"
     if mainsail_installed; then
@@ -1753,6 +1853,36 @@ take_snapshot() {
     return 0
 }
 
+write_aoi_ini() {
+    local group="$1"
+    local install_ver="$2"
+    local macro_ver="$3"
+    local date
+    date=$(date +%Y-%m-%d)
+    local content
+    content="$(printf '[aoi]\ninstall_version=%s\nmacro_version=%s\ninstall_group=%s\ninstall_date=%s\n' \
+        "$install_ver" "$macro_ver" "$group" "$date")"
+    if printf '%s' "$content" | install -m 0644 /dev/stdin "${AIO_MARKER}" 2>/dev/null || \
+       printf '%s' "$content" | sudo install -m 0644 /dev/stdin "${AIO_MARKER}" 2>/dev/null; then
+        ok "aoi.ini written: ${AIO_MARKER}"
+    else
+        warn "Could not write aoi.ini — state file missing"
+    fi
+}
+
+read_aoi_ini() {
+    local key="$1"
+    if [ ! -f "${AIO_MARKER}" ]; then
+        return 1
+    fi
+    local val
+    val=$(grep "^${key}=" "${AIO_MARKER}" 2>/dev/null | cut -d'=' -f2-)
+    if [ -z "$val" ]; then
+        return 1
+    fi
+    printf '%s' "$val"
+}
+
 do_backup() {
     # If AIO has never run an install on this printer, snapshot the current
     # config as "stock" — regardless of what's in it (manual installs included).
@@ -1760,8 +1890,13 @@ do_backup() {
     # rsync --delete in revert_to_backup() removes the marker automatically.
     take_snapshot || return 1
     if [ ! -f "${AIO_MARKER}" ]; then
-        touch "${AIO_MARKER}" 2>/dev/null || sudo touch "${AIO_MARKER}"
-        ok "AIO marker written: ${AIO_MARKER}"
+        # Migrate old empty marker to aoi.ini
+        local old_marker="${CONFIG_DIR}/.aio_installed"
+        if [ -f "$old_marker" ]; then
+            rm -f "$old_marker" 2>/dev/null || sudo rm -f "$old_marker"
+            info "Migrated .aio_installed → aoi.ini"
+        fi
+        write_aoi_ini "unknown" "${AIO_VERSION}" "${AIO_VERSION}"
     fi
     return 0
 }
@@ -4112,13 +4247,14 @@ revert_to_backup() {
         ok "Re-enabled previously-disabled [idle_timeout] in printer.cfg"
     fi
 
-    # The .aio_installed marker was created after the snapshot, so it is absent
+    # The aoi.ini marker was created after the snapshot, so it is absent
     # from the snapshot and rsync --delete removes it automatically.
     # Verify and clean up as a safety net:
     if [ -f "${AIO_MARKER}" ]; then
         warn "AIO marker still present after restore — removing manually"
         rm -f "${AIO_MARKER}" 2>/dev/null || sudo rm -f "${AIO_MARKER}"
     fi
+    rm -f "${CONFIG_DIR}/.aio_installed" 2>/dev/null || sudo rm -f "${CONFIG_DIR}/.aio_installed" 2>/dev/null || true
 
     # 4. Restore stock display services (live systemd — not a config file).
     restore_stock_display_services || \
@@ -5166,8 +5302,7 @@ _install_bunnybox() {
         # Write marker only after BunnyBox has confirmed installation —
         # the filament-removal prompt inside the BunnyBox sub-installer
         # runs before this point, so a cancel there leaves no marker.
-        touch "${AIO_MARKER}" 2>/dev/null || sudo touch "${AIO_MARKER}"
-        ok "AIO marker written: ${AIO_MARKER}"
+        write_aoi_ini "BunnyBox" "${AIO_VERSION}" "${AIO_VERSION}"
 
         banner "Installing HelixScreen"
         run_remote_script "$HELIXSCREEN_INSTALLER"
@@ -5311,6 +5446,7 @@ install_just_faster() {
     fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
     ok "KAMP settings and sub-files applied to ${CONFIG_DIR}/KAMP/"
+    write_aoi_ini "JustFasterPrinter" "${AIO_VERSION}" "${AIO_VERSION}"
 
     verify_jfp_install
 
@@ -5353,6 +5489,7 @@ install_just_faster_box() {
     fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
     ok "KAMP settings and sub-files applied to ${CONFIG_DIR}/KAMP/"
+    write_aoi_ini "JustFasterBox" "${AIO_VERSION}" "${AIO_VERSION}"
 
     verify_jfb_install
 
@@ -5636,21 +5773,22 @@ draw_menu() {
     show_status_line
     printf '%s--------------------------------------------%s\n' "$C_BOLD" "$C_RESET"
     printf '  %sINSTALL%s\n' "$C_BOLD$C_GREEN" "$C_RESET"
-    printf '   %s1)%s Install BunnyBox & HelixScreen    (Q2 with Qidi Box)\n'         "$C_CYAN" "$C_RESET"
-    printf '   %s2)%s Install Just Faster Printer       (Q2 without Box)\n'           "$C_CYAN" "$C_RESET"
+    printf '   %s1)%s Install BunnyBox & HelixScreen    (Q2 with Qidi Box)\n'              "$C_CYAN" "$C_RESET"
+    printf '   %s2)%s Install Just Faster Printer       (Q2 without Box)\n'               "$C_CYAN" "$C_RESET"
     printf '   %s3)%s Install Just Faster Box           (Q2 with Qidi Box, no BunnyBox)\n' "$C_CYAN" "$C_RESET"
+    printf '   %s4)%s Update Macros                     (re-fetch AOI macro files)\n'     "$C_CYAN" "$C_RESET"
     printf '  %sUNINSTALL%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
-    printf '   %s4)%s Revert to Backup                  (full uninstall + restore stock)\n' "$C_CYAN" "$C_RESET"
+    printf '   %s5)%s Revert to Backup                  (full uninstall + restore stock)\n' "$C_CYAN" "$C_RESET"
     printf '  %sADDONS%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
-    printf '   %s5)%s Mainsail                          (web UI on port 100)\n'   "$C_CYAN" "$C_RESET"
+    printf '   %s6)%s Mainsail                          (web UI on port 100)\n'            "$C_CYAN" "$C_RESET"
     printf '  %sINFO%s\n' "$C_BOLD$C_CYAN" "$C_RESET"
-    printf '   %s6)%s About\n'                                                    "$C_CYAN" "$C_RESET"
-    printf '   %s7)%s Health Check / Run Verifiers\n'                             "$C_CYAN" "$C_RESET"
+    printf '   %s7)%s About\n'                                                             "$C_CYAN" "$C_RESET"
+    printf '   %s8)%s Health Check / Run Verifiers\n'                                      "$C_CYAN" "$C_RESET"
     printf '  %sTESTING%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
-    printf '   %s8)%s Testing\n' "$C_CYAN" "$C_RESET"
+    printf '   %s9)%s Testing\n'                                                           "$C_CYAN" "$C_RESET"
     printf '  %sFIRMWARE%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
-    printf '   %sF)%s 01.01.02+ / qidi firmware\n' "$C_CYAN" "$C_RESET"
-    printf '   %s0)%s Exit\n'                                                    "$C_CYAN" "$C_RESET"
+    printf '   %s10)%s 01.01.02+ / qidi firmware\n'                                       "$C_CYAN" "$C_RESET"
+    printf '   %s0)%s Exit\n'                                                              "$C_CYAN" "$C_RESET"
     printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
     printf '%sEnter selection:%s ' "$C_BOLD" "$C_RESET"
 }
@@ -5774,6 +5912,13 @@ main_loop() {
             2) install_just_faster ;;
             3) install_just_faster_box ;;
             4)
+                if require_supported_firmware_layout "Update Macros"; then
+                    update_macros
+                else
+                    press_enter
+                fi
+                ;;
+            5)
                 warn "Revert to Backup will uninstall AIO display/MMU changes,"
                 warn "restore configs from ${SNAPSHOT_DIR}/, and re-enable stock $(stock_display_stack_label)."
                 if confirm "Proceed with full revert?"; then
@@ -5781,23 +5926,23 @@ main_loop() {
                     press_enter
                 fi
                 ;;
-            5)
+            6)
                 if require_supported_firmware_layout "Mainsail addon"; then
                     menu_mainsail
                 else
                     press_enter
                 fi
                 ;;
-            6) show_about ;;
-            7)
+            7) show_about ;;
+            8)
                 if layout_supports_mutation; then
                     run_all_verifiers
                 else
                     run_readonly_diagnostics
                 fi
                 ;;
-            8) testing_submenu ;;
-            F|f) q2_112_submenu ;;
+            9) testing_submenu ;;
+            10) q2_112_submenu ;;
             0|q|Q|exit) info "Bye."; exit 0 ;;
             *) err "Invalid selection: '$choice'"; sleep 1 ;;
         esac
