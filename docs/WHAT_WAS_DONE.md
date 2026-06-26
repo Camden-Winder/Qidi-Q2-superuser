@@ -38,33 +38,21 @@ Menu items:
 | 10 | 01.01.02+ / qidi firmware |
 | 0 | Exit |
 
-> **Keep current:** whenever `AIO_VERSION` is bumped to a number ending in `0` or `5`, update this menu table to reflect the current layout.
-
 Features:
-- Preflight (network reachability to GitHub, `${CONFIG_DIR}` present, `enable_force_move` sanity check)
-- Timestamped backups to `/home/mks/mudstockbackups/YYYYMMDD_HHMMSS/` before every install and revert
-- Install log via `tee` for BunnyBox+HelixScreen flow
-- Per-action `[OK] / [INFO] / [WARN] / [ERR]` status lines (green / cyan / yellow / red)
-- Live status header: `BunnyBox`, `HelixScreen`, `IdleFan`, `BoxWrite`, `Mainsail` installed-state
-- Y/N confirmation on destructive actions
-- Post-install verifiers: `verify_qidi_box_helixscreen()`, `verify_mainsail()`, etc.
-- `run_all_verifiers()` (option 8) sweeps for orphan includes, duplicate macros, invalid Klipper options, and leftover MMU artifacts — also auto-runs at the end of `revert_to_backup()`
-- `fix_known_klipper_conflicts()` — detects and resolves: duplicate `BED_MESH_CALIBRATE` macro definitions across config files; `timeout:` / `gcode:` keys misplaced inside `[bed_mesh]`; `[include box.cfg]` active while BunnyBox is installed (crashes Klipper)
-- **Webcam/camera support** — plug in a USB camera and the installer sets it up automatically; live view appears inside Mainsail with no manual config (`install_camera()` / `uninstall_camera()` / `verify_camera()`)
-- **Safe first-install detection** — the installer records which folders already existed before it ran, so Revert to Backup never deletes files you had before AIO (`capture_first_run_state()` / `path_was_preexisting()` / `should_remove_aio_path()`)
-- **Revert preview (dry-run)** — before committing to a revert, the installer can show you exactly what will be removed and what will be kept, without touching anything (`report_stock_preservation_dry_run()` / `report_aio_removal_dry_run()`)
-- **HelixScreen dashboard layout** — after installing HelixScreen the installer patches the dashboard widget layout automatically (printer image, temperatures, print status) so you get a useful layout out of the box (`apply_helixscreen_dashboard_layout()`)
-- **Config include graph analysis** — the installer can walk your full Klipper config tree to find duplicate macro definitions and offer to fix them automatically (`list_active_klipper_configs()` / `find_duplicate_macros()`)
-- **Update Macros (option 4)** — re-downloads the latest AIO macro files for whichever install path you're on, without re-running the full installer (`update_macros()`)
-- **Install state tracking (`aoi.ini`)** — replaces the old empty `.aio_installed` marker; records your install path, version, and date so menu options can show accurate status and future updates know what's installed (`write_aoi_ini()` / `read_aoi_ini()`)
-- **Firmware 01.01.02+ support (option 10)** — dedicated install paths for users on newer Q2 firmware where `/home/mks` became a root-owned symlink; writes macros to the correct location without breaking the stock setup (`install_jfp_q2_112()` / `install_jfb_q2_112()`)
-- **01.01.02+ safety contract** — before touching a 01.01.02+ printer, the installer takes a cryptographic snapshot of your config; a full rehearsal and per-subsystem restore proofs verify it can undo its own changes before anything is committed (`capture_q2_112_restore_contract()` / `validate_q2_112_restore_contract()` / `run_q2_112_restore_rehearsal()` and related proofs)
-- `check_orphan_includes()` — finds `[include X]` lines whose target doesn't exist and offers to comment them out
-- `check_leftover_mmu_artifacts()` — detects surviving Happy Hare v3 `extras/mmu/` package and `mmu_*.py` symlinks
-- `switch_display_to_helixscreen()` — stops/disables `lightdm` and `makerbase-client`, then enables `helixscreen.service` (fixes fresh-install black screen)
-- Revert to Backup is the single uninstall path; internally delegates to `uninstall_bunnybox()` and `uninstall_helixscreen()` and then rsyncs the newest timestamped stock backup back over `${CONFIG_DIR}`
-- Happier Hare (custom patched HelixScreen binary) subsystem removed in RC2.34; HelixScreen is always pulled from the upstream `main` branch
-- **RC2.37 macro audit** — four missing macros (`M4032`, `SMART_STATUS`, `prepare_filament_dry`, `restore_factory_settings`) restored to JFB and JFP; `SET_PRINT_MAIN_STATUS`/`SET_PRINT_SUB_STATUS` calls re-inserted in `M901`, `M4029`, `M603`, `M604`; `CLEAR_NOZZLE` cross-ported JFP→JFB; `EXTRUSION_AND_FLUSH` loop count fixed; `CANCEL_PRINT`/`PAUSE`/`RESUME_PRINT`/`RESUME` restored to JFP
+- Checks network, config directory, and Klipper safety settings before any install starts
+- Creates a timestamped backup before every install or revert — one menu choice restores your printer to stock
+- Colour-coded status output and a live header showing what's currently installed
+- Asks for confirmation before any destructive action
+- Post-install checks verify each feature landed correctly; Health Check (option 8) sweeps the whole config for common problems
+- Automatically fixes known Klipper conflicts: duplicate macro definitions, misplaced bed mesh keys, conflicting includes
+- Webcam/camera support — plug in a USB camera and the installer sets it up; live view appears inside Mainsail automatically
+- Revert to Backup never deletes files that existed before AIO was installed
+- Before reverting, shows exactly what will be removed and what will be kept — without touching anything
+- After installing HelixScreen, patches the dashboard layout automatically so you get a useful widget arrangement out of the box
+- Update Macros (option 4) re-downloads your macro files without re-running the full installer
+- Tracks your install path, version, and date internally so the menu always shows accurate status
+- Full support for newer Q2 firmware (01.01.02+) where the home directory layout changed — installs to the correct paths automatically
+- On 01.01.02+ firmware, takes a cryptographic snapshot before making any changes and runs a full rehearsal to verify it can restore everything before committing
 
 ### `Max4/aio_menu_max4.sh` — Max 4 AIO Menu (Max4-RC1)
 
