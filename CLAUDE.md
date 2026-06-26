@@ -226,8 +226,6 @@ Claude **must ask first** before:
 - Deleting branches or files not created in the same session
 - Taking actions visible to users outside this repo (posting comments, etc.)
 
-**When creating a PR:** post a comment on the PR explaining how Camden can manually test all new or changed features. Include specific menu paths to navigate, commands to run on the printer over SSH, and expected outcomes for each feature.
-
 ### End-of-session requirements (always, no exceptions)
 
 Every session that modifies `aio_menu.sh` or bumps `AIO_VERSION` **must** update `HANDOFF.md` in the same commit (or a follow-up commit before the session ends):
