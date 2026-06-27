@@ -8,6 +8,20 @@
 
 ---
 
+## RC2.54 — BunnyBox & HelixScreen Install Fixes
+
+Branch: `claude/aio-bunnybox-helixscreen-fixes-7pmi9j`
+
+### What changed
+
+- **`update_macros()`** — fixed missing space in unknown group error message (`please reinstall` → `please reinstall using option 1, 2, or 3`)
+- **`_install_bunnybox()`** — BunnyBox cancel no longer aborts the full install; HelixScreen and KAMP continue if BunnyBox is not detected post-install
+- **`_install_bunnybox()`** — removed legacy `sed` that rewrote `[include ./KAMP/KAMP_settings.cfg]` to `[include KAMP_settings.cfg]`; `printer-BunnyBox.cfg` already has the correct path
+- **`apply_helixscreen_dashboard_layout()`** — suppressed verbose Python output (`Updated N/N widgets`, `OK /path`, `SKIP /path`); replaced with existing `ok "HelixScreen dashboard layout applied"` line
+- **Post-install summary** — removed stale BOX_DRY / DRY_PLA / DRY_PETG / DRY_ABS / DRY_TPU / DRY_PA / BOX_DRY_STATUS / BOX_DRY_STOP references (macros removed in RC2.46)
+
+---
+
 ## RC2.53 — Function Comment Standard (Issue #55)
 
 Branch: `claude/serene-thompson-kaqxsu`
