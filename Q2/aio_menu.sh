@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.54'
+AIO_VERSION='RC2.55'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -710,6 +710,11 @@ mainsail_installed() {
 
 install_mainsail() {
     banner "Installing Mainsail (Camden-Winder's installer)"
+    if [ "$AIO_LAYOUT" = "q2_112" ]; then
+        warn "Mainsail installation has not been tested on 01.01.02+ / qidi firmware."
+        warn "If you experience issues, please open a GitHub issue at:"
+        warn "  https://github.com/Camden-Winder/Qidi-Q2-superuser/issues"
+    fi
     info "Mainsail will be available on http://<printer-ip>:${MAINSAIL_PORT}"
     info "Qidi's stock web UI on port 80 is left untouched."
 
@@ -900,6 +905,11 @@ for c in data.get('result', {}).get('webcams', []):
 
 install_camera() {
     banner "Setting up printer camera (ustreamer + nginx proxy)"
+    if [ "$AIO_LAYOUT" = "q2_112" ]; then
+        warn "Camera installation has not been tested on 01.01.02+ / qidi firmware."
+        warn "If you experience issues, please open a GitHub issue at:"
+        warn "  https://github.com/Camden-Winder/Qidi-Q2-superuser/issues"
+    fi
 
     if camera_installed && camera_config_is_current; then
         ok "Camera streaming already configured (current format) — skipping"
@@ -954,7 +964,7 @@ Description=ustreamer - Printer Camera
 After=network.target
 
 [Service]
-User=mks
+User=${AIO_USER}
 ExecStart=${ustreamer_bin} --device=${cam_device} --host=127.0.0.1 --port=${USTREAMER_PORT} --resolution=640x480 --desired-fps=15
 Restart=always
 RestartSec=5
@@ -1533,7 +1543,14 @@ fetch() {
     return 1
 }
 
+# Clears all KAMP files from CONFIG_DIR and creates a fresh empty KAMP directory.
 clean_kamp_dir() {
+    # On q2_112, stock firmware ships KAMP_Settings.cfg inside klipper-macros-qd/
+    # which collides with ours ([gcode_macro _KAMP_Settings] defined twice).
+    if [ "$AIO_LAYOUT" = "q2_112" ]; then
+        rm -f "${CONFIG_DIR}/klipper-macros-qd/KAMP_Settings.cfg" 2>/dev/null || \
+            sudo rm -f "${CONFIG_DIR}/klipper-macros-qd/KAMP_Settings.cfg" 2>/dev/null
+    fi
     # Remove any file in config root with "kamp" in the name (case-insensitive)
     find "${CONFIG_DIR}" -maxdepth 1 -iname "*kamp*" -type f -delete 2>/dev/null
     # Remove the entire KAMP folder and all contents
@@ -1761,11 +1778,11 @@ capture_first_run_state() {
         return 0
     fi
 
-    mkdir -p "$state_dir" || {
+    mkdir -p "$state_dir" 2>/dev/null || sudo mkdir -p "$state_dir" || {
         warn "Could not create AIO state manifest directory"
         return 0
     }
-    : > "$preexisting" || {
+    : > "$preexisting" 2>/dev/null || sudo touch "$preexisting" || {
         warn "Could not write AIO state manifest"
         return 0
     }
@@ -1815,10 +1832,12 @@ take_snapshot() {
     # Takes the rsync snapshot only. Does NOT write .aio_installed.
     if [ ! -f "${AIO_MARKER}" ]; then
         banner "Capturing stock config snapshot"
-        mkdir -p "${SNAPSHOT_DIR}"
-        if ! rsync -a "${CONFIG_DIR}/" "${SNAPSHOT_DIR}/"; then
-            err "Snapshot failed — cannot proceed safely"
-            return 1
+        mkdir -p "${SNAPSHOT_DIR}" 2>/dev/null || sudo mkdir -p "${SNAPSHOT_DIR}"
+        if ! rsync -a "${CONFIG_DIR}/" "${SNAPSHOT_DIR}/" 2>/dev/null; then
+            if ! sudo rsync -a "${CONFIG_DIR}/" "${SNAPSHOT_DIR}/"; then
+                err "Snapshot failed — cannot proceed safely"
+                return 1
+            fi
         fi
         ok "Stock snapshot saved to ${SNAPSHOT_DIR}"
     else

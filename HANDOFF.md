@@ -8,6 +8,26 @@
 
 ---
 
+## RC2.55 — q2_112 Write Permission Fixes
+
+Branch: `claude/q2-112-write-perms-xhtqxv`
+
+### What changed
+
+- `take_snapshot()`: added `|| sudo` fallback to `mkdir` and `rsync` calls
+- `capture_first_run_state()`: added `|| sudo` fallback to `mkdir` and `: >` (touch) calls
+- `clean_kamp_dir()`: added `q2_112` block at top to delete stock `klipper-macros-qd/KAMP_Settings.cfg` before it collides with ours (`[gcode_macro _KAMP_Settings]` duplicate)
+- `install_camera()`: fixed `User=mks` → `User=${AIO_USER}` in ustreamer systemd service heredoc
+- `install_mainsail()` + `install_camera()`: added `q2_112` warn banner (untested on 01.01.02+ firmware)
+- `Q2/CLAUDE.md`: replaced single-column key-paths table with dual-column layout (legacy_mks / q2_112) plus write-permissions note
+- `.claude/LESSONS.md`: added L008 (q2_112 write permissions root cause)
+
+### Root cause
+
+On 01.01.02+ firmware, `/home/mks` is a root-owned symlink to `/home/qidi`. SSH logs in as `mks` but the OS user is `qidi` (netdev group, 755/664 perms). Bare `mkdir`/`rsync`/`touch` calls into `AIO_HOME`-derived paths fail with Permission Denied when running as `mks`.
+
+---
+
 ## docs-only — PR Template + CLAUDE.md PR Instructions
 
 ### What changed

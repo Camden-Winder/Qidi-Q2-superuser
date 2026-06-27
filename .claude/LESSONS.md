@@ -47,6 +47,16 @@
 > Always use lowercase `KAMP_settings.cfg` in fetch calls, include patches, and any comment
 > referencing the filename.
 
+## [L008] q2_112 firmware: mks user cannot write to /home/qidi without sudo
+- **Category:** gotcha
+- **Context:** q2_112 install path — any function that writes to AIO_HOME-derived paths
+- **Triggered by:** RC2.55 session (firmware 01.01.02+)
+> On 01.01.02+ firmware, /home/mks is a root-owned symlink to /home/qidi.
+> SSH logs in as mks but the OS user is qidi (netdev group, 755/664 perms).
+> Every bare mkdir/rsync/touch into AIO_HOME fails with Permission Denied.
+> Always use the `cmd 2>/dev/null || sudo cmd` fallback pattern for any write
+> touching BACKUP_ROOT, SNAPSHOT_DIR, or CONFIG_DIR on this layout.
+
 ## [L006] sudo tee pattern for elevated file writes
 - **Category:** pattern
 - **Context:** installer script conventions

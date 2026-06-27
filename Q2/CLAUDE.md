@@ -17,16 +17,27 @@ shellcheck -S warning Q2/aio_menu.sh                # style (advisory)
 
 ## Key Paths on the Printer (Q2)
 
-| Purpose | Path |
-|---------|------|
-| Klipper config root | `/home/mks/printer_data/config/` |
-| AIO backup snapshots | `/home/mks/mudstockbackups/` |
-| HelixScreen install dir | `/home/mks/helixscreen/` |
-| Happy Hare MMU firmware | `/home/mks/Happy-Hare/` |
-| HelixScreen config (canonical) | `~/helixscreen/config/settings.json` |
-| HelixScreen config (symlink target) | `~/printer_data/config/helixscreen/settings.json` |
-| HelixScreen rolling backup | `/var/lib/helixscreen/settings.json.backup` (root-owned) |
-| HelixScreen user backup | `~/.helixscreen/` (created lazily — may not exist) |
+Paths vary by firmware layout. The AIO detects the layout at startup and sets
+`AIO_HOME` accordingly.
+
+| Purpose | legacy_mks (`/home/mks`) | q2_112 (`/home/qidi`) |
+|---------|--------------------------|----------------------|
+| Klipper config root | `/home/mks/printer_data/config/` | `/home/qidi/printer_data/config/` |
+| AIO backup snapshots | `/home/mks/mudstockbackups/` | `/home/qidi/mudstockbackups/` |
+| AIO config snapshot | `/home/mks/aio_config_backup/` | `/home/qidi/aio_config_backup/` |
+| HelixScreen install dir | `/home/mks/helixscreen/` | `/home/qidi/helixscreen/` |
+| Happy Hare MMU firmware | `/home/mks/Happy-Hare/` | `/home/qidi/Happy-Hare/` |
+| HelixScreen config (canonical) | `~/helixscreen/config/settings.json` | `~/helixscreen/config/settings.json` |
+| HelixScreen config (symlink target) | `~/printer_data/config/helixscreen/settings.json` | `~/printer_data/config/helixscreen/settings.json` |
+| HelixScreen rolling backup | `/var/lib/helixscreen/settings.json.backup` (root-owned) | `/var/lib/helixscreen/settings.json.backup` (root-owned) |
+| HelixScreen user backup | `~/.helixscreen/` (created lazily) | `~/.helixscreen/` (created lazily) |
+| SSH login user | `mks` (password: `makerbase`) | `mks` (password: `makerbase`) |
+| Printer OS user | `mks` | `qidi` |
+
+**q2_112 write permissions:** On 01.01.02+ firmware, `mks` does not own
+`/home/qidi`. All write operations that touch `AIO_HOME`-derived paths must use
+the `cmd 2>/dev/null || sudo cmd` fallback pattern so that `mks` can escalate
+via `sudo` (password: `makerbase`) when needed.
 
 ## Critical: settings.json Symlink
 
