@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.53'
+AIO_VERSION='RC2.54'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -1183,7 +1183,7 @@ PYEOF
             fi
             ;;
         *)
-            err "Unknown install group '${group}' in aoi.ini — please reinstall"
+            err "Unknown install group '${group}' in aoi.ini — please reinstall using option 1, 2, or 3"
             press_enter
             return 1
             ;;
@@ -5046,7 +5046,7 @@ apply_helixscreen_dashboard_layout() {
     HELIX_SETTINGS="$CANONICAL" \
     HELIX_BACKUP2="$BACKUP2" \
     HELIX_BACKUP1="$BACKUP1" \
-    python3 <<'PYEOF'
+    python3 <<'PYEOF' >/dev/null
 import json, os, sys, tempfile, subprocess
 
 CANONICAL = os.environ["HELIX_SETTINGS"]
@@ -5244,10 +5244,8 @@ _install_bunnybox() {
         # file detection - and if BunnyBox didn't land, bail straight
         # back to the AIO main menu (no follow-up prompt).
         if ! bunnybox_installed; then
-            warn "BunnyBox did not finish installing - no mmu/base/mmu_machine.cfg on disk."
-            warn "Detected as user cancellation from BunnyBox's menu."
-            info "Aborting install. Returning to the AIO main menu."
-            exit 99  # caught after the tee pipeline below
+            warn "BunnyBox did not finish installing — skipping BunnyBox macro step."
+            warn "HelixScreen and KAMP will still be installed."
         fi
         ok "BunnyBox install step complete"
 
@@ -5270,13 +5268,6 @@ _install_bunnybox() {
               "${CONFIG_DIR}/gcode_macro.cfg" || return 1
         fetch "${REPO_BASE}/macros/printer-BunnyBox.cfg" \
               "${CONFIG_DIR}/printer.cfg" || return 1
-
-        # Safety net: fix the KAMP double-nesting bug if it lands.
-        if grep -q '\[include \./KAMP/KAMP_settings\.cfg\]' "${CONFIG_DIR}/printer.cfg" 2>/dev/null; then
-            sed -i 's|\[include \./KAMP/KAMP_settings\.cfg\]|[include KAMP_settings.cfg]|' \
-                "${CONFIG_DIR}/printer.cfg"
-            ok "Fixed KAMP include path"
-        fi
 
         # Defensive: if a previous AIO version (RC1-RC4) left [include box.cfg]
         # active in printer.cfg, comment it back out. The shipped template has
@@ -5360,10 +5351,6 @@ ${C_BOLD}Next steps:${C_RESET}
   4. First-time only - calibrate MMU gear steppers:
         ${C_CYAN}MMU_CALIBRATE_GEAR GATE=0 LENGTH=100${C_RESET}
      Mark filament, measure travel, re-run with MEASURED=<mm>
-  5. Start drying: run BOX_DRY from the macro buttons or console.
-        ${C_CYAN}DRY_PLA${C_RESET}  ${C_CYAN}DRY_PETG${C_RESET}  ${C_CYAN}DRY_ABS${C_RESET}  ${C_CYAN}DRY_TPU${C_RESET}  ${C_CYAN}DRY_PA${C_RESET}
-  6. Check status:   ${C_CYAN}BOX_DRY_STATUS${C_RESET}
-  7. Stop drying:    ${C_CYAN}BOX_DRY_STOP${C_RESET}
 
 Install log:    ${INSTALL_LOG}
 Config snapshot: ${SNAPSHOT_DIR}
