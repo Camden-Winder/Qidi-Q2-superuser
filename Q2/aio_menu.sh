@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.56'
+AIO_VERSION='RC2.57'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -1751,8 +1751,6 @@ ${C_BOLD}Just Faster Printer applied (01.01.02+ mode).${C_RESET}
   KAMP files:        ${CONFIG_DIR}/KAMP/
 ${C_BOLD}Next steps:${C_RESET}
   1. FIRMWARE_RESTART (Klipper console or stock screen)
-  2. sudo reboot
-  3. Run a bed level + screws_tilt_adjust before your first print.
 Config snapshot: ${SNAPSHOT_DIR}
 EOF
     press_enter
@@ -1818,8 +1816,6 @@ ${C_BOLD}Just Faster Box applied (01.01.02+ mode).${C_RESET}
   KAMP files:        ${CONFIG_DIR}/KAMP/
 ${C_BOLD}Next steps:${C_RESET}
   1. FIRMWARE_RESTART (Klipper console or stock screen)
-  2. sudo reboot
-  3. Run a bed level + screws_tilt_adjust before your first print.
 Config snapshot: ${SNAPSHOT_DIR}
 EOF
     press_enter
@@ -5481,8 +5477,6 @@ ${C_BOLD}Your Q2 is now running the 'Just Faster' setup.${C_RESET}
 
 ${C_BOLD}Next steps:${C_RESET}
   1. FIRMWARE_RESTART (Klipper console or stock screen)
-  2. sudo reboot
-  3. Run a bed level + screws_tilt_adjust before your first print.
 
 Config snapshot: ${SNAPSHOT_DIR}
 EOF
@@ -5524,8 +5518,6 @@ ${C_BOLD}Your Q2 is now running the 'Just Faster Box' setup.${C_RESET}
 
 ${C_BOLD}Next steps:${C_RESET}
   1. FIRMWARE_RESTART (Klipper console or stock screen)
-  2. sudo reboot
-  3. Run a bed level + screws_tilt_adjust before your first print.
 
 Config snapshot: ${SNAPSHOT_DIR}
 EOF
