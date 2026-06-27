@@ -225,6 +225,7 @@ Claude **must ask first** before:
 - Force-pushing any branch
 - Deleting branches or files not created in the same session
 - Taking actions visible to users outside this repo (posting comments, etc.)
+- Using `Closes #N`, `Fixes #N`, or `Resolves #N` in commit messages or PR bodies — use `References #N` only. Issue closure is Calvin's decision.
 
 ### End-of-session requirements (always, no exceptions)
 
@@ -244,6 +245,8 @@ Every session that modifies `aio_menu.sh` or bumps `AIO_VERSION` **must** update
 ```
 
 **Version history:** See HANDOFF.md — newest entries at top.
+
+**Attribution:** Claude Code's `settings.json` has attribution disabled for commits and PRs (`"commit": "", "pr": "", "sessionUrl": false`). However, when running Claude Code from the web interface, `settings.json` is not read correctly and attribution may still appear. Until this is resolved, do not add attribution footers or generated-by links to commit messages, PR bodies, or issue comments.
 
 ## External Resources
 

@@ -59,6 +59,7 @@ Use the next sequential number. Do not renumber existing entries.
 - All conventions in `CLAUDE.md` apply regardless of what the Session Brief says.
 - Claude documents (`CLAUDE.md`, `HANDOFF.md`, `.claude/`) are **never** out of scope.
 - Known issues are tracked in `HANDOFF.md` — do not carry them into the Session Brief.
+- Every Session Brief must include a `## Before Planning` section listing the specific files Claude Code should read before producing its plan.
 
 ---
 
@@ -85,6 +86,14 @@ Numbered list. Each task must be specific and self-contained:
 - Include code snippets for non-trivial changes.
 - Embed any required data (widget dicts, config values, file content) directly in the task.
 - State explicitly what must NOT change if there is risk of Claude Code touching it.
+
+### `## Before Planning`
+List the specific files Claude Code must read before producing its plan. Claude Code's plan
+must reflect what it actually found in the code, not a restatement of this brief. Claude Code
+must flag any discrepancies or assumptions before entering edit mode.
+Example:
+- `Q2/aio_menu.sh` — functions named in Tasks 1 and 2
+- `CLAUDE.md` — existing conventions section
 
 ### `## Files to Change`
 Table listing every file that must be modified and why. Claude documents (`CLAUDE.md`,
