@@ -8,6 +8,15 @@
 
 ---
 
+## RC2.57 — Fix JFP and JFB post-install summary text
+
+### What changed
+
+- **`install_just_faster()` post-install summary** — removed `sudo reboot` and `screws_tilt_adjust` from next steps. `FIRMWARE_RESTART` only.
+- **`install_just_faster_box()` post-install summary** — same fix.
+
+---
+
 ## RC2.56 — printer.cfg KAMP patch sudo fallback
 
 Branch: `claude/printer-cfg-kamp-sudo-9885k8`
