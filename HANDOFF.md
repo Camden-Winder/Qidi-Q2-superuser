@@ -8,6 +8,23 @@
 
 ---
 
+## RC2.59 — /tmp staging fix for printer.cfg patch on q2_112
+
+Branch: `claude/printer-cfg-tmp-staging-rc259`
+
+### What changed
+
+- **`install_jfp_q2_112()`** — replaced two-heredoc fallback with single python3 heredoc writing to a `/tmp` tempfile, verified with `grep`, then `sudo cp` into place
+- **`install_jfb_q2_112()`** — same fix
+- **`update_macros()` JustFasterPrinter branch** — same `/tmp` staging approach for the append block
+- **`update_macros()` JustFasterBox branch** — same
+
+### Root cause
+
+On `q2_112` firmware, `printer.cfg` is `644` owned by `qidi`; `mks` cannot write it directly. RC2.56–58 used a `python3 direct-write || python3 | sudo tee` fallback. The problem: `$?` after a bash heredoc captures the shell's heredoc setup exit code, not python3's. The `sudo tee` fallback therefore ran even on success, and received empty stdin (python3 had already exited), blanking `printer.cfg`. The `/tmp` staging approach avoids this entirely — python3 writes to a temp file it owns, `sudo cp` does the privileged copy only after `grep` confirms the tempfile is correct.
+
+---
+
 ## RC2.58 — Write aoi.ini in q2_112 install variants
 
 ### What changed
