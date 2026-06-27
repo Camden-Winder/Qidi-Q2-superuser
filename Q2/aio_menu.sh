@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.55'
+AIO_VERSION='RC2.56'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -1169,7 +1169,22 @@ if line not in txt:
     txt = txt.rstrip('\n') + '\n' + line + '\n'
     open(cfg, 'w').write(txt)
 PYEOF
-                ok "KAMP include re-added to printer.cfg"
+                if [ $? -ne 0 ]; then
+                    info "Direct write failed — retrying with sudo"
+                    python3 - "$printer_cfg" "$kamp_include" <<'PYEOF' | sudo tee "$printer_cfg" > /dev/null
+import sys
+cfg, line = sys.argv[1], sys.argv[2]
+txt = open(cfg).read()
+if line not in txt:
+    txt = txt.rstrip('\n') + '\n' + line + '\n'
+sys.stdout.write(txt)
+PYEOF
+                fi
+                if grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
+                    ok "KAMP include re-added to printer.cfg"
+                else
+                    err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
+                fi
             fi
             ;;
         JustFasterBox)
@@ -1189,7 +1204,22 @@ if line not in txt:
     txt = txt.rstrip('\n') + '\n' + line + '\n'
     open(cfg, 'w').write(txt)
 PYEOF
-                ok "KAMP include re-added to printer.cfg"
+                if [ $? -ne 0 ]; then
+                    info "Direct write failed — retrying with sudo"
+                    python3 - "$printer_cfg" "$kamp_include" <<'PYEOF' | sudo tee "$printer_cfg" > /dev/null
+import sys
+cfg, line = sys.argv[1], sys.argv[2]
+txt = open(cfg).read()
+if line not in txt:
+    txt = txt.rstrip('\n') + '\n' + line + '\n'
+sys.stdout.write(txt)
+PYEOF
+                fi
+                if grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
+                    ok "KAMP include re-added to printer.cfg"
+                else
+                    err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
+                fi
             fi
             ;;
         *)
@@ -1692,7 +1722,25 @@ patched = re.sub(r'(\[include )', line_to_add + '\n' + r'\1', content, count=1)
 with open(path, 'w') as f:
     f.write(patched)
 PYEOF
-        ok "KAMP include added to printer.cfg"
+        if [ $? -ne 0 ]; then
+            info "Direct write failed — retrying with sudo"
+            python3 - "$printer_cfg" "$kamp_include" <<'PYEOF' | sudo tee "$printer_cfg" > /dev/null
+import sys, re
+path, line_to_add = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    content = f.read()
+if line_to_add in content:
+    sys.stdout.write(content)
+    sys.exit(0)
+patched = re.sub(r'(\[include )', line_to_add + '\n' + r'\1', content, count=1)
+sys.stdout.write(patched)
+PYEOF
+        fi
+        if grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
+            ok "KAMP include added to printer.cfg"
+        else
+            err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
+        fi
     else
         info "KAMP include already present in printer.cfg — skipping"
     fi
@@ -1741,7 +1789,25 @@ patched = re.sub(r'(\[include )', line_to_add + '\n' + r'\1', content, count=1)
 with open(path, 'w') as f:
     f.write(patched)
 PYEOF
-        ok "KAMP include added to printer.cfg"
+        if [ $? -ne 0 ]; then
+            info "Direct write failed — retrying with sudo"
+            python3 - "$printer_cfg" "$kamp_include" <<'PYEOF' | sudo tee "$printer_cfg" > /dev/null
+import sys, re
+path, line_to_add = sys.argv[1], sys.argv[2]
+with open(path) as f:
+    content = f.read()
+if line_to_add in content:
+    sys.stdout.write(content)
+    sys.exit(0)
+patched = re.sub(r'(\[include )', line_to_add + '\n' + r'\1', content, count=1)
+sys.stdout.write(patched)
+PYEOF
+        fi
+        if grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
+            ok "KAMP include added to printer.cfg"
+        else
+            err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
+        fi
     else
         info "KAMP include already present in printer.cfg — skipping"
     fi
