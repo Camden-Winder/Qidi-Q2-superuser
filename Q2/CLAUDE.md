@@ -33,6 +33,7 @@ Paths vary by firmware layout. The AIO detects the layout at startup and sets
 | HelixScreen user backup | `~/.helixscreen/` (created lazily) | `~/.helixscreen/` (created lazily) |
 | SSH login user | `mks` (password: `makerbase`) | `mks` (password: `makerbase`) |
 | Printer OS user | `mks` | `qidi` |
+| `printer.cfg` permissions | `664` (group-writable) | `644` — no group write bit; requires `sudo tee` for patching |
 
 **q2_112 write permissions:** On 01.01.02+ firmware, `mks` does not own
 `/home/qidi`. All write operations that touch `AIO_HOME`-derived paths must use

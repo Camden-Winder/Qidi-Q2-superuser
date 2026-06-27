@@ -8,6 +8,24 @@
 
 ---
 
+## RC2.56 — printer.cfg KAMP patch sudo fallback
+
+Branch: `claude/printer-cfg-kamp-sudo-9885k8`
+
+### What changed
+
+- `update_macros()` JustFasterPrinter branch (~line 1164): added `$?` check after python3 heredoc, `sudo tee` retry, and `grep` verification before `ok`/`err`
+- `update_macros()` JustFasterBox branch (~line 1183): same fix
+- `install_jfp_q2_112()` (~line 1684): same fix with re.sub variant python3 script
+- `install_jfb_q2_112()` (~line 1732): same fix
+- `Q2/CLAUDE.md`: added `printer.cfg` row to key-paths table noting it is `644` on `q2_112` — no group write bit, requires `sudo tee` for patching
+
+### Root cause
+
+`printer.cfg` on 01.01.02+ firmware is `644`. `mks` is in `netdev` group but is not the owner, so `open(path, 'w')` raises `PermissionError`. The shell heredoc exit code was not checked, so `ok "KAMP include added to printer.cfg"` fired unconditionally even on failure. Klipper never received the `[include KAMP/KAMP_settings.cfg]` line, causing startup errors.
+
+---
+
 ## RC2.55 — q2_112 Write Permission Fixes
 
 Branch: `claude/q2-112-write-perms-xhtqxv`
