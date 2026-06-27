@@ -18,3 +18,4 @@ Format as a short checklist or medium description depending on scope — see CLA
 
 ---
 <!-- Issue reference (if applicable): References #N -->
+<!-- Do NOT include Claude session links, generated-by footers, or attribution of any kind. -->
