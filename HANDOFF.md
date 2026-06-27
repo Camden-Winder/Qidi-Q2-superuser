@@ -8,6 +8,23 @@
 
 ---
 
+## docs-only — CLAUDE.md + session_brief.md guardrails
+
+Branch: `claude/update-claude-docs-9368y9`
+
+### What changed
+
+- Added issue-reference rule to `CLAUDE.md` (`must ask first` list): never use `Closes #N`, `Fixes #N`, or `Resolves #N` — use `References #N` only.
+- Added attribution note to `CLAUDE.md`: do not add generated-by footers to commits/PRs/comments.
+- Added `## Before Planning` rule to `## Rules` in `.claude/session_brief.md`.
+- Added `## Before Planning` required subsection to the Session Brief Format in `.claude/session_brief.md`.
+
+### Why
+
+Claude Code triggered unintended issue closure via `Closes #N` in a commit message. Plan mode was restating the Session Brief instead of reflecting code Claude Code actually read.
+
+---
+
 ## RC2.54 — BunnyBox & HelixScreen Install Fixes
 
 Branch: `claude/aio-bunnybox-helixscreen-fixes-7pmi9j`
