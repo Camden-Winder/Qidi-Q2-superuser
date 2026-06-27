@@ -215,9 +215,38 @@ Claude may do the following **without asking first**:
 - Create a draft PR after pushing a new branch
 - Run `bash -n`, `python3 -m json.tool`, `shellcheck` (lint/syntax checks)
 - Merge a PR to `main` when the handoff context explicitly says to do so
-- When creating a PR, post a comment on the PR with testing instructions for Camden:
-  specific menu paths, commands to run on the printer, and expected outcomes for all
-  new or changed features.
+- When creating a PR, use the repo's pull request template (`.github/PULL_REQUEST_TEMPLATE.md`).
+  Fill in all sections based on what was changed:
+  - **Title:** `RC X.XX — [main change]` for AOI changes, `Wiki-RC X.X — [main change]` for wiki
+    changes, `docs-only — [main change]` for docs with no version bump
+  - **Testing:** provide specific SSH commands to run on the printer with expected output.
+    Use a checklist for complex changes, a short paragraph for simple ones. Do not ask
+    Calvin to "verify" or "check" things manually — give him the exact command and
+    expected result. Reference the testing examples in `.github/PULL_REQUEST_TEMPLATE.md`.
+  - **Issue reference:** include `References #N` in the PR body and in the commit message
+    when the PR addresses a tracked issue.
+  - Do not include Claude session links, generated-by footers, or attribution in the PR body.
+
+#### PR Testing Format Examples
+
+**Syntax-only (no user-facing changes):**
+```
+Syntax check: `bash -n Q2/aio_menu.sh`
+```
+
+**Medium description (user-facing changes):**
+```
+Syntax check: `bash -n Q2/aio_menu.sh`
+
+**[Feature name]:**
+[What to do]. After completion:
+`[command to run]` — expected: [what to expect]
+
+**[Second feature]:**
+[What to do]:
+- `[command]` — should return [expected output]
+- `[command]` — should return [expected output]
+```
 
 Claude **must ask first** before:
 

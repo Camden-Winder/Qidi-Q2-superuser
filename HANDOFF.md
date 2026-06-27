@@ -28,6 +28,15 @@ On 01.01.02+ firmware, `/home/mks` is a root-owned symlink to `/home/qidi`. SSH 
 
 ---
 
+## docs-only — PR Template + CLAUDE.md PR Instructions
+
+### What changed
+
+- **`.github/PULL_REQUEST_TEMPLATE.md` created** — standard PR template with Summary, Changes, Implementation, and Testing sections. Title format varies by change type (RC X.XX / Wiki-RC / docs-only).
+- **`CLAUDE.md`** — replaced the old PR comment instruction with full PR template usage guidance; added testing format examples section showing syntax-only and medium-description patterns.
+
+---
+
 ## docs-only — CLAUDE.md + session_brief.md guardrails
 
 Branch: `claude/update-claude-docs-9368y9`
