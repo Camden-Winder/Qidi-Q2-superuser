@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.59'
+AIO_VERSION='RC2.60'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -4245,9 +4245,11 @@ revert_to_backup() {
     # bunnybox_macros.cfg, moonraker.conf entries, etc.) are absent from the
     # pre-install snapshot and are removed automatically by --delete.
     info "Restoring config from snapshot: ${SNAPSHOT_DIR}"
-    if ! rsync -a --delete --no-owner --no-group "${SNAPSHOT_DIR}/" "${CONFIG_DIR}/"; then
-        err "Config restore failed — snapshot is intact at ${SNAPSHOT_DIR}"
-        return 1
+    if ! rsync -a --delete --no-owner --no-group "${SNAPSHOT_DIR}/" "${CONFIG_DIR}/" 2>/dev/null; then
+        if ! sudo rsync -a --delete --no-owner --no-group "${SNAPSHOT_DIR}/" "${CONFIG_DIR}/"; then
+            err "Config restore failed — snapshot is intact at ${SNAPSHOT_DIR}"
+            return 1
+        fi
     fi
     ok "Config restore complete"
 
@@ -5844,8 +5846,9 @@ testing_submenu() {
                 warn "Force Snapshot Capture will overwrite any existing snapshot."
                 if confirm "Capture current config as snapshot now?"; then
                     banner "Force Snapshot Capture"
-                    mkdir -p "${SNAPSHOT_DIR}"
-                    if rsync -a "${CONFIG_DIR}/" "${SNAPSHOT_DIR}/"; then
+                    mkdir -p "${SNAPSHOT_DIR}" 2>/dev/null || sudo mkdir -p "${SNAPSHOT_DIR}"
+                    if rsync -a "${CONFIG_DIR}/" "${SNAPSHOT_DIR}/" 2>/dev/null || \
+                       sudo rsync -a "${CONFIG_DIR}/" "${SNAPSHOT_DIR}/"; then
                         ok "Snapshot written to ${SNAPSHOT_DIR}"
                     else
                         err "Snapshot failed"
@@ -5862,7 +5865,8 @@ testing_submenu() {
                 warn "Force Config Restore will overwrite ${CONFIG_DIR} from snapshot."
                 if confirm "Restore config from snapshot now?"; then
                     banner "Force Config Restore"
-                    if rsync -a --delete --no-owner --no-group "${SNAPSHOT_DIR}/" "${CONFIG_DIR}/"; then
+                    if rsync -a --delete --no-owner --no-group "${SNAPSHOT_DIR}/" "${CONFIG_DIR}/" 2>/dev/null || \
+                       sudo rsync -a --delete --no-owner --no-group "${SNAPSHOT_DIR}/" "${CONFIG_DIR}/"; then
                         ok "Config restored from ${SNAPSHOT_DIR}"
                     else
                         err "Restore failed"

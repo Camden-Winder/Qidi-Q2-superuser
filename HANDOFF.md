@@ -8,6 +8,22 @@
 
 ---
 
+## RC2.60 — Revert/restore sudo fallbacks for q2_112
+
+Branch: `claude/revert-restore-sudo-rc260`
+
+### What changed
+
+- **`revert_to_backup()`** (~line 4248) — added `sudo rsync` fallback when bare rsync fails with Permission Denied
+- **Health check force snapshot** (~line 5848) — added `sudo mkdir -p` fallback and `sudo rsync` fallback for snapshot capture
+- **Health check force restore** (~line 5865) — added `sudo rsync` fallback for force restore
+
+### Root cause
+
+On `q2_112` firmware, `CONFIG_DIR` is owned by `qidi:netdev`. Files written by AIO (via sudo) end up owned by `root` or `qidi`. `rsync` running as `mks` without sudo cannot delete those files, set timestamps on the directory, or write new files — producing `Permission denied (13)` on `unlink(aoi.ini)` and `mkstemp(".printer.cfg.XXXXXX")`. Same root cause as RC2.55 (L008). Fix is the standard `cmd 2>/dev/null || sudo cmd` pattern used elsewhere in the script.
+
+---
+
 ## RC2.59 — /tmp staging fix for printer.cfg patch on q2_112
 
 Branch: `claude/printer-cfg-tmp-staging-rc259`
