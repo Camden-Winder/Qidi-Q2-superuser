@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.57'
+AIO_VERSION='RC2.58'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -1744,6 +1744,7 @@ PYEOF
     else
         info "KAMP include already present in printer.cfg — skipping"
     fi
+    write_aoi_ini "JustFasterPrinter" "${AIO_VERSION}" "${AIO_VERSION}"
     banner "Install complete"
     cat <<EOF
 ${C_BOLD}Just Faster Printer applied (01.01.02+ mode).${C_RESET}
@@ -1809,6 +1810,7 @@ PYEOF
     else
         info "KAMP include already present in printer.cfg — skipping"
     fi
+    write_aoi_ini "JustFasterBox" "${AIO_VERSION}" "${AIO_VERSION}"
     banner "Install complete"
     cat <<EOF
 ${C_BOLD}Just Faster Box applied (01.01.02+ mode).${C_RESET}

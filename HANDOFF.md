@@ -8,6 +8,19 @@
 
 ---
 
+## RC2.58 — Write aoi.ini in q2_112 install variants
+
+### What changed
+
+- **`install_jfp_q2_112()`** — added `write_aoi_ini "JustFasterPrinter"` call after KAMP install
+- **`install_jfb_q2_112()`** — added `write_aoi_ini "JustFasterBox"` call after KAMP install
+
+### Root cause
+
+`do_backup()` writes a placeholder `install_group=unknown` before the install group is known. The standard install paths (`install_just_faster`, `install_just_faster_box`) overwrite this with the correct group after completing. The q2_112 variants were missing this final step, leaving `unknown` in `aoi.ini` and breaking option 4 (Update Macros) for all q2_112 users.
+
+---
+
 ## RC2.57 — Fix JFP and JFB post-install summary text
 
 ### What changed
