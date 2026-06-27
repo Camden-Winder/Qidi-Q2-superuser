@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.58'
+AIO_VERSION='RC2.59'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -1159,33 +1159,27 @@ update_macros() {
             ok "gcode_macro.cfg updated"
             local kamp_include="[include KAMP/KAMP_settings.cfg]"
             local printer_cfg="${CONFIG_DIR}/printer.cfg"
-            if ! grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
-                info "Re-patching printer.cfg: KAMP include missing"
-                python3 - "$printer_cfg" "$kamp_include" <<'PYEOF'
+            local tmp_cfg
+            tmp_cfg=$(mktemp /tmp/printer_cfg_patched.XXXXXX)
+            info "Re-patching printer.cfg: KAMP include missing"
+            python3 - "$printer_cfg" "$kamp_include" "$tmp_cfg" <<'PYEOF'
 import sys
-cfg, line = sys.argv[1], sys.argv[2]
+cfg, line, out = sys.argv[1], sys.argv[2], sys.argv[3]
 txt = open(cfg).read()
 if line not in txt:
     txt = txt.rstrip('\n') + '\n' + line + '\n'
-    open(cfg, 'w').write(txt)
+with open(out, 'w') as f:
+    f.write(txt)
 PYEOF
-                if [ $? -ne 0 ]; then
-                    info "Direct write failed — retrying with sudo"
-                    python3 - "$printer_cfg" "$kamp_include" <<'PYEOF' | sudo tee "$printer_cfg" > /dev/null
-import sys
-cfg, line = sys.argv[1], sys.argv[2]
-txt = open(cfg).read()
-if line not in txt:
-    txt = txt.rstrip('\n') + '\n' + line + '\n'
-sys.stdout.write(txt)
-PYEOF
-                fi
-                if grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
-                    ok "KAMP include re-added to printer.cfg"
-                else
-                    err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
-                fi
+            if grep -qF "$kamp_include" "$tmp_cfg" 2>/dev/null; then
+                sudo cp "$tmp_cfg" "$printer_cfg"
+                ok "KAMP include re-added to printer.cfg"
+            elif grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
+                info "KAMP include already present in printer.cfg — skipping"
+            else
+                err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
             fi
+            rm -f "$tmp_cfg"
             ;;
         JustFasterBox)
             info "Updating gcode_macro.cfg..."
@@ -1194,33 +1188,27 @@ PYEOF
             ok "gcode_macro.cfg updated"
             local kamp_include="[include KAMP/KAMP_settings.cfg]"
             local printer_cfg="${CONFIG_DIR}/printer.cfg"
-            if ! grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
-                info "Re-patching printer.cfg: KAMP include missing"
-                python3 - "$printer_cfg" "$kamp_include" <<'PYEOF'
+            local tmp_cfg
+            tmp_cfg=$(mktemp /tmp/printer_cfg_patched.XXXXXX)
+            info "Re-patching printer.cfg: KAMP include missing"
+            python3 - "$printer_cfg" "$kamp_include" "$tmp_cfg" <<'PYEOF'
 import sys
-cfg, line = sys.argv[1], sys.argv[2]
+cfg, line, out = sys.argv[1], sys.argv[2], sys.argv[3]
 txt = open(cfg).read()
 if line not in txt:
     txt = txt.rstrip('\n') + '\n' + line + '\n'
-    open(cfg, 'w').write(txt)
+with open(out, 'w') as f:
+    f.write(txt)
 PYEOF
-                if [ $? -ne 0 ]; then
-                    info "Direct write failed — retrying with sudo"
-                    python3 - "$printer_cfg" "$kamp_include" <<'PYEOF' | sudo tee "$printer_cfg" > /dev/null
-import sys
-cfg, line = sys.argv[1], sys.argv[2]
-txt = open(cfg).read()
-if line not in txt:
-    txt = txt.rstrip('\n') + '\n' + line + '\n'
-sys.stdout.write(txt)
-PYEOF
-                fi
-                if grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
-                    ok "KAMP include re-added to printer.cfg"
-                else
-                    err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
-                fi
+            if grep -qF "$kamp_include" "$tmp_cfg" 2>/dev/null; then
+                sudo cp "$tmp_cfg" "$printer_cfg"
+                ok "KAMP include re-added to printer.cfg"
+            elif grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
+                info "KAMP include already present in printer.cfg — skipping"
+            else
+                err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
             fi
+            rm -f "$tmp_cfg"
             ;;
         *)
             err "Unknown install group '${group}' in aoi.ini — please reinstall using option 1, 2, or 3"
@@ -1709,41 +1697,29 @@ install_jfp_q2_112() {
     fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
     ok "KAMP files installed to ${CONFIG_DIR}/KAMP/"
-    if ! grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
-        info "Patching printer.cfg: adding KAMP include"
-        python3 - "$printer_cfg" "$kamp_include" <<'PYEOF'
+    local tmp_cfg
+    tmp_cfg=$(mktemp /tmp/printer_cfg_patched.XXXXXX)
+    info "Patching printer.cfg: adding KAMP include"
+    python3 - "$printer_cfg" "$kamp_include" "$tmp_cfg" <<'PYEOF'
 import sys, re
-path, line_to_add = sys.argv[1], sys.argv[2]
+path, line_to_add, out = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(path) as f:
     content = f.read()
 if line_to_add in content:
     sys.exit(0)
 patched = re.sub(r'(\[include )', line_to_add + '\n' + r'\1', content, count=1)
-with open(path, 'w') as f:
+with open(out, 'w') as f:
     f.write(patched)
 PYEOF
-        if [ $? -ne 0 ]; then
-            info "Direct write failed — retrying with sudo"
-            python3 - "$printer_cfg" "$kamp_include" <<'PYEOF' | sudo tee "$printer_cfg" > /dev/null
-import sys, re
-path, line_to_add = sys.argv[1], sys.argv[2]
-with open(path) as f:
-    content = f.read()
-if line_to_add in content:
-    sys.stdout.write(content)
-    sys.exit(0)
-patched = re.sub(r'(\[include )', line_to_add + '\n' + r'\1', content, count=1)
-sys.stdout.write(patched)
-PYEOF
-        fi
-        if grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
-            ok "KAMP include added to printer.cfg"
-        else
-            err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
-        fi
-    else
+    if grep -qF "$kamp_include" "$tmp_cfg" 2>/dev/null; then
+        sudo cp "$tmp_cfg" "$printer_cfg"
+        ok "KAMP include added to printer.cfg"
+    elif grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
         info "KAMP include already present in printer.cfg — skipping"
+    else
+        err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
     fi
+    rm -f "$tmp_cfg"
     write_aoi_ini "JustFasterPrinter" "${AIO_VERSION}" "${AIO_VERSION}"
     banner "Install complete"
     cat <<EOF
@@ -1775,41 +1751,29 @@ install_jfb_q2_112() {
     fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
     fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
     ok "KAMP files installed to ${CONFIG_DIR}/KAMP/"
-    if ! grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
-        info "Patching printer.cfg: adding KAMP include"
-        python3 - "$printer_cfg" "$kamp_include" <<'PYEOF'
+    local tmp_cfg
+    tmp_cfg=$(mktemp /tmp/printer_cfg_patched.XXXXXX)
+    info "Patching printer.cfg: adding KAMP include"
+    python3 - "$printer_cfg" "$kamp_include" "$tmp_cfg" <<'PYEOF'
 import sys, re
-path, line_to_add = sys.argv[1], sys.argv[2]
+path, line_to_add, out = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(path) as f:
     content = f.read()
 if line_to_add in content:
     sys.exit(0)
 patched = re.sub(r'(\[include )', line_to_add + '\n' + r'\1', content, count=1)
-with open(path, 'w') as f:
+with open(out, 'w') as f:
     f.write(patched)
 PYEOF
-        if [ $? -ne 0 ]; then
-            info "Direct write failed — retrying with sudo"
-            python3 - "$printer_cfg" "$kamp_include" <<'PYEOF' | sudo tee "$printer_cfg" > /dev/null
-import sys, re
-path, line_to_add = sys.argv[1], sys.argv[2]
-with open(path) as f:
-    content = f.read()
-if line_to_add in content:
-    sys.stdout.write(content)
-    sys.exit(0)
-patched = re.sub(r'(\[include )', line_to_add + '\n' + r'\1', content, count=1)
-sys.stdout.write(patched)
-PYEOF
-        fi
-        if grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
-            ok "KAMP include added to printer.cfg"
-        else
-            err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
-        fi
-    else
+    if grep -qF "$kamp_include" "$tmp_cfg" 2>/dev/null; then
+        sudo cp "$tmp_cfg" "$printer_cfg"
+        ok "KAMP include added to printer.cfg"
+    elif grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
         info "KAMP include already present in printer.cfg — skipping"
+    else
+        err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
     fi
+    rm -f "$tmp_cfg"
     write_aoi_ini "JustFasterBox" "${AIO_VERSION}" "${AIO_VERSION}"
     banner "Install complete"
     cat <<EOF
