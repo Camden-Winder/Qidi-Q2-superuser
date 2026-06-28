@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.60'
+AIO_VERSION='RC2.61'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -917,6 +917,23 @@ install_camera() {
     fi
     if camera_installed; then
         info "Existing camera config detected — rewriting to current format"
+    fi
+
+    # TEMPORARY: Detect any existing [webcam ...] section in moonraker.conf.
+    # If found, offer to skip ustreamer install and use the existing stream.
+    # Mark as temporary — remove once we have a reliable way to identify the
+    # stream URL of the existing webcam and wire it through nginx properly.
+    local moon_conf="${CONFIG_DIR}/moonraker.conf"
+    if grep -q '^\[webcam ' "$moon_conf" 2>/dev/null; then
+        local existing_webcam
+        existing_webcam=$(grep '^\[webcam ' "$moon_conf" | head -1 | sed 's/\[webcam //;s/\]//')
+        warn "Existing webcam detected in moonraker.conf: [webcam ${existing_webcam}]"
+        warn "Installing ustreamer may create a duplicate camera entry in Mainsail."
+        if ! confirm "Proceed with ustreamer install anyway?"; then
+            info "Skipping ustreamer install — existing webcam entry will be used."
+            info "If Mainsail shows no camera, run option 6 again and choose to proceed."
+            return 0
+        fi
     fi
 
     local ustreamer_pre_installed=false

@@ -8,6 +8,14 @@
 
 ---
 
+## RC2.61 — Detect existing webcam before ustreamer install
+
+### What changed
+
+- **`install_camera()`** — added detection of any existing `[webcam ...]` section in `moonraker.conf` before proceeding with ustreamer install. If found, warns user and asks for confirmation before continuing. Avoids duplicate webcam entries in Mainsail on setups where crowsnest or another camera stack is already configured. Marked `# TEMPORARY` in code pending a more complete solution.
+
+---
+
 ## RC2.60 — Revert/restore sudo fallbacks for q2_112
 
 Branch: `claude/revert-restore-sudo-rc260`
