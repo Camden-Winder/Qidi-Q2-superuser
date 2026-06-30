@@ -13,18 +13,6 @@ body:
     validations:
       required: true
 
-  - type: dropdown
-    id: install_path
-    attributes:
-      label: Install Type
-      description: Which install option did you pick?
-      options:
-        - Bunny Box & Helixscreen
-        - Just Faster Printer
-        - Just Faster Box
-    validations:
-      required: true
-
   - type: input
     id: firmware
     attributes:
