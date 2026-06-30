@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.63'
+AIO_VERSION='RC2.64'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -925,19 +925,31 @@ install_camera() {
         info "Existing camera config detected — rewriting to current format"
     fi
 
-    # TEMPORARY: Detect any existing [webcam ...] section in moonraker.conf.
-    # If found, offer to skip ustreamer install and use the existing stream.
-    # Mark as temporary — remove once we have a reliable way to identify the
-    # stream URL of the existing webcam and wire it through nginx properly.
-    local moon_conf="${CONFIG_DIR}/moonraker.conf"
-    if grep -q '^\[webcam ' "$moon_conf" 2>/dev/null; then
-        local existing_webcam
-        existing_webcam=$(grep '^\[webcam ' "$moon_conf" | head -1 | sed 's/\[webcam //;s/\]//')
-        warn "Existing webcam detected in moonraker.conf: [webcam ${existing_webcam}]"
-        warn "Installing ustreamer may create a duplicate camera entry in Mainsail."
+    # Query Moonraker for any existing webcam entries (config or database
+    # sourced) before touching anything. Moonraker is already running
+    # normally at this point (not just-restarted), so this call is reliable
+    # without needing a retry loop.
+    local existing_webcams
+    existing_webcams=$(curl -sf --max-time 5 "http://127.0.0.1:${MOONRAKER_PORT}/server/webcams/list" 2>/dev/null | python3 -c "
+import json, sys
+try:
+    data = json.load(sys.stdin)
+    for c in data.get('result', {}).get('webcams', []):
+        print(c.get('name', 'unknown') + '|' + c.get('source', 'unknown'))
+except Exception:
+    pass
+" 2>/dev/null)
+
+    if [ -n "$existing_webcams" ]; then
+        warn "Existing webcam(s) already registered in Moonraker:"
+        while IFS='|' read -r cam_name cam_source; do
+            [ -z "$cam_name" ] && continue
+            warn "  - ${cam_name} (source: ${cam_source})"
+        done <<< "$existing_webcams"
+        warn "Installing ustreamer will add a new 'printer' camera entry and may result in duplicates."
         if ! confirm "Proceed with ustreamer install anyway?"; then
             info "Skipping ustreamer install — existing webcam entry will be used."
-            info "If Mainsail shows no camera, run option 6 again and choose to proceed."
+            info "If Mainsail shows no camera, run option 7 again and choose to proceed."
             return 0
         fi
     fi
@@ -1056,7 +1068,7 @@ EOF
         fi
         sudo systemctl restart moonraker 2>/dev/null || \
             warn "Could not restart moonraker — restart manually for camera to register"
-        purge_mainsail_ui_webcams
+        purge_mainsail_ui_webcams || true
     else
         warn "moonraker.conf not found at ${moon_conf} — webcam not registered"
     fi
