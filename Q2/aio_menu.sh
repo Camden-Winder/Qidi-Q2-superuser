@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.61'
+AIO_VERSION='RC2.62'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -1264,7 +1264,7 @@ menu_mainsail() {
                 preflight || { press_enter; return 1; }
                 do_backup || { press_enter; return 1; }
                 if install_camera; then
-                    info "Run FIRMWARE_RESTART, then sudo reboot to finish applying changes."
+                    info "Run FIRMWARE_RESTART to finish applying changes."
                 else
                     warn "Camera migration had problems (see above)"
                 fi
@@ -1276,7 +1276,7 @@ menu_mainsail() {
                 preflight || { press_enter; return 1; }
                 do_backup || { press_enter; return 1; }
                 if install_camera; then
-                    info "Run FIRMWARE_RESTART, then sudo reboot to finish applying changes."
+                    info "Run FIRMWARE_RESTART to finish applying changes."
                 else
                     warn "Camera setup had problems (see above)"
                 fi
@@ -1296,7 +1296,7 @@ menu_mainsail() {
             preflight || { press_enter; return 1; }
             do_backup || { press_enter; return 1; }
             if install_mainsail; then
-                info "Run FIRMWARE_RESTART, then sudo reboot to finish applying changes."
+                info "Run FIRMWARE_RESTART to finish applying changes."
             else
                 warn "Setup had problems (see above)"
             fi
@@ -4128,7 +4128,7 @@ remove_q2_112_roundtrip_probe() {
     sudo rm -rf "$Q2_112_PROBE_STATE_DIR"
     ok "Round-trip verified: printer.cfg exactly matches its pre-probe hash"
     ok "Compatibility probe config and state removed"
-    info "Run FIRMWARE_RESTART, then sudo reboot."
+    info "Run FIRMWARE_RESTART."
     return 0
 }
 
@@ -4294,7 +4294,7 @@ revert_to_backup() {
     _run_verifiers_core
 
     banner "Revert complete"
-    info "Run FIRMWARE_RESTART from Klipper/Moonraker, then sudo reboot."
+    info "Run FIRMWARE_RESTART from Klipper/Moonraker."
     info "After reboot, confirm stock display with: systemctl status ${STOCK_DISPLAY_SERVICE:-display-manager.service} ${STOCK_UI_SERVICE:-}"
 }
 
@@ -5412,11 +5412,15 @@ PYCHECK
     cat <<EOF
 ${C_BOLD}Next steps:${C_RESET}
   1. FIRMWARE_RESTART (Klipper console or HelixScreen)
-  2. sudo reboot
-  3. Verify:    systemctl status klipper
-  4. First-time only - calibrate MMU gear steppers:
+  2. Verify:    systemctl status klipper
+  3. First-time only - calibrate MMU gear steppers:
         ${C_CYAN}MMU_CALIBRATE_GEAR GATE=0 LENGTH=100${C_RESET}
      Mark filament, measure travel, re-run with MEASURED=<mm>
+
+${C_YELLOW}Recommended:${C_RESET} Install Mainsail (option 7) for box controls. Qidi's
+stock UI and Fluidd fork only recognize Qidi's own software talking to
+the box — they will not detect or control the box when BunnyBox is
+managing it. Mainsail's web interface provides the equivalent panel.
 
 Install log:    ${INSTALL_LOG}
 Config snapshot: ${SNAPSHOT_DIR}
@@ -5549,7 +5553,7 @@ ${C_BOLD}Health Check / Run Verifiers:${C_RESET}
     sensor/heater, Mainsail, and camera runtime health when applicable.
   - Scans active Klipper includes for duplicate macros, orphan includes,
     invalid options, and leftover MMU artifacts; prompts before repairs.
-  - On unsupported layouts such as Q2 firmware 1.1.2, option 8 runs in
+  - On unsupported layouts such as Q2 firmware 1.1.2, option 9 runs in
     read-only diagnostics mode: layout, services, Qidi Box objects,
     stock macro layout, active include graph, and config scans only.
 
@@ -5647,7 +5651,7 @@ ${C_BOLD}Safety:${C_RESET}
   Option 4 dry-run reporting is allowed on unsupported layouts.
   Option 4 guarded 1.1.2 baseline capture only writes under ${BACKUP_ROOT}/.
   Option 4 guarded 1.1.2 restore-contract capture only writes under ${BACKUP_ROOT}/.
-  Run FIRMWARE_RESTART, then sudo reboot, after an install or revert.
+  Run FIRMWARE_RESTART after an install or revert.
   Refuses to run as root.
 
 ${C_BOLD}Known limitations:${C_RESET}
@@ -5666,7 +5670,7 @@ EOF
 
 # ---------- main menu ------------------------------------------------
 show_status_line() {
-    local bb_status helixscreen_status box_write_status mainsail_status camera_status firmware_status just_faster_status
+    local bb_status helixscreen_status box_write_status mainsail_status firmware_status just_faster_status
     if layout_supports_mutation; then
         firmware_status="${C_GREEN}$(q2_firmware_layout_label)${C_RESET}"
     else
@@ -5694,11 +5698,6 @@ show_status_line() {
     else
         mainsail_status="${C_YELLOW}not found${C_RESET}"
     fi
-    if camera_installed; then
-        camera_status="${C_GREEN}streaming${C_RESET}"
-    else
-        camera_status="${C_YELLOW}off${C_RESET}"
-    fi
     # With BunnyBox installed, the HELIX_QIDI_BOX_WRITE drop-in conflicts
     # with Happy Hare's MMU control of the Box — so "off" is the desired
     # state. Without BunnyBox, "on" is fine for native HelixScreen control.
@@ -5717,8 +5716,8 @@ show_status_line() {
     fi
     printf '  Just Faster: %b | BunnyBox: %b | Helixscreen: %b\n' \
            "$just_faster_status" "$bb_status" "$helixscreen_status"
-    printf '  BoxWrite: %b | Mainsail: %b | Camera: %b\n' \
-           "$box_write_status" "$mainsail_status" "$camera_status"
+    printf '  BoxWrite: %b | Mainsail: %b\n' \
+           "$box_write_status" "$mainsail_status"
     printf '  Firmware: %b\n' "$firmware_status"
 }
 
@@ -5780,15 +5779,16 @@ draw_menu() {
     printf '   %s4)%s Update Macros                     (re-fetch AOI macro files)\n'     "$C_CYAN" "$C_RESET"
     printf '  %sUNINSTALL%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
     printf '   %s5)%s Revert to Backup                  (full uninstall + restore stock)\n' "$C_CYAN" "$C_RESET"
+    printf '   %s6)%s Uninstall Mainsail                 (remove web UI only)\n'            "$C_CYAN" "$C_RESET"
     printf '  %sADDONS%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
-    printf '   %s6)%s Mainsail                          (web UI on port 100)\n'            "$C_CYAN" "$C_RESET"
+    printf '   %s7)%s Mainsail                          (web UI on port 100)\n'            "$C_CYAN" "$C_RESET"
     printf '  %sINFO%s\n' "$C_BOLD$C_CYAN" "$C_RESET"
-    printf '   %s7)%s About\n'                                                             "$C_CYAN" "$C_RESET"
-    printf '   %s8)%s Health Check / Run Verifiers\n'                                      "$C_CYAN" "$C_RESET"
+    printf '   %s8)%s About\n'                                                             "$C_CYAN" "$C_RESET"
+    printf '   %s9)%s Health Check / Run Verifiers\n'                                      "$C_CYAN" "$C_RESET"
     printf '  %sTESTING%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
-    printf '   %s9)%s Testing\n'                                                           "$C_CYAN" "$C_RESET"
+    printf '   %s10)%s Testing\n'                                                          "$C_CYAN" "$C_RESET"
     printf '  %sFIRMWARE%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
-    printf '   %s10)%s 01.01.02+ / qidi firmware\n'                                       "$C_CYAN" "$C_RESET"
+    printf '   %s11)%s 01.01.02+ / qidi firmware\n'                                       "$C_CYAN" "$C_RESET"
     printf '   %s0)%s Exit\n'                                                              "$C_CYAN" "$C_RESET"
     printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
     printf '%sEnter selection:%s ' "$C_BOLD" "$C_RESET"
@@ -5930,22 +5930,33 @@ main_loop() {
                 fi
                 ;;
             6)
+                if mainsail_installed; then
+                    if confirm "Uninstall Mainsail?"; then
+                        uninstall_mainsail
+                        press_enter
+                    fi
+                else
+                    info "Mainsail is not installed."
+                    press_enter
+                fi
+                ;;
+            7)
                 if require_supported_firmware_layout "Mainsail addon"; then
                     menu_mainsail
                 else
                     press_enter
                 fi
                 ;;
-            7) show_about ;;
-            8)
+            8) show_about ;;
+            9)
                 if layout_supports_mutation; then
                     run_all_verifiers
                 else
                     run_readonly_diagnostics
                 fi
                 ;;
-            9) testing_submenu ;;
-            10) q2_112_submenu ;;
+            10) testing_submenu ;;
+            11) q2_112_submenu ;;
             0|q|Q|exit) info "Bye."; exit 0 ;;
             *) err "Invalid selection: '$choice'"; sleep 1 ;;
         esac
