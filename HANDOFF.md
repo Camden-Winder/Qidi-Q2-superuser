@@ -8,6 +8,19 @@
 
 ---
 
+## RC2.64 — Move webcam duplicate check to start of install_camera()
+
+### What changed
+
+- **`install_camera()`** — replaced the `# TEMPORARY` grep-based webcam check (which could only detect config-file-sourced entries) with a Moonraker API query at the very start of the function, before any changes are made. This catches both `config`- and `database`-sourced webcam entries (e.g. a stock Qidi camera auto-registered by Mainsail) and warns the user before ustreamer is installed or `moonraker.conf` is touched.
+- **`purge_mainsail_ui_webcams()` call** — kept as a secondary best-effort cleanup at the end of install, but no longer relied upon as the primary detection mechanism since its post-restart timing has been confirmed unreliable.
+
+### Root cause
+
+The previous grep-based check could not detect `database`-sourced webcam entries (e.g. Qidi's stock auto-registered camera) because those entries never appear in `moonraker.conf` — they live only in Moonraker's runtime database. The only mechanism that could see them, `purge_mainsail_ui_webcams()`, ran after a Moonraker restart and was confirmed in live user testing to silently fail to reach the API despite a 6-attempt retry loop (~12s). Moving the check to the start of the function, before any restart occurs, avoids the timing problem entirely.
+
+---
+
 ## RC2.63 — Retry loop for Moonraker webcam duplicate check
 
 ### What changed
