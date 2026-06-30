@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.62'
+AIO_VERSION='RC2.63'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -876,10 +876,16 @@ remove_webcam_from_mainsail_nginx() {
 purge_mainsail_ui_webcams() {
     local api="http://127.0.0.1:${MOONRAKER_PORT}"
     local response
-    response=$(curl -sf --max-time 5 "${api}/server/webcams/list" 2>/dev/null) || {
-        warn "Could not reach Moonraker API — skipping duplicate-webcam check"
+    local attempt
+    for attempt in 1 2 3 4 5 6; do
+        response=$(curl -sf --max-time 5 "${api}/server/webcams/list" 2>/dev/null) && break
+        sleep 2
+    done
+    if [ -z "$response" ]; then
+        warn "Could not reach Moonraker API after 6 attempts (~12s) — skipping duplicate-webcam check"
+        warn "If Mainsail shows a duplicate camera, run option 7 again to retry the check"
         return 0
-    }
+    fi
     local ui_cams
     ui_cams=$(echo "$response" | python3 -c "
 import json, sys

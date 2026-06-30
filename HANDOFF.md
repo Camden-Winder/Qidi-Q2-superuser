@@ -8,6 +8,18 @@
 
 ---
 
+## RC2.63 — Retry loop for Moonraker webcam duplicate check
+
+### What changed
+
+- **`purge_mainsail_ui_webcams()`** — added a retry loop (6 attempts, 2s apart, ~12s total) before giving up on reaching the Moonraker API. Previously this ran immediately after `systemctl restart moonraker` with no wait and failed almost every time, silently skipping the duplicate-webcam cleanup.
+
+### Root cause
+
+Confirmed via live user test (issue #74 thread): `purge_mainsail_ui_webcams()` is called right after `sudo systemctl restart moonraker`, before Moonraker has finished restarting. The single 5-second curl attempt failed every time during install, but succeeded immediately when run manually moments later. This left UI-database-sourced webcam entries (e.g. a pre-existing camera auto-detected by Mainsail before the AOI ran) undetected, resulting in duplicate cameras shown in Mainsail.
+
+---
+
 ## RC2.62 — Menu cleanup: Uninstall Mainsail, status line, post-install text
 
 ### What changed
