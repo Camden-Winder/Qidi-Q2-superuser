@@ -12,6 +12,19 @@ Run these to understand what's on the branch:
 - `git diff origin/main...HEAD --stat` — files changed
 - Read `.github/PULL_REQUEST_TEMPLATE.md` — use its section headings as the body structure
 
+## 1.1 SYNC CHECK — Bug Report Dropdown
+
+If this PR changes the AIO menu numbering or labels in `Q2/aio_menu.sh` (`draw_menu()`), check whether `.github/ISSUE_TEMPLATE/bug_report.yml`'s `install_path` dropdown options still match. If they do not match:
+- Update the dropdown options in `bug_report.yml` to reflect the current menu
+- Include this change as part of the same PR
+- Note it in the PR body under Changes
+
+This check is mandatory any time `draw_menu()` is touched, even if the brief did not explicitly mention the bug report template.
+
+## 1.2 SYNC CHECK — Wiki Preview Screenshot
+
+If this PR bumps `AIO_VERSION` to a number ending in `0` or `5` (per the Wiki screenshot rule in `CLAUDE.md`), attempt to reach the wiki repo and push an updated AOI menu preview screenshot reflecting the current `draw_menu()` layout. If the wiki repo is not accessible in this session, notify the user and add a to-do item to the `## Known Issues (carry-forward)` section in `HANDOFF.md`.
+
 ## 2. COMPOSE THE PR
 
 **Title format** (pick one, match what changed):

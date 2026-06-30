@@ -8,6 +8,17 @@
 
 ---
 
+## RC2.62 — Menu cleanup: Uninstall Mainsail, status line, post-install text
+
+### What changed
+
+- **Menu renumbered** — added option 6 "Uninstall Mainsail" under UNINSTALL. Mainsail (addon) shifts to 7, About to 8, Health Check to 9, Testing to 10, firmware submenu to 11.
+- **`show_status_line()`** — removed `Camera` indicator; camera is bundled into Mainsail and no longer warrants its own status line entry.
+- **`_install_bunnybox()` post-install summary** — added recommendation to install Mainsail (option 7) for box controls, since Qidi's stock UI/Fluidd fork only recognizes Qidi's own box software (root cause from issue #74).
+- **`sudo reboot` removed from all 7 locations** — camera migration/setup confirmations, Mainsail install confirmation, roundtrip probe completion, revert completion, BunnyBox post-install summary, and About/known limitations text. All replaced with `FIRMWARE_RESTART` only.
+
+---
+
 ## RC2.61 — Detect existing webcam before ustreamer install
 
 ### What changed
