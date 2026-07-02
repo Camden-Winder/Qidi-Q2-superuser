@@ -5,6 +5,20 @@
 - **JFP + Qidi Box: no warning in installer** — Users who select Just Faster Printer but have a Qidi Box connected get `QDE_004_007: Extruder not loaded` at end of print, because JFP's `PRINT_END` doesn't call `UNLOAD_FILAMENT`. The installer should warn box owners to use Just Faster Box instead. (See issue #33.)
 - **CONTRIBUTING.md missing** — No contributor guide covering the branching convention, `claude/*` branch rule, and how to run the syntax checks.
 - [ ] Wiki AOI preview screenshot needs updating — menu renumbered in RC2.52 (Update Macros added as option 4, firmware submenu moved to 10)
+- [ ] RC2.65 ends in 5 (wiki screenshot rule) — but this release did not touch `draw_menu()`, so no menu layout change occurred; no new screenshot was pushed. Confirm at the next screenshot-triggering release that the wiki preview still matches the RC2.52 renumbering above.
+
+---
+
+## RC2.65 — JFB BunnyBox conflict detection + printer.mmu guard
+
+### What changed
+
+- **`install_just_faster_box()`** — added pre-flight check for existing BunnyBox/Happy Hare install. If detected, warns user of incompatibility and asks for confirmation before proceeding. JFB and BunnyBox cannot safely coexist — JFB provides its own box macros without HH's MMU system.
+- **`gcode_macro-JustFasterBox.cfg` `PRINT_START`** — replaced `printer.mmu.enabled` with `printer.save_variables.variables.enable_box == 1` to match the pattern used consistently everywhere else in `PRINT_START` and `PRINT_END`. `printer.mmu` only exists when Happy Hare is loaded; JFB has no Happy Hare dependency and should use saved variables for box state.
+
+### Root cause
+
+A user had BunnyBox pre-installed, ran option 1 (BB&HS), reverted to stock, then ran JFB (option 3). The JFB installer had no awareness of the existing BunnyBox install. After revert stripped the MMU includes from `printer.cfg`, `PRINT_START` crashed because `printer.mmu` no longer existed as a Klipper object.
 
 ---
 
