@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.64'
+AIO_VERSION='RC2.65'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -5496,6 +5496,21 @@ install_just_faster_box() {
 
     preflight || { press_enter; return 1; }
     do_backup || { press_enter; return 1; }
+
+    # Warn if BunnyBox/Happy Hare is already installed — JFB is incompatible
+    # with BunnyBox. Running JFB on top of BunnyBox will leave the MMU config
+    # in place but remove the macros that drive it, causing Klipper errors.
+    if bunnybox_installed; then
+        warn "BunnyBox / Happy Hare appears to be installed on this printer."
+        warn "JFB (Just Faster Box) is incompatible with BunnyBox — it provides"
+        warn "its own box macros without Happy Hare's MMU system."
+        warn "Installing JFB on top of BunnyBox may cause Klipper errors."
+        if ! confirm "Proceed with JFB install anyway?"; then
+            info "JFB install cancelled. To remove BunnyBox, use the native BunnyBox uninstaller."
+            press_enter
+            return 0
+        fi
+    fi
 
     info "Updating gcode_macro.cfg..."
     fetch "${REPO_BASE}/macros/gcode_macro-JustFasterBox.cfg" \
