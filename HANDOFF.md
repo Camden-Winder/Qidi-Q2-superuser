@@ -9,6 +9,16 @@
 
 ---
 
+## RC2.66 — Fix KAMP paths in verify_bunnybox_install() (Issue #79)
+
+### What changed
+
+- **`verify_bunnybox_install()`** — fixed KAMP file paths in the health check file loop. Files are installed to `${CONFIG_DIR}/KAMP/` but the check was looking at `${CONFIG_DIR}/` root, causing false-negative errors. Updated to match the correct paths already used in `verify_jfp_install()` and `verify_jfb_install()`.
+
+References #79
+
+---
+
 ## RC2.65 — JFB BunnyBox conflict detection + printer.mmu guard
 
 ### What changed

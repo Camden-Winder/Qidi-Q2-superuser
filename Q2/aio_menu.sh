@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.65'
+AIO_VERSION='RC2.66'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -4321,8 +4321,8 @@ verify_bunnybox_install() {
     banner "Verifying installation"
     local all_ok=true
 
-    for f in printer.cfg gcode_macro.cfg KAMP_settings.cfg \
-              Adaptive_Meshing.cfg Line_Purge.cfg Smart_Park.cfg; do
+    for f in printer.cfg gcode_macro.cfg KAMP/KAMP_settings.cfg \
+              KAMP/Adaptive_Meshing.cfg KAMP/Line_Purge.cfg KAMP/Smart_Park.cfg; do
         if [ -s "${CONFIG_DIR}/${f}" ]; then
             ok "${f}"
         else
