@@ -35,6 +35,9 @@ https://discord.gg/aZGUk69Mp
 
 ---
 
+## Support Me
+Are you happy with how your printer performa now? Consider leaving me a tip to keep the filament flowing - https://venmo.com/u/Camden-Winder
+
 Modifying printer files may void your Qidi warranty. Use at your own risk.
 
 ---
