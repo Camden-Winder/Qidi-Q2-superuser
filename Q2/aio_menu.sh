@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC2.66'
+AIO_VERSION='RC3.00'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -1756,6 +1756,7 @@ PYEOF
     fi
     rm -f "$tmp_cfg"
     write_aoi_ini "JustFasterPrinter" "${AIO_VERSION}" "${AIO_VERSION}"
+    offer_process_optimization
     banner "Install complete"
     cat <<EOF
 ${C_BOLD}Just Faster Printer applied (01.01.02+ mode).${C_RESET}
@@ -1810,6 +1811,7 @@ PYEOF
     fi
     rm -f "$tmp_cfg"
     write_aoi_ini "JustFasterBox" "${AIO_VERSION}" "${AIO_VERSION}"
+    offer_process_optimization
     banner "Install complete"
     cat <<EOF
 ${C_BOLD}Just Faster Box applied (01.01.02+ mode).${C_RESET}
@@ -1937,6 +1939,139 @@ read_aoi_ini() {
         return 1
     fi
     printf '%s' "$val"
+}
+
+# Returns the path to the manifest recording which services this session's process-optimization step disabled/masked.
+aio_optimizations_file() {
+    printf '%s\n' "$(aio_state_dir)/optimizations_applied"
+}
+
+# Offers to disable a fixed set of unused stock services (and, on q2_112, run the community QidiClient static-GIF patch); records exactly what succeeded under aio_state_dir() so revert_to_backup() can undo it precisely. Never fails the calling install — every step warns and continues on error.
+offer_process_optimization() {
+    if ! confirm "Would you like to disable unnecessary processes? (recommended)"; then
+        return 0
+    fi
+
+    banner "Disabling unnecessary processes"
+
+    local manifest_dir
+    manifest_dir=$(aio_state_dir)
+    mkdir -p "$manifest_dir" 2>/dev/null || sudo mkdir -p "$manifest_dir" 2>/dev/null || \
+        warn "Could not create AIO state directory — optimization manifest may not be saved"
+
+    local applied=()
+    local unit
+    for unit in algo_app.service QIDILink-client.service strongswan-starter.service \
+                openvpn.service triggerhappy.service bluetooth lightdm packagekit xl2tpd; do
+        if sudo systemctl disable --now "$unit" 2>/dev/null; then
+            ok "Disabled ${unit}"
+            applied+=("$unit")
+        else
+            warn "Could not disable ${unit} (may already be absent/disabled)"
+        fi
+    done
+
+    for unit in packagekit QIDILink-client.service; do
+        sudo systemctl mask "$unit" 2>/dev/null || warn "Could not mask ${unit}"
+    done
+
+    # systemctl --user has no prior precedent in this script — it depends on an
+    # active session bus, which a plain SSH login may not have (see LESSONS.md [L009]).
+    local user_unit
+    for user_unit in pulseaudio.service pulseaudio.socket; do
+        if systemctl --user disable --now "$user_unit" 2>/dev/null; then
+            ok "Disabled ${user_unit} (user)"
+            applied+=("${user_unit} (user)")
+        else
+            warn "Could not disable ${user_unit} as --user (no active user session? SSH login may need 'loginctl enable-linger')"
+        fi
+        systemctl --user mask "$user_unit" 2>/dev/null || warn "Could not mask ${user_unit} (user)"
+    done
+
+    local gif_backup_dir=""
+    if [ "$AIO_LAYOUT" = "q2_112" ]; then
+        info "Applying QidiClient static-GIF patch (q2_112 only)..."
+        local gif_log
+        gif_log=$(mktemp /tmp/aio_gif_killer.XXXXXX)
+        if curl -fsSL https://raw.githubusercontent.com/thelegendtubaguy/QidiMax4CommunityWiki/main/scripts/install_qidiclient_static_gifs.sh | sudo bash 2>&1 | tee "$gif_log"; then
+            gif_backup_dir=$(grep -oE '/home/qidi/QIDI_Client/access/\.gif-backup-[0-9]{8}-[0-9]{6}' "$gif_log" | head -n1)
+            if [ -n "$gif_backup_dir" ]; then
+                ok "GIF optimization applied — backup saved to ${gif_backup_dir}"
+            else
+                warn "GIF optimization ran but the backup directory could not be determined — manual restore may be needed on revert"
+            fi
+        else
+            warn "GIF optimization script failed — skipping"
+        fi
+        rm -f "$gif_log"
+    fi
+
+    if [ ${#applied[@]} -eq 0 ] && [ -z "$gif_backup_dir" ]; then
+        info "No optimizations were successfully applied — nothing recorded"
+        return 0
+    fi
+
+    local manifest_tmp
+    manifest_tmp=$(mktemp /tmp/aio_optimizations.XXXXXX)
+    {
+        local a
+        for a in "${applied[@]}"; do
+            printf '%s\n' "$a"
+        done
+        if [ -n "$gif_backup_dir" ]; then
+            printf 'GIF_BACKUP_DIR=%s\n' "$gif_backup_dir"
+        fi
+    } > "$manifest_tmp"
+
+    if install -m 0644 "$manifest_tmp" "$(aio_optimizations_file)" 2>/dev/null || \
+       sudo install -m 0644 "$manifest_tmp" "$(aio_optimizations_file)" 2>/dev/null; then
+        ok "Optimization manifest saved to $(aio_optimizations_file)"
+    else
+        warn "Could not write optimization manifest — revert will not be able to undo these changes automatically"
+    fi
+    rm -f "$manifest_tmp"
+}
+
+# Reverses exactly the services offer_process_optimization() disabled/masked this run, and on q2_112 restores the original QidiClient GIFs; silently no-ops if the manifest is absent (the common revert case). Called from revert_to_backup().
+undo_process_optimization() {
+    local manifest
+    manifest=$(aio_optimizations_file)
+    [ -f "$manifest" ] || return 0
+
+    banner "Reverting process optimizations"
+
+    local line unit gif_dir
+    while IFS= read -r line; do
+        [ -n "$line" ] || continue
+        case "$line" in
+            GIF_BACKUP_DIR=*)
+                gif_dir="${line#GIF_BACKUP_DIR=}"
+                if [ "$AIO_LAYOUT" = "q2_112" ] && [ -d "$gif_dir" ]; then
+                    if sudo cp -a "${gif_dir}/." "/home/qidi/QIDI_Client/access/" 2>/dev/null; then
+                        ok "Restored original GIFs from ${gif_dir}"
+                        sudo systemctl restart qidi-client.service 2>/dev/null || warn "Could not restart qidi-client.service"
+                    else
+                        warn "Could not restore GIFs from ${gif_dir}"
+                    fi
+                else
+                    warn "Recorded GIF backup directory not found — skipping GIF restore: ${gif_dir}"
+                fi
+                ;;
+            *' (user)')
+                unit="${line% (user)}"
+                systemctl --user unmask "$unit" 2>/dev/null || true
+                systemctl --user enable "$unit" 2>/dev/null && ok "Re-enabled ${unit} (user)" || warn "Could not re-enable ${unit} (user)"
+                ;;
+            *)
+                unit="$line"
+                sudo systemctl unmask "$unit" 2>/dev/null || true
+                sudo systemctl enable "$unit" 2>/dev/null && ok "Re-enabled ${unit}" || warn "Could not re-enable ${unit}"
+                ;;
+        esac
+    done < "$manifest"
+
+    rm -f "$manifest" 2>/dev/null || sudo rm -f "$manifest" 2>/dev/null || true
+    ok "Process optimization revert complete"
 }
 
 do_backup() {
@@ -4246,7 +4381,12 @@ revert_to_backup() {
         return 1
     fi
 
-    # 2. Non-config cleanup (outside printer_data/config).
+    # 2. Undo any process-optimization step from a prior install. Reads from
+    # aio_state_dir(), independent of CONFIG_DIR, so this must not be moved
+    # after the config rsync below.
+    undo_process_optimization
+
+    # 3. Non-config cleanup (outside printer_data/config).
     if helixscreen_installed; then
         uninstall_helixscreen
     else
@@ -4275,7 +4415,7 @@ revert_to_backup() {
 
     cleanup_aio_runtime_artifacts
 
-    # 3. Config restore — single rsync --delete, no surgery.
+    # 4. Config restore — single rsync --delete, no surgery.
     # All AIO-written config files (mmu/, mmu*.cfg, KAMP files added by AIO,
     # bunnybox_macros.cfg, moonraker.conf entries, etc.) are absent from the
     # pre-install snapshot and are removed automatically by --delete.
@@ -4304,11 +4444,11 @@ revert_to_backup() {
     fi
     rm -f "${CONFIG_DIR}/.aio_installed" 2>/dev/null || sudo rm -f "${CONFIG_DIR}/.aio_installed" 2>/dev/null || true
 
-    # 4. Restore stock display services (live systemd — not a config file).
+    # 5. Restore stock display services (live systemd — not a config file).
     restore_stock_display_services || \
         warn "Stock display services did not verify — check $(stock_display_stack_label)"
 
-    # 5. Post-revert sanity check (diagnostic only, no destructive edits).
+    # 6. Post-revert sanity check (diagnostic only, no destructive edits).
     _run_verifiers_core
 
     banner "Revert complete"
@@ -5347,7 +5487,6 @@ _install_bunnybox() {
         fi
         ok "HelixScreen install step complete"
         banner "Installing unified gcode_macro.cfg & printer.cfg"
-        banner "Installing unified gcode_macro.cfg & printer.cfg"
         fetch "${REPO_BASE}/macros/gcode_macro-BunnyBox.cfg" \
               "${CONFIG_DIR}/gcode_macro.cfg" || return 1
         fetch "${REPO_BASE}/macros/printer-BunnyBox.cfg" \
@@ -5408,6 +5547,8 @@ PYCHECK
         verify_bunnybox_install
 
         verify_runtime_health
+
+        offer_process_optimization
     } 2>&1 | tee -a "$INSTALL_LOG"
 
     # Check the exit code of the install block (left side of the tee pipe).
@@ -5477,6 +5618,8 @@ install_just_faster() {
 
     verify_jfp_install
 
+    offer_process_optimization
+
     banner "Install complete"
     cat <<EOF
 ${C_BOLD}Your Q2 is now running the 'Just Faster' setup.${C_RESET}
@@ -5532,6 +5675,8 @@ install_just_faster_box() {
     write_aoi_ini "JustFasterBox" "${AIO_VERSION}" "${AIO_VERSION}"
 
     verify_jfb_install
+
+    offer_process_optimization
 
     banner "Install complete"
     cat <<EOF
@@ -5754,50 +5899,6 @@ show_status_line() {
     printf '  Firmware: %b\n' "$firmware_status"
 }
 
-q2_112_submenu() {
-    if [ "$AIO_LAYOUT" != "q2_112" ]; then
-        err "This submenu is only available on firmware 01.01.02+ (qidi layout)."
-        err "Detected layout: ${AIO_LAYOUT_NAME}"
-        press_enter
-        return 0
-    fi
-    while true; do
-        clear 2>/dev/null || true
-        printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
-        printf '%s   01.01.02+ / qidi firmware%s\n'                "$C_BOLD$C_MAGENTA" "$C_RESET"
-        printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
-        printf '  Layout: %s\n' "$AIO_LAYOUT_NAME"
-        printf '  Home:   %s\n' "$AIO_HOME"
-        printf '%s--------------------------------------------%s\n' "$C_BOLD" "$C_RESET"
-        printf '  %sINSTALL%s\n' "$C_BOLD$C_GREEN" "$C_RESET"
-        printf '   %s1)%s Just Faster Printer   (no Box)\n'          "$C_CYAN" "$C_RESET"
-        printf '   %s2)%s Just Faster Box        (with Qidi Box, no BunnyBox)\n' "$C_CYAN" "$C_RESET"
-        printf '  %sUNINSTALL%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
-        printf '   %s3)%s Revert to Backup       (full uninstall + restore stock)\n' "$C_CYAN" "$C_RESET"
-        printf '  %sINFO%s\n' "$C_BOLD$C_CYAN" "$C_RESET"
-        printf '   %s4)%s Show layout report\n'                       "$C_CYAN" "$C_RESET"
-        printf '   %s0)%s Back\n'                                      "$C_CYAN" "$C_RESET"
-        printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
-        printf '%sEnter selection:%s ' "$C_BOLD" "$C_RESET"
-        local choice
-        read -r choice </dev/tty || return 0
-        case "$choice" in
-            1) install_jfp_q2_112 ;;
-            2) install_jfb_q2_112 ;;
-            3)
-                warn "Revert to Backup will restore configs from ${SNAPSHOT_DIR}/."
-                if confirm "Proceed with full revert?"; then
-                    revert_to_backup
-                    press_enter
-                fi
-                ;;
-            4) show_layout_report; press_enter ;;
-            0|q|Q|back) return 0 ;;
-            *) err "Invalid selection: '$choice'"; sleep 1 ;;
-        esac
-    done
-}
-
 draw_menu() {
     clear 2>/dev/null || true
     printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
@@ -5820,8 +5921,6 @@ draw_menu() {
     printf '   %s9)%s Health Check / Run Verifiers\n'                                      "$C_CYAN" "$C_RESET"
     printf '  %sTESTING%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
     printf '   %s10)%s Testing\n'                                                          "$C_CYAN" "$C_RESET"
-    printf '  %sFIRMWARE%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
-    printf '   %s11)%s 01.01.02+ / qidi firmware\n'                                       "$C_CYAN" "$C_RESET"
     printf '   %s0)%s Exit\n'                                                              "$C_CYAN" "$C_RESET"
     printf '%s============================================%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
     printf '%sEnter selection:%s ' "$C_BOLD" "$C_RESET"
@@ -5945,8 +6044,20 @@ main_loop() {
         read -r choice </dev/tty || exit 0
         case "$choice" in
             1) install_bunnybox_helixscreen ;;
-            2) install_just_faster ;;
-            3) install_just_faster_box ;;
+            2)
+                if [ "$AIO_LAYOUT" = "q2_112" ]; then
+                    install_jfp_q2_112
+                else
+                    install_just_faster
+                fi
+                ;;
+            3)
+                if [ "$AIO_LAYOUT" = "q2_112" ]; then
+                    install_jfb_q2_112
+                else
+                    install_just_faster_box
+                fi
+                ;;
             4)
                 if require_supported_firmware_layout "Update Macros"; then
                     update_macros
@@ -5989,7 +6100,6 @@ main_loop() {
                 fi
                 ;;
             10) testing_submenu ;;
-            11) q2_112_submenu ;;
             0|q|Q|exit) info "Bye."; exit 0 ;;
             *) err "Invalid selection: '$choice'"; sleep 1 ;;
         esac
