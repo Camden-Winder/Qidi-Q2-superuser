@@ -62,3 +62,14 @@
 - **Context:** installer script conventions
 > Never use `echo > file` with sudo — that redirects as the current user before sudo takes effect.
 > Always use `sudo tee` or `sudo tee -a` for writes requiring elevated permissions.
+
+## [L009] systemctl --user has no prior precedent in this script — session-context risk
+- **Category:** gotcha
+- **Context:** `offer_process_optimization()` / RC3.00 process-disable step
+> systemctl --user commands depend on an active user session bus + XDG_RUNTIME_DIR.
+> This script normally runs over SSH as mks (or qidi on q2_112), and SSH logins do
+> not always have a lingering user session (see loginctl enable-linger). A
+> systemctl --user disable/mask call can fail silently or with a D-Bus connection
+> error in that context. Never treat systemctl --user failures as fatal — warn and
+> continue, and do not auto-run loginctl enable-linger as a fix since that is a
+> persistent system behavior change beyond the scope of a disable-processes prompt.

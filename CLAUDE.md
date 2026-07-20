@@ -165,7 +165,11 @@ purge_bunnybox_footprint() {
 | `install_qidi_box_write()` | HelixScreen HELIX_QIDI_BOX_WRITE drop-in | `BoxWrite: on/off` |
 | `install_mainsail()` | Mainsail web UI (delegates to Camden-Winder's installer) | `Mainsail: installed/not found` |
 
+All five install functions (`install_bunnybox_helixscreen()`, `install_just_faster()`, `install_just_faster_box()`, `install_jfp_q2_112()`, `install_jfb_q2_112()`) end with an opt-in "disable unnecessary processes" prompt (`offer_process_optimization()`), which masks/disables a fixed list of unused stock services. On the `q2_112` layout it additionally offers the community static-GIF patch for the QIDIClient touchscreen UI. State is recorded under `aio_state_dir()` and undone automatically by `revert_to_backup()` via `undo_process_optimization()`.
+
 ### Current Menu Layout
+
+Options 1–3 route by detected firmware layout automatically (`install_jfp_q2_112`/`install_jfb_q2_112` on `q2_112`, otherwise the legacy functions) — there is no separate firmware submenu.
 
 ```
 1)  Install BunnyBox & HelixScreen    (Q2 with Qidi Box)
@@ -173,11 +177,11 @@ purge_bunnybox_footprint() {
 3)  Install Just Faster Box           (Q2 with Qidi Box, no BunnyBox)
 4)  Update Macros                     (re-fetch AOI macro files)
 5)  Revert to Backup                  (full uninstall + restore stock)
-6)  Mainsail                          (web UI on port 100)
-7)  About
-8)  Health Check / Run Verifiers
-9)  Testing                           (submenu: snapshot tools + 1.1.2 probes)
-10) 01.01.02+ / qidi firmware
+6)  Uninstall Mainsail                (remove web UI only)
+7)  Mainsail                          (web UI on port 100)
+8)  About
+9)  Health Check / Run Verifiers
+10) Testing                           (submenu: snapshot tools + 1.1.2 probes)
 0)  Exit
 ```
 

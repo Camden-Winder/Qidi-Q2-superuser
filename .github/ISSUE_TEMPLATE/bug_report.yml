@@ -29,7 +29,6 @@ body:
         - "8) About"
         - "9) Health Check / Run Verifiers"
         - "10) Testing"
-        - "11) 01.01.02+ / qidi firmware"
         - "N/A — Did not run AIO menu"
     validations:
       required: true

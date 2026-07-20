@@ -4,8 +4,25 @@
 
 - **JFP + Qidi Box: no warning in installer** — Users who select Just Faster Printer but have a Qidi Box connected get `QDE_004_007: Extruder not loaded` at end of print, because JFP's `PRINT_END` doesn't call `UNLOAD_FILAMENT`. The installer should warn box owners to use Just Faster Box instead. (See issue #33.)
 - **CONTRIBUTING.md missing** — No contributor guide covering the branching convention, `claude/*` branch rule, and how to run the syntax checks.
-- [ ] Wiki AOI preview screenshot needs updating — menu renumbered in RC2.52 (Update Macros added as option 4, firmware submenu moved to 10)
-- [ ] RC2.65 ends in 5 (wiki screenshot rule) — but this release did not touch `draw_menu()`, so no menu layout change occurred; no new screenshot was pushed. Confirm at the next screenshot-triggering release that the wiki preview still matches the RC2.52 renumbering above.
+- [ ] `show_about()` text is stale re: q2_112 — the "What it can install" and "Known limitations" sections still describe q2_112 installs as blocked/paused pending a "compatibility lane." This is no longer accurate as of RC3.00: `install_jfp_q2_112()`/`install_jfb_q2_112()` are now reachable directly from the top-level menu (options 2/3) on that layout. Left untouched in RC3.00 per session scope — needs a future docs-cleanup pass.
+
+---
+
+## RC3.00 — Collapse firmware submenu into top-level menu; add optional process-optimization step
+
+### What changed
+
+- **`draw_menu()`** — removed the `FIRMWARE` section and the `11) 01.01.02+ / qidi firmware` item. The Install section (options 1–3) is unchanged in appearance.
+- **`main_loop()`** — options `2` and `3` now branch on `$AIO_LAYOUT`: on `q2_112` they call `install_jfp_q2_112`/`install_jfb_q2_112`, otherwise the legacy `install_just_faster`/`install_just_faster_box`. Option `1` is unchanged — it already self-gates via `preflight()` → `require_supported_firmware_layout()` on `q2_112`. Removed the `case 11) q2_112_submenu ;;` entry.
+- **`q2_112_submenu()` deleted entirely** — its Revert option duplicated top-level option 5 (`revert_to_backup()` has no layout guard of its own and was already shared), and its "show layout report" option duplicated `run_readonly_diagnostics()`'s existing behavior under top-level option 9.
+- **New: `offer_process_optimization()` / `undo_process_optimization()`** — all five install functions (`install_bunnybox_helixscreen()`/`_install_bunnybox()`, `install_just_faster()`, `install_just_faster_box()`, `install_jfp_q2_112()`, `install_jfb_q2_112()`) now end with an opt-in prompt ("Would you like to disable unnecessary processes? (recommended)"). If accepted, disables/masks a fixed list of unused stock services (VPN clients, Bluetooth, pulseaudio, lightdm, packagekit, etc. — never `QD_Q2` or `polkitd`), and on `q2_112` additionally runs the community QidiClient static-GIF patch (`thelegendtubaguy/QidiMax4CommunityWiki`, curled at install time — not vendored). What actually succeeded is recorded in a plain-text manifest under `aio_state_dir()` (`${BACKUP_ROOT}/_AIO_STATE/optimizations_applied`), **not** `aoi.ini` — `aoi.ini` lives inside `CONFIG_DIR` and is wiped by `revert_to_backup()`'s `rsync --delete` before revert logic could read it, same reasoning as the existing `aio_preexisting_paths_file()` manifest. `revert_to_backup()` now calls `undo_process_optimization()` early (before the config rsync), which reads the manifest, re-enables/unmasks exactly what was recorded, restores GIFs from the recorded backup dir on `q2_112`, and deletes the manifest afterward so a repeated revert is a clean no-op.
+- **Drive-by fix in `_install_bunnybox()`** — removed a duplicated `banner "Installing unified gcode_macro.cfg & printer.cfg"` line (was printed twice back-to-back).
+- **`CLAUDE.md`** — "Current Menu Layout" block corrected to match the live 10-item menu (it was already out of sync before this session — previously showed items 1–10 with a stale `10) 01.01.02+ / qidi firmware` line, while live code had 11 items). Added a note documenting the new optimization prompt.
+- **Wiki** — pushed `Wiki-RC1.15`, updating the ASCII menu preview in `Q2-Install-Guide.md` to the RC3.00 layout. This supersedes the previously-outstanding RC2.52 menu-renumbering screenshot debt (see prior carry-forward entries, now removed) in a single update.
+
+### Why
+
+Simplifies the top-level menu for non-technical users — `q2_112` owners no longer need to know a separate submenu exists; options 2/3 "just work" regardless of detected firmware. The optimization step reduces idle CPU/RAM load from stock services that serve no purpose on a headless/kiosk printer controller, while remaining fully opt-in and cleanly reversible via the existing revert flow.
 
 ---
 
