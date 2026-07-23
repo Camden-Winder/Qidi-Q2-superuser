@@ -18,7 +18,6 @@ Before touching any file, reply with:
 - Any conflicts between the brief and CLAUDE.md / HANDOFF.md
 
 ## 3. FLAG BEFORE PROCEEDING IF:
-- Session Brief targets `Max4/aio_menu_max4.sh` — confirm this is intentional
 - Any task touches `Configurations/` or `Plugins/` — these are read-only
 - Brief says to push to `main` directly — must ask user first
 - AIO_VERSION bump is required but not listed in the brief tasks

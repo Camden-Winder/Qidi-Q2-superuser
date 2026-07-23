@@ -11,15 +11,13 @@ Two principles drive every decision:
 1. **Simple instructions.** Documentation should assume minimal prior knowledge. Steps should be explicit, numbered, and copy-pasteable.
 2. **Automate everything possible.** Anything a user could misconfigure manually — KAMP settings, printer.cfg includes, macro file placement, backup creation — should be handled by the installer. Users should not need to hand-edit config files to complete a supported install path.
 
-## Three Install Paths (Canon — Q2 and Max 4)
+## Three Install Paths
 
 | Path | Who it's for | What it installs |
 |---|---|---|
 | **Just Faster Printer** | Stock experience with faster/cleaner macros. No Qidi Box. | Optimised macros only |
 | **Just Faster Box** | Stock experience with faster/cleaner macros. They have a Qidi Box. | Optimised macros + box-aware paths enabled |
-| **BunnyBox + HelixScreen** | Users who want the full advanced stack. | Happy Hare MMU firmware + HelixScreen LVGL UI + BunnyBox **(Q2 only — not applicable to Max 4)** |
-
-For the Max 4, only paths 1 and 2 are in scope. Path 3 does not exist on the Max 4.
+| **BunnyBox + HelixScreen** | Users who want the full advanced stack. | Happy Hare MMU firmware + HelixScreen LVGL UI + BunnyBox |
 
 ## Quick Start — Test Commands
 
@@ -27,17 +25,15 @@ Always run these before committing:
 
 ```bash
 bash -n Q2/aio_menu.sh                            # shell syntax check (Q2)
-bash -n Max4/aio_menu_max4.sh                     # shell syntax check (Max 4)
 python3 -m json.tool Q2/helixscreen_settings.json  # JSON lint
 shellcheck -S warning Q2/aio_menu.sh              # style (advisory)
-shellcheck -S warning Max4/aio_menu_max4.sh       # style (advisory)
 ```
 
 ## Repo Layout
 
 ```
 Q2/
-  aio_menu.sh              ← Q2 installer. All Q2 logic lives here. DO NOT MODIFY for Max 4.
+  aio_menu.sh              ← Q2 installer. All Q2 logic lives here.
   CLAUDE.md                ← Q2-scoped conventions and key paths
   helixscreen_settings.json← Reference copy of HelixScreen settings
   KAMP/
@@ -49,19 +45,10 @@ Q2/
   macros/                  ← gcode_macro cfg templates
   Printer Presets/         ← OrcaSlicer printer profiles
 
-Max4/
-  aio_menu_max4.sh         ← Max 4 installer. Sibling to Q2/aio_menu.sh.
-  CLAUDE.md                ← Max4-scoped conventions and key paths
-  macros/
-    gcode_macro-JustFasterPrinter.cfg ← JFP macro file (no box)
-    gcode_macro-JustFasterBox.cfg     ← JFB macro file (with box)
-  Instructions.md          ← User-facing SSH + install guide
-  FAQ.md                   ← Fan assignments, NeoPixel, Z offset, polar cooler, misc
-
-All_in_One_Installer/
-  CLAUDE.md                ← Redirect to Q2/ and Max4/ script locations
-  README.md
-  WHAT_WAS_DONE.md
+README.md                  ← Project overview, supported printers, what it does
+docs/
+  README.md                ← Changelog and supported-printer summary
+  WHAT_WAS_DONE.md          ← Detailed feature/menu/file-path reference
 
 Configurations/            ← Stock Qidi reference files. DO NOT MODIFY.
 Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
@@ -87,19 +74,6 @@ Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
   - `/home/mks/mudstockbackups/` — AIO backup snapshots
   - `/home/mks/helixscreen/` — HelixScreen install dir
   - `/home/mks/Happy-Hare/` — Happy Hare MMU firmware
-
-### Qidi Max 4 (new)
-- Hardware: Qidi Max 4 3D printer
-- Runs Debian Bullseye
-- OS: ARM Linux, user `qidi`
-- Stack: Klipper + Moonraker + stock qidi-client touchscreen UI + Qidi Box (4-slot AMS, optional)
-- Key paths on the printer:
-  - `/home/qidi/printer_data/config/` — Klipper config root
-  - `/home/qidi/mudstockbackups/` — AIO backup snapshots
-  - `/home/qidi/QIDI_Client/` — touchscreen UI assets
-  - `config/klipper-macros-qd/` — stock Qidi macro directory
-- Supported firmware: `01.01.06.03`, `01.01.06.04`
-- No Happy Hare, no HelixScreen — stock UI only
 
 ## Critical Rules
 

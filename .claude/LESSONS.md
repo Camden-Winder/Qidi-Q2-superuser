@@ -29,13 +29,6 @@
 > first-run wizard at the printer. Cannot poll or timeout around this — must prompt user
 > to walk to printer and confirm with `y`. Do not attempt to patch before confirmation.
 
-## [L005] aio_menu_max4.sh must never be modified in Q2 sessions
-- **Category:** pattern
-- **Context:** repo structure
-> The Max 4 variant is a sibling installer. All Q2 work targets `Q2/aio_menu.sh` only.
-> Even when refactoring shared patterns, do not touch `Max4/aio_menu_max4.sh` without
-> explicit user instruction.
-
 ## [L007] KAMP_settings.cfg — installer must use lowercase 's'
 - **Category:** gotcha
 - **Context:** KAMP install / fix_known_klipper_conflicts

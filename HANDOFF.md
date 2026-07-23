@@ -5,6 +5,30 @@
 - **JFP + Qidi Box: no warning in installer** — Users who select Just Faster Printer but have a Qidi Box connected get `QDE_004_007: Extruder not loaded` at end of print, because JFP's `PRINT_END` doesn't call `UNLOAD_FILAMENT`. The installer should warn box owners to use Just Faster Box instead. (See issue #33.)
 - **CONTRIBUTING.md missing** — No contributor guide covering the branching convention, `claude/*` branch rule, and how to run the syntax checks.
 - [ ] `show_about()` text is stale re: q2_112 — the "What it can install" and "Known limitations" sections still describe q2_112 installs as blocked/paused pending a "compatibility lane." This is no longer accurate as of RC3.00: `install_jfp_q2_112()`/`install_jfb_q2_112()` are now reachable directly from the top-level menu (options 2/3) on that layout. Left untouched in RC3.00 per session scope — needs a future docs-cleanup pass.
+- [ ] `docs/README.md` changelog gap — the Qidi Q2 changelog table jumps from RC2.35 directly to RC3.00; RC2.36–RC2.99 are not backfilled. Deliberately deferred (see docs-only session below) — large task on its own.
+
+---
+
+## docs-only — Remove Max 4 entirely; correct stale documentation
+
+### What changed
+
+- **Deleted `Max4/` entirely** — `Max4/CLAUDE.md`, `Max4/aio_menu_max4.sh`, `Max4/macros/`. No successor path; Max 4 support is out of scope for this repo going forward.
+- **`README.md`** — dropped the Max 4 mention from the intro line, collapsed "Supported Printers" to a single Q2 row, removed the now-redundant `(Q2 ...)` qualifier from the BunnyBox bullet.
+- **`CLAUDE.md`** — removed all Max 4 mentions from "Three Install Paths," Quick Start test commands, and Target Environments. Fixed the Repo Layout tree: removed the `Max4/` subtree and replaced the phantom `All_in_One_Installer/` block (that folder doesn't exist in the current tree — scripts moved to `Q2/`/`Max4/` some time ago per historical HANDOFF entries) with the actual current doc locations (`README.md`, `docs/README.md`, `docs/WHAT_WAS_DONE.md`).
+- **`Q2/CLAUDE.md`** — removed the dead cross-reference to `Max4/aio_menu_max4.sh`.
+- **`.claude/LESSONS.md`** — removed obsolete `[L005]` (protected a file that no longer exists). Left the numbering gap.
+- **`.claude/commands/start.md`** — removed the dead Max4 flag-before-proceeding conditional.
+- **`docs/README.md`** — removed the Max 4 row and changelog subsection. Replaced the stale "RC2.35 | Current release" row with an RC3.00 top row (current release) and flagged RC2.35 as unbackfilled rather than guessing at its contents.
+- **`docs/WHAT_WAS_DONE.md`** — full correction pass: dropped Max 4 from the intro and Install Paths table (also fixed Just Faster Box, which the table wrongly scoped to "Max 4 only" — it's one of the three canonical **Q2** paths); heading bumped `(RC2.52)` → `(RC3.00)`; menu table replaced with the live 10-item menu (was missing "Uninstall Mainsail" and still listed the removed 01.01.02+ firmware submenu); "Health Check (option 8)" → "(option 9)"; removed the two stale 01.01.02+ bullets (one described tooling that doesn't exist under general Features) and replaced with accurate RC3.00-era bullets covering q2_112 auto-detection and the process-optimization step; deleted the `Max4/aio_menu_max4.sh` and `Max4/` config-templates subsections; removed the fabricated AHT2X automatic-drying achievement and the `BOX_DRY` macro reference (grep confirms neither exists in `aio_menu.sh`) and the "System Optimizations (Max 4)" achievement, reworded "Dual-printer scope" out entirely; added achievements for the real process-optimization step and 01.01.02+ firmware support; File Paths Reference gained the missing q2_112/Just Faster Box rows (verified against `install_jfp_q2_112()`/`install_jfb_q2_112()` in `aio_menu.sh`); Known Limitations swapped the fictional `BOX_DRY` bullet for the real `legacy_mks`-only BunnyBox restriction and a pointer to Happy Hare's Environment Manager for drying; Usage section dropped the Max 4 curl block.
+
+### Root cause
+
+Documentation had drifted from the live script across many RCs — Max 4 support was scoped out of the project, but references to it were never fully removed, and `docs/WHAT_WAS_DONE.md` in particular still described features (AHT2X drying, `BOX_DRY`) that were never real or were removed upstream, plus a phantom `All_in_One_Installer/` folder that no longer exists.
+
+### Why
+
+No `Q2/aio_menu.sh` changes in this session — pure documentation/repo-structure correction. No `AIO_VERSION` bump.
 
 ---
 

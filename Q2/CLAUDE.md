@@ -5,7 +5,6 @@ Scope: Q2 hardware files — installer, config templates, macros, and KAMP files
 ## Installer
 
 `Q2/aio_menu.sh` — Q2 AIO installer. All Q2 logic lives here.
-**Never modify `Max4/aio_menu_max4.sh` when working on Q2 tasks.**
 
 Quick-start test commands (run before every commit that touches aio_menu.sh):
 

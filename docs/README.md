@@ -13,9 +13,8 @@ Each installer backs up your config automatically before making any changes and 
 | Printer | Installer | Instructions |
 |---|---|---|
 | **Qidi Q2** | [`Q2/aio_menu.sh`](../Q2/aio_menu.sh) | [wiki/Q2-Install-Guide.md](../wiki/Q2-Install-Guide.md) |
-| **Qidi Max 4** | [`Max4/aio_menu_max4.sh`](../Max4/aio_menu_max4.sh) | [wiki/Max4-Install-Guide.md](../wiki/Max4-Install-Guide.md) |
 
-See each printer's install guide for SSH credentials, curl commands, menu options, and troubleshooting.
+See the install guide for SSH credentials, curl commands, menu options, and troubleshooting.
 
 ---
 
@@ -25,7 +24,8 @@ See each printer's install guide for SSH credentials, curl commands, menu option
 
 | Version | Notable additions |
 |---------|------------------|
-| RC2.35 | Current release |
+| RC3.00 | Collapsed the 01.01.02+ firmware submenu into the top-level Install menu; added an optional process-optimization step (disables unused background services, plus a touchscreen spinner-animation fix on 01.01.02+ firmware) to every install path, reversible via Revert to Backup — current release |
+| RC2.35 | See git history for this release's changes — not backfilled in this changelog (RC2.36–RC2.99 are also not yet backfilled) |
 | RC2.9 | Hardened Revert to Backup stock display restoration: resets failed lightdm/makerbase state, restores `graphical.target`, unmasks `display-manager.service`, prints recent service logs if the stock display stack does not come back |
 | RC1.22 | Added filament drying macro buttons to HelixScreen settings |
 | RC1.14 | Adopted `RC<major>.<minor>` version format; fixed duplicate webcam entries in Mainsail |
@@ -39,11 +39,3 @@ See each printer's install guide for SSH credentials, curl commands, menu option
 | RC5 | Fixed Klipper startup crash caused by conflicting Box hardware drivers |
 | RC4 | Simplified uninstall — Revert to Backup is now the single restore path |
 | RC1–3 | Initial AIO release; HelixScreen + BunnyBox install/uninstall; idle fan shutdown addon |
-
----
-
-### Qidi Max 4
-
-| Version | Notable additions |
-|---------|------------------|
-| Max4-RC1 | Initial Max 4 release: Just Faster Printer, Just Faster Box, System Optimizations (DNS fix, APT sources, xl2tpd, algo_app, static GIFs), full Revert to Backup |
