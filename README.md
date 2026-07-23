@@ -15,6 +15,7 @@ Everything I use to turn a stock Qidi Q2 into a faster, cleaner, more capable pr
 - Faster, cleaner `PRINT_START` and `PRINT_END` macros
 - BunnyBox + HelixScreen — Happy Hare MMU firmware and a modern touchscreen UI (with Qidi Box)
 - Adaptive bed meshing via KAMP — meshes only the area being printed
+- Disables unused processes so that the system runs better
 - Full backup/restore safety net — every install writes a timestamped backup; Revert to Backup is one menu choice away
 - Mainsail web UI as an optional addon (port 100, stock UI on port 80 untouched)
 
