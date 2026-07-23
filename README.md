@@ -31,7 +31,7 @@ Everything I use to turn a stock Qidi Q2 or Qidi Max 4 into a faster, cleaner, m
 
 ## Discord
 
-https://discord.gg/aZGUk69Mp
+https://discord.gg/d8vxTZa7sU
 
 ---
 
