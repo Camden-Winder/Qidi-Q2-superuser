@@ -1,22 +1,19 @@
 # Qidi Q2 Superuser
 
-Everything I use to turn a stock Qidi Q2 or Qidi Max 4 into a faster, cleaner, more capable printer. The All-in-One Installer handles setup from a single SSH command — no hand-editing config files.
+Everything I use to turn a stock Qidi Q2 into a faster, cleaner, more capable printer. The All-in-One Installer handles setup from a single SSH command — no hand-editing config files.
 
 ---
 
 ## Supported Printers
 
-| Printer | Wiki |
-|---|---|
-| Qidi Q2 | [Q2 Install Guide](https://github.com/Camden-Winder/Qidi-Q2-superuser/wiki/Q2-Install-Guide) |
-| Qidi Max 4 | [Max 4 Install Guide](https://github.com/Camden-Winder/Qidi-Q2-superuser/wiki/Max4-Install-Guide) |
+**Full install guide:** [Q2 Install Guide](https://github.com/Camden-Winder/Qidi-Q2-superuser/wiki/Q2-Install-Guide)
 
 ---
 
 ## What it does
 
 - Faster, cleaner `PRINT_START` and `PRINT_END` macros
-- BunnyBox + HelixScreen — Happy Hare MMU firmware and a modern touchscreen UI (Q2 with Qidi Box only)
+- BunnyBox + HelixScreen — Happy Hare MMU firmware and a modern touchscreen UI (with Qidi Box)
 - Adaptive bed meshing via KAMP — meshes only the area being printed
 - Full backup/restore safety net — every install writes a timestamped backup; Revert to Backup is one menu choice away
 - Mainsail web UI as an optional addon (port 100, stock UI on port 80 untouched)

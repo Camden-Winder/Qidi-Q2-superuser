@@ -4,21 +4,21 @@ A summary of the toolkit assembled in `Camden-Winder/Qidi-Q2-superuser`, what ea
 
 ## Project
 
-**Qidi Q2 Superuser** is a community-driven toolkit that unlocks advanced features on the Qidi Q2 and Qidi Max 4 3D printers beyond stock Qidi firmware: multi-material printing (Q2 only), a modern touchscreen UI (Q2 only), automatic filament drying with humidity sensing, adaptive bed meshing, and faster, cleaner print start/end macros — all with a backup/restore safety net.
+**Qidi Q2 Superuser** is a community-driven toolkit that unlocks advanced features on the Qidi Q2 3D printer beyond stock Qidi firmware: multi-material printing, a modern touchscreen UI, adaptive bed meshing, and faster, cleaner print start/end macros — all with a backup/restore safety net.
 
-This repo hardens the upstream installers and adds per-printer AIO menus so anything you can do to a Q2 or Max 4 can be done from a single script.
+This repo hardens the upstream installers and adds an AIO menu so anything you can do to a Q2 can be done from a single script.
 
 ## Install Paths
 
-| Path | Printer | What it installs |
-|---|---|---|
-| **Just Faster Printer** | Q2 and Max 4 | Optimised macros only; stock screen |
-| **Just Faster Box** | Max 4 only | Optimised macros with Qidi Box AMS paths |
-| **BunnyBox + HelixScreen** | Q2 only | Happy Hare MMU firmware + HelixScreen LVGL UI |
+| Path | What it installs |
+|---|---|
+| **Just Faster Printer** | Optimised macros only; stock screen |
+| **Just Faster Box** | Optimised macros with Qidi Box-aware paths |
+| **BunnyBox + HelixScreen** | Happy Hare MMU firmware + HelixScreen LVGL UI (`legacy_mks` firmware only) |
 
 ## Accomplished
 
-### `Q2/aio_menu.sh` — Q2 AIO Menu (RC2.52)
+### `Q2/aio_menu.sh` — Q2 AIO Menu (RC3.00)
 
 Single-entry, ANSI-coloured bash menu for the Qidi Q2. Refuses to run as root.
 
@@ -31,11 +31,11 @@ Menu items:
 | 3 | Install Just Faster Box (Q2 with Qidi Box, no BunnyBox) |
 | 4 | Update Macros (re-fetch AOI-owned macro files for installed group) |
 | 5 | Revert to Backup (full uninstall + restore stock) |
-| 6 | Mainsail (web UI on port 100) |
-| 7 | About |
-| 8 | Health Check / Run Verifiers |
-| 9 | Testing |
-| 10 | 01.01.02+ / qidi firmware |
+| 6 | Uninstall Mainsail (remove web UI only) |
+| 7 | Mainsail (web UI on port 100) |
+| 8 | About |
+| 9 | Health Check / Run Verifiers |
+| 10 | Testing |
 | 0 | Exit |
 
 Features:
@@ -43,7 +43,7 @@ Features:
 - Creates a timestamped backup before every install or revert — one menu choice restores your printer to stock
 - Colour-coded status output and a live header showing what's currently installed
 - Asks for confirmation before any destructive action
-- Post-install checks verify each feature landed correctly; Health Check (option 8) sweeps the whole config for common problems
+- Post-install checks verify each feature landed correctly; Health Check (option 9) sweeps the whole config for common problems
 - Automatically fixes known Klipper conflicts: duplicate macro definitions, misplaced bed mesh keys, conflicting includes
 - Webcam/camera support — plug in a USB camera and the installer sets it up; live view appears inside Mainsail automatically
 - Revert to Backup never deletes files that existed before AIO was installed
@@ -51,32 +51,9 @@ Features:
 - After installing HelixScreen, patches the dashboard layout automatically so you get a useful widget arrangement out of the box
 - Update Macros (option 4) re-downloads your macro files without re-running the full installer
 - Tracks your install path, version, and date internally so the menu always shows accurate status
-- Full support for newer Q2 firmware (01.01.02+) where the home directory layout changed — installs to the correct paths automatically
-- On 01.01.02+ firmware, takes a cryptographic snapshot before making any changes and runs a full rehearsal to verify it can restore everything before committing
-
-### `Max4/aio_menu_max4.sh` — Max 4 AIO Menu (Max4-RC1)
-
-Sibling installer for the Qidi Max 4. Separate file; `aio_menu.sh` is never modified for Max 4 changes.
-
-Menu items:
-
-| # | Action |
-|---|--------|
-| 1 | Install Just Faster Printer (Max 4, no Qidi Box) |
-| 2 | Install Just Faster Box (Max 4 with Qidi Box) |
-| 3 | System Optimizations (DNS, APT, services, GIFs) |
-| 4 | Revert to Backup (full uninstall + restore stock) |
-| 5 | About |
-| 6 | Run all verifiers |
-| 0 | Exit |
-
-Key differences from the Q2 installer:
-- No BunnyBox / Happy Hare — stock UI only
-- No HelixScreen — Max 4 uses the stock `qidi-client` touchscreen
-- Runs as user `qidi` (not `mks`); config root is `/home/qidi/printer_data/config/`
-- Two macro variants: `gcode_macro-JustFasterPrinter.cfg` (no box) and `gcode_macro-JustFasterBox.cfg` (with box)
-- Supports firmware `01.01.06.03` and `01.01.06.04`
-- System Optimizations option: faster DNS, quieter APT, disables unused services, removes boot GIFs
+- Full support for newer Q2 firmware (01.01.02+) — options 2 and 3 (Just Faster Printer/Box) auto-detect the layout and install to the correct paths; option 1 (BunnyBox + HelixScreen) is `legacy_mks`-only for now
+- Every install path ends with an optional prompt to disable unused background services (VPN clients, Bluetooth, pulseaudio, etc. — never the touchscreen or Moonraker's `polkitd`); on 01.01.02+ firmware this also offers a fix for animated touchscreen spinners that otherwise run continuously in the background. Both are reversible via Revert to Backup.
+- The 1.1.2 compatibility testing tools (Testing submenu) can capture a verified restore contract and rehearse a full restore in isolation before ever touching live state — separate from, and more cautious than, the normal install/revert flow used above
 
 ### `Q2/` — Q2 Config Templates
 
@@ -95,15 +72,6 @@ Replaced the old `Install-Script/` folder in RC2.33. All Q2-specific source file
 | `Printer Presets/` | OrcaSlicer printer profiles |
 | `aoi.ini` (written to printer) | `/home/mks/printer_data/config/aoi.ini` — AIO state file; stores install group, install version, macro version, install date |
 
-### `Max4/` — Max 4 Config Templates
-
-| File | Purpose |
-|---|---|
-| `macros/gcode_macro-JustFasterPrinter.cfg` | Macro file for Max 4 without Qidi Box |
-| `macros/gcode_macro-JustFasterBox.cfg` | Macro file for Max 4 with Qidi Box |
-| `Instructions.md` | User-facing SSH + install guide |
-| `FAQ.md` | Fan assignments, NeoPixel, Z offset, polar cooler, misc |
-
 ### Install-Function Conventions
 
 Every install capability follows this pattern:
@@ -118,22 +86,19 @@ Every install capability follows this pattern:
 
 ## Achievements
 
-- **Multi-material printing** via Happy Hare MMU / BunnyBox (Q2).
-- **HelixScreen** replacement touchscreen UI — modern, themeable, Klipper-native (Q2).
-- **Automatic filament drying** with humidity-based early termination (AHT2X) and active spool rotation while drying (Q2).
+- **Multi-material printing** via Happy Hare MMU / BunnyBox.
+- **HelixScreen** replacement touchscreen UI — modern, themeable, Klipper-native.
 - **KAMP adaptive bed meshing** — meshes only the printed area.
 - **`screws_tilt_adjust`** for guided manual bed levelling.
 - **Faster, cleaner `PRINT_START` / `PRINT_END`** macros.
 - **Spoolman hooks** for filament inventory.
 - **Mainsail web UI** — parallel web interface on port 100; stock lighttpd on port 80 is untouched.
-- **System Optimizations** (Max 4) — DNS, APT, service, and boot-animation improvements.
 - **Full backup/restore safety net** — every install writes a timestamped backup; Revert to Backup is one menu choice away.
 - **Automated verifier suite** — catches orphan includes, duplicate macros, invalid Klipper options, and leftover MMU artifacts before they cause boot failures.
-- **Dual-printer scope** — single repo covers both the Qidi Q2 and Qidi Max 4 with separate, non-interfering installers.
+- **Optional background-service optimization** — disables unused stock services and, on 01.01.02+ firmware, a CPU-heavy touchscreen spinner animation; fully reversible via Revert to Backup.
+- **01.01.02+ firmware support** — Just Faster Printer and Just Faster Box install directly on the newer home-directory layout.
 
 ## File Paths Reference
-
-### Q2
 
 | Source file | Destination on printer |
 |---|---|
@@ -143,21 +108,17 @@ Every install capability follows this pattern:
 | `Q2/helixscreen_settings.json` | `/home/mks/.config/helixscreen/settings.json` |
 | `Q2/macros/gcode_macro-JustFasterPrinter.cfg` | `/home/mks/printer_data/config/gcode_macro.cfg` |
 | `Q2/JustFasterPrinter.cfg` | `/home/mks/printer_data/config/printer.cfg` |
-| Backups | `/home/mks/mudstockbackups/YYYYMMDD_HHMMSS/` |
-
-### Max 4
-
-| Source file | Destination on printer |
-|---|---|
-| `Max4/macros/gcode_macro-JustFasterPrinter.cfg` | `/home/qidi/printer_data/config/gcode_macro.cfg` |
-| `Max4/macros/gcode_macro-JustFasterBox.cfg` | `/home/qidi/printer_data/config/gcode_macro.cfg` |
-| Backups | `/home/qidi/mudstockbackups/YYYYMMDD_HHMMSS/` |
+| Backups (legacy_mks) | `/home/mks/mudstockbackups/YYYYMMDD_HHMMSS/` |
+| `Q2/macros/gcode_macro-JustFasterPrinter.cfg` (01.01.02+) | `/home/qidi/printer_data/config/klipper-macros-qd/gcode_macro.cfg` |
+| `Q2/macros/gcode_macro-JustFasterBox.cfg` (01.01.02+) | `/home/qidi/printer_data/config/klipper-macros-qd/gcode_macro.cfg` |
+| Backups (01.01.02+) | `/home/qidi/mudstockbackups/YYYYMMDD_HHMMSS/` |
 
 ## Known Limitations
 
 - **BunnyBox requires HelixScreen for MMU workflows** — the stock Qidi screen does not expose the MMU UI. While BunnyBox is installed, the Qidi UI's "Control Box" panel does not work (Happy Hare owns the box hardware). Revert to Backup restores the stock panel.
 - **`MMU_CALIBRATE_GEAR` required after clean installs**: mark filament, run `MMU_CALIBRATE_GEAR GATE=0 LENGTH=100`, measure travel, re-run with `MEASURED=<mm>`.
-- Use the `BOX_DRY` macro or the Klipper console to start filament drying on the Q2.
+- **BunnyBox + HelixScreen is `legacy_mks`-only** — not available on 01.01.02+ firmware yet. Just Faster Printer and Just Faster Box both work on either firmware layout.
+- Filament drying is handled by Happy Hare's Environment Manager, not a dedicated AIO macro — see the [upstream Happy Hare wiki](https://github.com/moggieuk/Happy-Hare/wiki) for the drying workflow.
 
 ## Usage
 
@@ -165,12 +126,6 @@ Every install capability follows this pattern:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/main/Q2/aio_menu.sh)
-```
-
-### Max 4 (as user `qidi`, never root)
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/main/Max4/aio_menu_max4.sh)
 ```
 
 ## Upstream Lineage
