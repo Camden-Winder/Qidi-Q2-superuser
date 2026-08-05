@@ -45,6 +45,6 @@ Modifying printer files may void your Qidi warranty. Use at your own risk.
 
 Special thanks to Sykocis (Discord) / Chance Vegas (GitHub) for creating the groundwork and most of the All-in-One Installer this repo is built on.
 
-Thanks to everyone on Discord who helped: Sakarnen, Miraris, Jaykey, Xenon, Snipsy, and Toodles.
+Thanks to everyone on Discord who helped: Sakarnen, Miraris, Jaykey, x̸͆͐ẽ̵͆ȯ̶̒n̸̋̚o̷̐̚n̸̒͘, Snipsy, and Toodles.
 
 Thanks to the project leads: Neonev and Wazzup.
