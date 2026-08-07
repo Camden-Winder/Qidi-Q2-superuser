@@ -4,8 +4,47 @@
 
 - **JFP + Qidi Box: no warning in installer** — Users who select Just Faster Printer but have a Qidi Box connected get `QDE_004_007: Extruder not loaded` at end of print, because JFP's `PRINT_END` doesn't call `UNLOAD_FILAMENT`. The installer should warn box owners to use Just Faster Box instead. (See issue #33.)
 - **CONTRIBUTING.md missing** — No contributor guide covering the branching convention, `claude/*` branch rule, and how to run the syntax checks.
-- [ ] `show_about()` text is stale re: q2_112 — the "What it can install" and "Known limitations" sections still describe q2_112 installs as blocked/paused pending a "compatibility lane." This is no longer accurate as of RC3.00: `install_jfp_q2_112()`/`install_jfb_q2_112()` are now reachable directly from the top-level menu (options 2/3) on that layout. Left untouched in RC3.00 per session scope — needs a future docs-cleanup pass.
 - [ ] `docs/README.md` changelog gap — the Qidi Q2 changelog table jumps from RC2.35 directly to RC3.00; RC2.36–RC2.99 are not backfilled. Deliberately deferred (see docs-only session below) — large task on its own.
+- [ ] **01.01.02+ has no menu-driven undo** — RC3.02 added the missing firmware-layout guard to option 5, because `revert_to_backup()` runs the mutating verifier/repair core and sets `graphical.target` unconditionally, which demonstrably moved that layout off its stock `multi-user.target`. But options 2/3 *do* mutate on 01.01.02+, so those users can now install with no signposted way back. Testing option 2 (Force Config Restore) is unguarded and restores config from the snapshot, so a route exists — it just isn't advertised. The real fix is a layout-aware `revert_to_backup()` (read-only verifiers, no `set-default`), not removing the guard.
+- [ ] **`install_qidi_box_write()` is unreachable** — its uninstaller (3 call sites), its `BoxWrite:` status field and its verifier branch are all live, but nothing can turn it on, so `qidi_box_write_enabled` is always false outside a hand-edited printer. Natural home is a prompt in the HelixScreen-without-BunnyBox path. Note it uses `read -t 5 … </dev/tty` with a **default-yes** — review that before wiring it up.
+- [ ] **`report_stock_preservation_dry_run()` / `report_aio_removal_dry_run()` are uncalled** — left in place deliberately; RC3.02 only removed the `show_about()` line that falsely claimed option 4 offered them.
+- [ ] **RC2.58's `aoi.ini` write cannot take effect** — it was added to the 01.01.02+ installers "to unbreak option 4 for all q2_112 users", but option 4 is hard-blocked on that layout by `require_supported_firmware_layout()`. Worth an issue.
+- [ ] **`install-mainsail.sh` hardcodes `/home/mks`** — will not work on the 01.01.02+ layout without an `AIO_HOME` pass.
+
+---
+
+## RC3.02 — Fix stock-screen kill, wrong macro path, curl|bash hang; re-wire dead safety code
+
+### What changed
+
+Ten fixes, all found by auditing the script against its own documentation and by driving all 122 menu paths in a mocked Linux sandbox.
+
+- **`offer_process_optimization()` disabled the stock touchscreen.** `lightdm` was in the disable list, but it *is* `$STOCK_DISPLAY_SERVICE` on `legacy_mks`. Both Just Faster installs called it as their final step — so the two paths whose selling point is "keeps the stock screen" blacked it out, on a prompt labelled *recommended*, with nothing to restore it. Now takes a `retain_stock_display` flag defaulting to `true`, so a future caller that forgets cannot blank a screen. `_install_bunnybox` passes `false`; it legitimately replaces the display.
+- **Update Macros wrote to the wrong directory on `legacy_mks`.** The JF arm fetched to `klipper-macros-qd/` unconditionally while the installers, detectors, verifiers and `JustFasterPrinter.cfg`'s `[include]` all use config root — so option 4 reported success, bumped `macro_version`, and left live macros untouched. Now driven by `MACRO_LAYOUT`, which existed for exactly this and was only ever used in display strings; refuses rather than guessing on `unknown`.
+- **`curl | bash` hang.** The HelixScreen wizard prompt was the only `read` in the file missing `</dev/tty`. Under the documented install method stdin is the pipe, so EOF left the variable empty, the `*)` arm fired, and the `while true` spun unboundedly.
+- **Unified the two drifted `printer.cfg` KAMP-include patchers.** One always wrote the temp file, making its own "already present" branch unreachable — it `sudo cp`'d and claimed "KAMP include re-added" every run; the other failed outright on a `printer.cfg` with no `[include]` line.
+- **`capture_first_run_state()` re-wired** — it was never called, so `path_was_preexisting()` always returned false and `should_remove_aio_path()` always returned true, leaving the entire "don't delete pre-existing paths" protection inert. Now called from `take_snapshot()`. If an older AIO already installed here it seals an *empty* manifest rather than recording AIO's own artifacts as pre-existing and making them undeletable.
+- **Testing options 4–9 re-wired** — their only data writers were uncalled, so they always failed telling users to "run option 4", which is Update Macros and itself refused on that layout.
+- **Option 5 guard added** (see carry-forward above).
+- `${HOME}` → `${AIO_HOME}`/`${KLIPPER_DIR}` at 12 sites where they diverge on 01.01.02+ (login user `mks`, `AIO_HOME` `/home/qidi`), silently no-opping the Happy Hare purge. `.config/helixscreen` → `.helixscreen`. `show_about()` and 10 other stale option references rewritten to match the live menus. Menu column alignment.
+
+### Verification
+
+122-scenario Docker sandbox with mocked `systemctl`/`curl`/`apt`/`sudo` and a fake printer filesystem, both firmware layouts. Exit codes identical throughout, shellcheck 11 → 11 (+0), function inventory +2 intentional, every differing scenario traced to a specific intended fix. The sandbox independently corroborated the option 5 guard: the old transcript shows revert creating a `graphical.target` symlink, while the newly-reachable contract capture reports the stock target is `multi-user.target`.
+
+---
+
+## RC3.01 — Deduplicate AIO menu into shared helpers; no behaviour change
+
+### What changed
+
+6110 → 5947 lines (163 saved, 2.7%). Nine helpers added — `_install_jf_q2_112`, `_install_jf`, `install_kamp_files`, `_preflight_common`, `_verify_config_files`, `_purge_happy_hare_extras`, `_menu_camera_install`, `_emit_tagged_lines`, `_disable_macro_section`. `update_macros`' JFP/JFB arms merged on `${group}`. Removed `q2_firmware_layout()` and `url_exists()`, both unreachable, plus a duplicate `KAMP_settings.cfg` entry in two path arrays.
+
+Deliberately excluded as behaviour-changing and deferred to RC3.02: the drifted KAMP patchers, `${HOME}` vs `${AIO_HOME}`. Deliberately excluded as not worth it: the restore-proof and external-audit skeletons, which share a 9-stage shape but differ in every message string — collapsing needs ~20 message parameters.
+
+### Verification
+
+Proven byte-identical to RC3.00 across the same 122-scenario sandbox: all mock call logs identical, all exit codes identical, shellcheck 11 → 11, function delta exactly +9/−2. Transcripts differ only in the `AIO_VERSION` string and one bash `line N:` diagnostic — confirmed positional, not behavioural, by a control run that deleted a single comment line from the unmodified script and reproduced the same diff class.
 
 ---
 
