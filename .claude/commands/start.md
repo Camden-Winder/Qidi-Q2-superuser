@@ -18,7 +18,7 @@ Before touching any file, reply with:
 - Any conflicts between the brief and CLAUDE.md / HANDOFF.md
 
 ## 3. FLAG BEFORE PROCEEDING IF:
-- Any task touches `Configurations/` or `Plugins/` — these are read-only
+- Any task touches `Q2/helixscreen_preset.json`, `Q2/helixscreen_settings.json`, or `Q2/mmu/**` — reference-only, not installed by `aio_menu.sh`
 - Brief says to push to `main` directly — must ask user first
 - AIO_VERSION bump is required but not listed in the brief tasks
 

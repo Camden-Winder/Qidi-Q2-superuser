@@ -25,6 +25,22 @@
       "MultiEdit(*)"
     ]
   },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git commit:*)",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && bash .claude/hooks/pre-commit-check.sh || exit 2",
+            "timeout": 60,
+            "statusMessage": "Running pre-commit lint..."
+          }
+        ]
+      }
+    ]
+  },
   "attribution": {
     "commit": "",
     "pr": "",

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Pre-commit lint hook for Qidi Q2 Superuser AIO.
-# Called automatically by Claude Code before every commit.
+# Wired as a Claude Code hook in .claude/settings.json — runs on every commit.
+# Also safe to run by hand: bash .claude/hooks/pre-commit-check.sh
 # Exit non-zero to block the commit and print the reason.
 
 set -uo pipefail
@@ -47,9 +48,9 @@ while IFS= read -r line; do
     fn="${line#*install_}"
     fn="${fn%%(*}"
     NEW_INSTALLS+=("$fn")
-done < <(git diff --cached --unified=0 -- '*.sh' | grep '^+install_[a-z_]*()' | grep -v '^+uninstall_')
+done < <(git diff --cached --unified=0 -- '*.sh' | grep -E '^\+install_[a-z0-9_]*\(\)')
 
-for fn in "${NEW_INSTALLS[@]}"; do
+for fn in ${NEW_INSTALLS[@]+"${NEW_INSTALLS[@]}"}; do
     if ! git diff --cached --unified=0 -- '*.sh' | grep -q "^+uninstall_${fn}()"; then
         # Check if uninstall already exists in tree
         if ! grep -rq "^uninstall_${fn}()" --include='*.sh' . 2>/dev/null; then
@@ -61,7 +62,7 @@ done
 # ------------------------------------------------------------------
 # Output
 # ------------------------------------------------------------------
-for w in "${WARNINGS[@]}"; do
+for w in ${WARNINGS[@]+"${WARNINGS[@]}"}; do
     echo "WARN: $w"
 done
 

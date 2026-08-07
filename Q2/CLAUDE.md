@@ -57,9 +57,11 @@ When patching settings.json, patch all three locations:
 | File | Purpose |
 |------|---------|
 | `aio_menu.sh` | Q2 AIO installer — edit this for all Q2 install logic |
+| `install-mainsail.sh` | Standalone Mainsail installer fetched and executed by `install_mainsail()` at runtime. **Hardcodes `/home/mks`** (lines 41, 43, 133) — will not work on the `q2_112` layout without an `AIO_HOME` pass. |
 | `helixscreen_settings.json` | Reference copy of HelixScreen settings — not used by installer |
 | `helixscreen_preset.json` | Reference preset — not used by installer (kept for reference only) |
-| `macros/` | gcode_macro cfg templates shipped to the printer |
+| `filament configs.txt` | Qidi Box filament profile reference (`[fila1]`…) — reference only, not read by the installer; moved here from `Configurations/` in Wiki-RC1.0 |
+| `macros/` | gcode_macro + `printer.cfg` templates shipped to the printer |
 | `KAMP/` | Vendored KAMP config files |
-| `mmu/` | Happy Hare / BunnyBox Klipper config files |
+| `mmu/` | Happy Hare / BunnyBox Klipper configs. Contains two layouts: flat `mmu/*.cfg` (Happy Hare v2-style) and nested `mmu/mmu/{base,addons,optional}/` (v3-style). `find_mmu_params()` probes for both on the printer. Not fetched by `aio_menu.sh`. |
 | `Printer Presets/` | OrcaSlicer printer profiles |

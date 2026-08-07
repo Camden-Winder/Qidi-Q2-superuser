@@ -9,7 +9,7 @@ body:
     attributes:
       label: AOI Version (RC #)
       description: Which release candidate are you running?
-      placeholder: "e.g., RC 2.40"
+      placeholder: "e.g., RC3.01 — shown in the menu header and under option 8 (About)"
     validations:
       required: true
 
@@ -32,6 +32,15 @@ body:
         - "N/A — Did not run AIO menu"
     validations:
       required: true
+
+  - type: input
+    id: testing_submenu_option
+    attributes:
+      label: Testing Submenu Option (only if you chose "10) Testing")
+      description: Which numbered item inside the Testing submenu were you running?
+      placeholder: "e.g., 2) Force Config Restore"
+    validations:
+      required: false
 
   - type: input
     id: firmware

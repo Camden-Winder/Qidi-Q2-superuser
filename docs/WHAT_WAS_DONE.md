@@ -18,7 +18,7 @@ This repo hardens the upstream installers and adds an AIO menu so anything you c
 
 ## Accomplished
 
-### `Q2/aio_menu.sh` — Q2 AIO Menu (RC3.00)
+### `Q2/aio_menu.sh` — Q2 AIO Menu (RC3.01)
 
 Single-entry, ANSI-coloured bash menu for the Qidi Q2. Refuses to run as root.
 
@@ -49,9 +49,9 @@ Features:
 - Revert to Backup never deletes files that existed before AIO was installed
 - Before reverting, shows exactly what will be removed and what will be kept — without touching anything
 - After installing HelixScreen, patches the dashboard layout automatically so you get a useful widget arrangement out of the box
-- Update Macros (option 4) re-downloads your macro files without re-running the full installer
+- Update Macros (option 4) re-downloads your macro files without re-running the full installer (`legacy_mks` firmware only)
 - Tracks your install path, version, and date internally so the menu always shows accurate status
-- Full support for newer Q2 firmware (01.01.02+) — options 2 and 3 (Just Faster Printer/Box) auto-detect the layout and install to the correct paths; option 1 (BunnyBox + HelixScreen) is `legacy_mks`-only for now
+- Newer Q2 firmware (01.01.02+) — options 2 and 3 (Just Faster Printer/Box) auto-detect the layout and install to the correct paths. Option 1 (BunnyBox + HelixScreen), option 4 (Update Macros) and option 7 (Mainsail) are still blocked on that layout; option 9 runs in read-only diagnostics mode.
 - Every install path ends with an optional prompt to disable unused background services (VPN clients, Bluetooth, pulseaudio, etc. — never the touchscreen or Moonraker's `polkitd`); on 01.01.02+ firmware this also offers a fix for animated touchscreen spinners that otherwise run continuously in the background. Both are reversible via Revert to Backup.
 - The 1.1.2 compatibility testing tools (Testing submenu) can capture a verified restore contract and rehearse a full restore in isolation before ever touching live state — separate from, and more cautious than, the normal install/revert flow used above
 
@@ -61,16 +61,15 @@ Replaced the old `Install-Script/` folder in RC2.33. All Q2-specific source file
 
 | File | Purpose |
 |---|---|
-| `printer-BunnyBox.cfg` | `printer.cfg` template for BunnyBox + HelixScreen path |
-| `JustFasterPrinter.cfg` | `printer.cfg` template for Just Faster Printer path |
-| `helixscreen_settings.json` | Shipped to `/home/mks/.config/helixscreen/settings.json`; includes `"spool_style": "3d"` for Qidi Box AMS view |
+| `helixscreen_settings.json` | Reference copy of a working HelixScreen `settings.json` — **not fetched or installed by `aio_menu.sh`**. Live settings are patched in place by `apply_helixscreen_dashboard_layout()` at the three paths listed in LESSONS L003. |
 | `_IDLE_SHUTDOWN` gcode macro | 5-minute idle fan + heater shutdown — moved into stock macro configs in RC2.51; no longer a standalone file |
 | ~~`box_drying.cfg`~~ | Removed in RC2.46 — spool rotation during drying is now handled upstream by Happy Hare's Environment Manager |
-| `macros/` | `gcode_macro.cfg` templates for each install path |
+| `macros/` | All fetched Klipper templates: `gcode_macro-{BunnyBox,JustFasterPrinter,JustFasterBox}.cfg` plus the two `printer.cfg` templates `printer-BunnyBox.cfg` and `JustFasterPrinter.cfg` |
 | `KAMP/` | `KAMP_settings.cfg` + vendored `Adaptive_Meshing.cfg`, `Line_Purge.cfg`, `Smart_Park.cfg` (moved into subdirectory in RC2.34) |
+| `install-mainsail.sh` | Standalone Mainsail installer fetched and executed by `install_mainsail()` at runtime |
 | `mmu/` | Complete Happy Hare Klipper config file set shipped with the BunnyBox installer |
 | `Printer Presets/` | OrcaSlicer printer profiles |
-| `aoi.ini` (written to printer) | `/home/mks/printer_data/config/aoi.ini` — AIO state file; stores install group, install version, macro version, install date |
+| `aoi.ini` (written to printer) | `${AIO_HOME}/printer_data/config/aoi.ini` — `/home/mks/…` on `legacy_mks`, `/home/qidi/…` on 01.01.02+. AIO state file; stores install group, install version, macro version, install date |
 
 ### Install-Function Conventions
 
@@ -80,7 +79,7 @@ Every install capability follows this pattern:
 - `uninstall_*()` — removes it cleanly
 - `*_installed()` or `*_enabled()` — detection helper
 - Wired into `revert_to_backup()` — called during full revert
-- Status indicator in `show_status_line()` — e.g. `IdleFan: on/off`
+- Status indicator in `show_status_line()` — e.g. `Mainsail: installed/not found`
 - `verify_*()` — post-install sanity check (warns, never fails)
 - Remote files fetched with the `fetch()` helper, not `curl` directly
 
@@ -100,14 +99,15 @@ Every install capability follows this pattern:
 
 ## File Paths Reference
 
+All `/home/mks/…` destinations below are the `legacy_mks` layout. On 01.01.02+ substitute `/home/qidi/…` — see `Q2/CLAUDE.md` for the full dual-column path table.
+
 | Source file | Destination on printer |
 |---|---|
 | `Q2/macros/gcode_macro-BunnyBox.cfg` | `/home/mks/printer_data/config/gcode_macro.cfg` |
-| `Q2/printer-BunnyBox.cfg` | `/home/mks/printer_data/config/printer.cfg` |
-| `Q2/KAMP/KAMP_settings.cfg` | `/home/mks/printer_data/config/KAMP/KAMP_Settings.cfg` |
-| `Q2/helixscreen_settings.json` | `/home/mks/.config/helixscreen/settings.json` |
+| `Q2/macros/printer-BunnyBox.cfg` | `/home/mks/printer_data/config/printer.cfg` |
+| `Q2/KAMP/KAMP_settings.cfg` | `/home/mks/printer_data/config/KAMP/KAMP_settings.cfg` (lowercase `s` — see LESSONS L007) |
 | `Q2/macros/gcode_macro-JustFasterPrinter.cfg` | `/home/mks/printer_data/config/gcode_macro.cfg` |
-| `Q2/JustFasterPrinter.cfg` | `/home/mks/printer_data/config/printer.cfg` |
+| `Q2/macros/JustFasterPrinter.cfg` | `/home/mks/printer_data/config/printer.cfg` |
 | Backups (legacy_mks) | `/home/mks/mudstockbackups/YYYYMMDD_HHMMSS/` |
 | `Q2/macros/gcode_macro-JustFasterPrinter.cfg` (01.01.02+) | `/home/qidi/printer_data/config/klipper-macros-qd/gcode_macro.cfg` |
 | `Q2/macros/gcode_macro-JustFasterBox.cfg` (01.01.02+) | `/home/qidi/printer_data/config/klipper-macros-qd/gcode_macro.cfg` |

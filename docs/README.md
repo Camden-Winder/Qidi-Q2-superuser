@@ -12,7 +12,7 @@ Each installer backs up your config automatically before making any changes and 
 
 | Printer | Installer | Instructions |
 |---|---|---|
-| **Qidi Q2** | [`Q2/aio_menu.sh`](../Q2/aio_menu.sh) | [wiki/Q2-Install-Guide.md](../wiki/Q2-Install-Guide.md) |
+| **Qidi Q2** | [`Q2/aio_menu.sh`](../Q2/aio_menu.sh) | [Q2 Install Guide](https://github.com/Camden-Winder/Qidi-Q2-superuser/wiki/Q2-Install-Guide) |
 
 See the install guide for SSH credentials, curl commands, menu options, and troubleshooting.
 
@@ -24,15 +24,16 @@ See the install guide for SSH credentials, curl commands, menu options, and trou
 
 | Version | Notable additions |
 |---------|------------------|
-| RC3.00 | Collapsed the 01.01.02+ firmware submenu into the top-level Install menu; added an optional process-optimization step (disables unused background services, plus a touchscreen spinner-animation fix on 01.01.02+ firmware) to every install path, reversible via Revert to Backup — current release |
+| RC3.01 | Internal cleanup only — no change to any menu, prompt, or install behaviour. Collapsed 13 blocks of duplicated logic into shared helpers (the two 01.01.02+ Just Faster installers, the two Just Faster installers, the Update Macros arms, the KAMP file fetch, the preflight checks, the install verifiers, and four others) and removed two unused functions; 6110 → 5947 lines. Verified byte-identical to RC3.00 across 122 simulated menu paths — current release |
+| RC3.00 | Collapsed the 01.01.02+ firmware submenu into the top-level Install menu; added an optional process-optimization step (disables unused background services, plus a touchscreen spinner-animation fix on 01.01.02+ firmware) to every install path, reversible via Revert to Backup |
 | RC2.35 | See git history for this release's changes — not backfilled in this changelog (RC2.36–RC2.99 are also not yet backfilled) |
 | RC2.9 | Hardened Revert to Backup stock display restoration: resets failed lightdm/makerbase state, restores `graphical.target`, unmasks `display-manager.service`, prints recent service logs if the stock display stack does not come back |
-| RC1.22 | Added filament drying macro buttons to HelixScreen settings |
+| RC1.22 | Added filament drying macro buttons to HelixScreen settings — removed in RC2.46; drying is now handled by Happy Hare's Environment Manager |
 | RC1.14 | Adopted `RC<major>.<minor>` version format; fixed duplicate webcam entries in Mainsail |
 | RC13 | Fixed camera stream in Mainsail (nginx `/webcam/` proxy + correct ustreamer paths) |
 | RC11 | Fixed two post-install Klipper errors: `gcode: not valid in section 'bed_mesh'` and `BED_MESH_CALIBRATE already registered`; install now aborts correctly if a required step fails |
 | RC10 | Fixed fresh-install black screen — HelixScreen now activates correctly after option 1 |
-| RC9 | Automatic spool rotation during filament drying cycles |
+| RC9 | Automatic spool rotation during filament drying cycles — removed in RC2.46; drying is now handled by Happy Hare's Environment Manager |
 | RC8 | Health check runs automatically after every Revert to Backup; new config validators (orphan includes, invalid settings, leftover MMU files) |
 | RC7 | Mainsail web UI as a menu addon |
 | RC6 | Fixed `BED_MESH_CALIBRATE` duplicate crash from older BunnyBox installs |

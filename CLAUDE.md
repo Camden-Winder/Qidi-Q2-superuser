@@ -34,31 +34,40 @@ shellcheck -S warning Q2/aio_menu.sh              # style (advisory)
 ```
 Q2/
   aio_menu.sh              ← Q2 installer. All Q2 logic lives here.
+  install-mainsail.sh      ← Mainsail installer, curl'd by install_mainsail()
   CLAUDE.md                ← Q2-scoped conventions and key paths
   helixscreen_settings.json← Reference copy of HelixScreen settings
+  helixscreen_preset.json  ← Reference preset. Not fetched by the installer.
+  filament configs.txt     ← Qidi Box filament profile reference. Reference only.
   KAMP/
     KAMP_settings.cfg      ← KAMP settings (installed to CONFIG_DIR/KAMP/)
     Adaptive_Meshing.cfg   ← Vendored upstream KAMP file
     Line_Purge.cfg         ← Vendored upstream KAMP file
     Smart_Park.cfg         ← Vendored upstream KAMP file
-  mmu/                     ← Happy Hare / BunnyBox Klipper config files
-  macros/                  ← gcode_macro cfg templates
+  mmu/                     ← Happy Hare / BunnyBox configs — shipped by the upstream
+                             Bunny-Box installer, NOT fetched by aio_menu.sh
+  macros/                  ← gcode_macro + printer.cfg templates fetched by the installer
   Printer Presets/         ← OrcaSlicer printer profiles
 
 README.md                  ← Project overview, supported printers, what it does
+HANDOFF.md                 ← Version history + carry-forward known issues
+.claudeignore              ← Paths excluded from Claude Code context
 docs/
   README.md                ← Changelog and supported-printer summary
   WHAT_WAS_DONE.md          ← Detailed feature/menu/file-path reference
 
-Configurations/            ← Stock Qidi reference files. DO NOT MODIFY.
-Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
+.github/
+  ISSUE_TEMPLATE/bug_report.yml  ← Must track draw_menu() numbering
+  PULL_REQUEST_TEMPLATE.md
 
 .claude/
-  settings.json            ← Pre-approved Bash/WebFetch permissions
-  hooks/pre-commit-check.sh← Auto-lint on every commit
+  settings.json            ← Pre-approved Bash/WebFetch permissions + hook wiring
+  hooks/pre-commit-check.sh← Lint hook wired in settings.json; runs on every commit
   checklist.md             ← Pre-flight checklists
   LESSONS.md               ← Known gotchas; read before touching any file
   commands/start.md        ← /start slash command: session startup protocol
+  commands/create-pr.md    ← /create-pr: PR composition + bug_report.yml sync check
+  session_brief.md         ← Session Brief format and start/end-of-session protocol
   github-issue-response.md ← Issue response format, tone rules, diagnostic commands
 ```
 
@@ -66,7 +75,7 @@ Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
 
 ### Qidi Q2 (existing)
 - Hardware: Qidi Q2 3D printer
-- Runs Debian 10
+- Runs Debian (10 on `legacy_mks` per `Q2/install-mainsail.sh`; a HANDOFF note from RC1.26 says Bullseye/11 — unverified, confirm with `cat /etc/os-release` before relying on it)
 - OS: ARM Linux, user `mks`
 - Stack: Klipper + Moonraker + Happy Hare (MMU) + HelixScreen (LVGL UI) + Qidi Box (4-slot AMS)
 - Key paths on the printer:
@@ -77,7 +86,7 @@ Plugins/                   ← Stock plugin reference. DO NOT MODIFY.
 
 ## Critical Rules
 
-1. **Never modify** `Configurations/` or `Plugins/` — read-only stock Qidi mirrors.
+1. **Never modify reference-only files** — `Q2/helixscreen_preset.json`, `Q2/helixscreen_settings.json`, and `Q2/filament configs.txt` are kept for reference and are not fetched by the installer; `Q2/mmu/**` is shipped by the upstream BunnyBox installer, not by `aio_menu.sh`. Editing them changes nothing on the printer.
 2. **Never push to `main` directly** — all work goes on a `claude/*` branch; merge via PR.
 3. **Bump `AIO_VERSION`** whenever `Q2/aio_menu.sh` changes. Version format is `RC<major>.<minor>` (e.g. `RC1.14`). Increment the minor on each change; bump the major for a breaking generational shift.
    - **Wiki screenshot rule:** Whenever `AIO_VERSION` is bumped to a number ending in `0` or `5`, the AIO menu preview screenshot in the wiki must be updated to reflect the current menu layout. At the start of any session targeting one of these versions, Claude Code should attempt to reach the wiki repo and push the updated preview. If the wiki repo is not accessible in that session, notify the user and add a to-do item to the session's carry-forward in `HANDOFF.md`.
@@ -102,6 +111,8 @@ Every new capability that installs something must follow this checklist:
 | `verify_*()` post-install check (warn, never fail) | `verify_qidi_box_helixscreen()` |
 
 When `install_*` fetches a remote file, use the `fetch()` helper, not `curl` directly.
+
+**Exception:** the Just Faster family (`install_just_faster`, `install_just_faster_box`, `install_jfp_q2_112`, `install_jfb_q2_112`) has no per-path `uninstall_*`. Revert to Backup is their only removal path by design — do not add one without discussing it first.
 
 ### Function Comment Standard
 
@@ -135,15 +146,18 @@ purge_bunnybox_footprint() {
 | `install_bunnybox_helixscreen()` | Happy Hare + HelixScreen | `BunnyBox: installed/not found`, `Display: HelixScreen/none` |
 | `install_just_faster()` | JustFasterPrinter macros (Q2) | `Just Faster: Just Faster Printer` |
 | `install_just_faster_box()` | JustFasterBox macros (Q2) | `Just Faster: Just Faster Box` |
+| `install_jfp_q2_112()` | Just Faster Printer on the `q2_112` layout | `Just Faster: Just Faster Printer` |
+| `install_jfb_q2_112()` | Just Faster Box on the `q2_112` layout | `Just Faster: Just Faster Box` |
 | `update_macros()` | Re-fetch AOI-owned macro files for installed group | — |
-| `install_qidi_box_write()` | HelixScreen HELIX_QIDI_BOX_WRITE drop-in | `BoxWrite: on/off` |
+| `install_qidi_box_write()` | HELIX_QIDI_BOX_WRITE drop-in — **currently unreachable**; no menu entry and no caller since RC3 flipped the desired state to "absent". `qidi_box_write_enabled()` still drives the `BoxWrite:` status line. | `BoxWrite: on/off` |
 | `install_mainsail()` | Mainsail web UI (delegates to Camden-Winder's installer) | `Mainsail: installed/not found` |
+| `install_camera()` | ustreamer webcam + nginx `/webcam/` proxy (bundled with Mainsail, no standalone menu entry) | — (folded into `Mainsail:` since RC2.62) |
 
 All five install functions (`install_bunnybox_helixscreen()`, `install_just_faster()`, `install_just_faster_box()`, `install_jfp_q2_112()`, `install_jfb_q2_112()`) end with an opt-in "disable unnecessary processes" prompt (`offer_process_optimization()`), which masks/disables a fixed list of unused stock services. On the `q2_112` layout it additionally offers the community static-GIF patch for the QIDIClient touchscreen UI. State is recorded under `aio_state_dir()` and undone automatically by `revert_to_backup()` via `undo_process_optimization()`.
 
 ### Current Menu Layout
 
-Options 1–3 route by detected firmware layout automatically (`install_jfp_q2_112`/`install_jfb_q2_112` on `q2_112`, otherwise the legacy functions) — there is no separate firmware submenu.
+Options 2 and 3 route by detected firmware layout automatically (`install_jfp_q2_112`/`install_jfb_q2_112` on `q2_112`, otherwise the legacy functions). Option 1 does not route — it self-blocks on `q2_112` via `preflight()` → `require_supported_firmware_layout()`. There is no separate firmware submenu.
 
 ```
 1)  Install BunnyBox & HelixScreen    (Q2 with Qidi Box)
@@ -159,7 +173,7 @@ Options 1–3 route by detected firmware layout automatically (`install_jfp_q2_1
 0)  Exit
 ```
 
-Testing submenu (option 9):
+Testing submenu (option 10):
 ```
 1)  Force Snapshot Capture   (overwrites snapshot with current config)
 2)  Force Config Restore     (rsync --delete from snapshot to config)
@@ -170,6 +184,7 @@ Testing submenu (option 9):
 7)  1.1.2 Present-Path Restore Proof
 8)  1.1.2 Klipper Extras Restore Proof
 9)  1.1.2 Moonraker Components Proof
+10) Patch HelixScreen Dashboard Layout  (patches panel_widgets in live settings.json)
 0)  Back
 ```
 

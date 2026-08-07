@@ -4,9 +4,9 @@
 
 - [ ] `bash -n Q2/aio_menu.sh` — no syntax errors
 - [ ] `python3 -m json.tool Q2/helixscreen_settings.json` — valid JSON
-- [ ] `AIO_VERSION` bumped if `aio_menu.sh` changed (currently `RC1`)
+- [ ] `AIO_VERSION` bumped if `aio_menu.sh` changed — read the current value from `Q2/aio_menu.sh` line 22 rather than trusting this file; increment the minor (e.g. `RC3.00` → `RC3.01`)
 - [ ] No raw `echo` in installer logic — use `banner`, `info`, `warn`, `ok`, `err`
-- [ ] No `Configurations/` or `Plugins/` files touched
+- [ ] No reference-only files touched (`Q2/helixscreen_*.json`, `Q2/mmu/**`)
 
 ## Before Adding a New Install Function
 
@@ -32,10 +32,10 @@
 - [ ] `AIO_VERSION='RCx'` updated in `aio_menu.sh`
 - [ ] Banner renders new version: `Qidi Q2 Superuser - AIO Setup Menu (RCx)`
 - [ ] About screen renders new version
-- [ ] All RC candidate features listed in CLAUDE.md RC section are done or explicitly deferred
+- [ ] Any deferred items in `HANDOFF.md`'s `## Known Issues (carry-forward)` are still accurate
 - [ ] PR description has a complete test plan
 - [ ] PR #N reviewed, un-drafted, and merged to `main`
-- [ ] Git tag `vRCx` created on the merge commit
+- [ ] (Optional) Git tag `vRCx` — note: the project has not tagged releases to date
 
 ## Before Merging to main
 
