@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC3.00'
+AIO_VERSION='RC3.01'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -185,10 +185,6 @@ moonraker_get() {
     local path="$1"
     curl --fail --silent --show-error --max-time 3 \
         "http://127.0.0.1:${MOONRAKER_PORT}${path}" 2>/dev/null
-}
-
-q2_firmware_layout() {
-    printf '%s\n' "$AIO_LAYOUT"
 }
 
 q2_firmware_layout_label() {
@@ -517,10 +513,22 @@ print(", ".join(parts) if parts else "mmu object reachable")
     verify_qidi_box_runtime_sensors
 }
 
+# Reads LEVEL|message lines from its argument and routes them to ok/info/warn.
+_emit_tagged_lines() {
+    local level message
+    while IFS='|' read -r level message; do
+        case "$level" in
+            OK) ok "$message" ;;
+            INFO) info "$message" ;;
+            *) warn "$message" ;;
+        esac
+    done <<< "$1"
+}
+
 verify_qidi_box_runtime_sensors() {
     banner "Qidi Box live sensor health"
 
-    local response summary level message
+    local response summary
     if ! response=$(moonraker_get "/printer/objects/query?aht10%20box1_env=temperature,humidity&temperature_sensor%20box1_env=temperature,humidity&heater_generic%20box1_heater=temperature,target,power&aht20_f%20heater_box1=temperature,humidity&heater_generic%20heater_box1=temperature,target,power&temperature_sensor%20heater_temp_a_box1=temperature&temperature_sensor%20heater_temp_b_box1=temperature"); then
         warn "Could not query Qidi Box sensor objects through Moonraker"
         return 0
@@ -575,13 +583,7 @@ if isinstance(aht.get("temperature"), (int, float)) and not isinstance(env.get("
         return 0
     fi
 
-    while IFS='|' read -r level message; do
-        case "$level" in
-            OK) ok "$message" ;;
-            INFO) info "$message" ;;
-            *) warn "$message" ;;
-        esac
-    done <<< "$summary"
+    _emit_tagged_lines "$summary"
 }
 
 verify_runtime_health() {
@@ -1187,38 +1189,9 @@ update_macros() {
                   "${CONFIG_DIR}/printer.cfg" || { press_enter; return 1; }
             ok "printer.cfg updated"
             ;;
-        JustFasterPrinter)
+        JustFasterPrinter|JustFasterBox)
             info "Updating gcode_macro.cfg..."
-            fetch "${REPO_BASE}/macros/gcode_macro-JustFasterPrinter.cfg" \
-                  "${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg" || { press_enter; return 1; }
-            ok "gcode_macro.cfg updated"
-            local kamp_include="[include KAMP/KAMP_settings.cfg]"
-            local printer_cfg="${CONFIG_DIR}/printer.cfg"
-            local tmp_cfg
-            tmp_cfg=$(mktemp /tmp/printer_cfg_patched.XXXXXX)
-            info "Re-patching printer.cfg: KAMP include missing"
-            python3 - "$printer_cfg" "$kamp_include" "$tmp_cfg" <<'PYEOF'
-import sys
-cfg, line, out = sys.argv[1], sys.argv[2], sys.argv[3]
-txt = open(cfg).read()
-if line not in txt:
-    txt = txt.rstrip('\n') + '\n' + line + '\n'
-with open(out, 'w') as f:
-    f.write(txt)
-PYEOF
-            if grep -qF "$kamp_include" "$tmp_cfg" 2>/dev/null; then
-                sudo cp "$tmp_cfg" "$printer_cfg"
-                ok "KAMP include re-added to printer.cfg"
-            elif grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
-                info "KAMP include already present in printer.cfg — skipping"
-            else
-                err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
-            fi
-            rm -f "$tmp_cfg"
-            ;;
-        JustFasterBox)
-            info "Updating gcode_macro.cfg..."
-            fetch "${REPO_BASE}/macros/gcode_macro-JustFasterBox.cfg" \
+            fetch "${REPO_BASE}/macros/gcode_macro-${group}.cfg" \
                   "${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg" || { press_enter; return 1; }
             ok "gcode_macro.cfg updated"
             local kamp_include="[include KAMP/KAMP_settings.cfg]"
@@ -1253,11 +1226,7 @@ PYEOF
     esac
 
     info "Updating KAMP files..."
-    clean_kamp_dir
-    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
+    install_kamp_files || { press_enter; return 1; }
     ok "KAMP files updated"
 
     local install_ver install_group
@@ -1267,6 +1236,20 @@ PYEOF
 
     ok "Macro update complete — macro_version set to ${AIO_VERSION}"
     press_enter
+}
+
+# _menu_camera_install <failure_message>
+# Pre-flight + backup + camera install, then pause. Always calls press_enter.
+_menu_camera_install() {
+    preflight || { press_enter; return 1; }
+    do_backup || { press_enter; return 1; }
+    if install_camera; then
+        info "Run FIRMWARE_RESTART to finish applying changes."
+    else
+        warn "$1"
+    fi
+    press_enter
+    return 0
 }
 
 menu_mainsail() {
@@ -1279,26 +1262,12 @@ menu_mainsail() {
             warn "Camera config is from an older AIO release (broken — wrong URL paths,"
             warn "no nginx /webcam/ proxy). Mainsail's camera panel won't connect."
             if confirm "Migrate camera to RC13 format now?"; then
-                preflight || { press_enter; return 1; }
-                do_backup || { press_enter; return 1; }
-                if install_camera; then
-                    info "Run FIRMWARE_RESTART to finish applying changes."
-                else
-                    warn "Camera migration had problems (see above)"
-                fi
-                press_enter
+                _menu_camera_install "Camera migration had problems (see above)"
                 return
             fi
         elif ! camera_installed; then
             if confirm "Camera streaming not configured. Set it up now?"; then
-                preflight || { press_enter; return 1; }
-                do_backup || { press_enter; return 1; }
-                if install_camera; then
-                    info "Run FIRMWARE_RESTART to finish applying changes."
-                else
-                    warn "Camera setup had problems (see above)"
-                fi
-                press_enter
+                _menu_camera_install "Camera setup had problems (see above)"
                 return
             fi
         fi
@@ -1348,6 +1317,23 @@ restore_aio_disabled_macros() {
     [ "$changed" -eq 0 ] && info "No AIO_DISABLED macros to restore"
 }
 
+# Removes the Happy Hare Klipper extras package/files and the Moonraker mmu_server component.
+_purge_happy_hare_extras() {
+    info "Removing Klipper extras: ${HOME}/klipper/klippy/extras/mmu"
+    sudo rm -rf "${HOME}/klipper/klippy/extras/mmu"
+    for f in mmu.py mmu_machine.py mmu_leds.py mmu_sensors.py mmu_encoder.py; do
+        sudo rm -f "${HOME}/klipper/klippy/extras/${f}"
+    done
+    sudo find "${HOME}/klipper/klippy/extras" -maxdepth 1 \
+        \( -name 'mmu_*.py' -o -name 'mmu_*.pyc' \) \
+        -delete 2>/dev/null || true
+    sudo find "${HOME}/klipper/klippy/extras" -path '*/__pycache__/mmu*' \
+        -delete 2>/dev/null || true
+
+    info "Removing Moonraker component: mmu_server.py"
+    sudo rm -f "${HOME}/moonraker/moonraker/components/mmu_server.py"
+}
+
 # Removes Happy Hare / BunnyBox artifacts outside CONFIG_DIR: source tree, klipper extras, and the moonraker mmu_server component.
 # Config files are handled separately by rsync --delete in revert_to_backup(), which is the only caller.
 _purge_happy_hare_nonconfig() {
@@ -1365,19 +1351,7 @@ _purge_happy_hare_nonconfig() {
         sudo find "$HAPPY_HARE_DIR" -delete 2>/dev/null || true
     fi
 
-    info "Removing Klipper extras: ${HOME}/klipper/klippy/extras/mmu"
-    sudo rm -rf "${HOME}/klipper/klippy/extras/mmu"
-    for f in mmu.py mmu_machine.py mmu_leds.py mmu_sensors.py mmu_encoder.py; do
-        sudo rm -f "${HOME}/klipper/klippy/extras/${f}"
-    done
-    sudo find "${HOME}/klipper/klippy/extras" -maxdepth 1 \
-        \( -name 'mmu_*.py' -o -name 'mmu_*.pyc' \) \
-        -delete 2>/dev/null || true
-    sudo find "${HOME}/klipper/klippy/extras" -path '*/__pycache__/mmu*' \
-        -delete 2>/dev/null || true
-
-    info "Removing Moonraker component: mmu_server.py"
-    sudo rm -f "${HOME}/moonraker/moonraker/components/mmu_server.py"
+    _purge_happy_hare_extras
 
     local residue=0
     [ -d "$HAPPY_HARE_DIR" ]                          && { warn "RESIDUE: ${HAPPY_HARE_DIR} still exists"; residue=1; }
@@ -1438,19 +1412,7 @@ purge_happy_hare_all() {
     # removed here. Leaving them causes the mmu package to load at Klipper
     # startup and register gcode commands (CLEAR_TOOLCHANGE_STATE, etc.) that
     # box_extras.so also registers → "already registered" crash.
-    info "Removing Klipper extras: ${HOME}/klipper/klippy/extras/mmu"
-    sudo rm -rf "${HOME}/klipper/klippy/extras/mmu"
-    for f in mmu.py mmu_machine.py mmu_leds.py mmu_sensors.py mmu_encoder.py; do
-        sudo rm -f "${HOME}/klipper/klippy/extras/${f}"
-    done
-    sudo find "${HOME}/klipper/klippy/extras" -maxdepth 1 \
-        \( -name 'mmu_*.py' -o -name 'mmu_*.pyc' \) \
-        -delete 2>/dev/null || true
-    sudo find "${HOME}/klipper/klippy/extras" -path '*/__pycache__/mmu*' \
-        -delete 2>/dev/null || true
-
-    info "Removing Moonraker component: mmu_server.py"
-    sudo rm -f "${HOME}/moonraker/moonraker/components/mmu_server.py"
+    _purge_happy_hare_extras
 
     # Root-level KAMP files installed by the AIO BunnyBox flow. Do not remove
     # ${CONFIG_DIR}/KAMP here: Qidi stock configs may own that directory and
@@ -1541,11 +1503,6 @@ run_remote_script_as_root() {
     return $rc
 }
 
-url_exists() {
-    local url="$1"
-    curl --fail --silent --location --head --max-time 10 "$url" >/dev/null 2>&1
-}
-
 
 # ---------- safety: refuse root --------------------------------------
 if [ "$(id -u)" -eq 0 ]; then
@@ -1612,6 +1569,16 @@ clean_kamp_dir() {
     mkdir -p "${CONFIG_DIR}/KAMP" 2>/dev/null || sudo mkdir -p "${CONFIG_DIR}/KAMP" 2>/dev/null
 }
 
+# Wipes CONFIG_DIR/KAMP and re-fetches the four KAMP config files.
+# Returns 1 on the first failure, leaving later fetches unrun.
+install_kamp_files() {
+    clean_kamp_dir
+    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || return 1
+    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || return 1
+    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || return 1
+    fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || return 1
+}
+
 bunnybox_installed() {
     # Look for mmu_parameters.cfg anywhere under ${CONFIG_DIR}/mmu/ so
     # we work with both flat (current) and base/ (legacy) layouts.
@@ -1655,11 +1622,9 @@ helixscreen_installed() {
     systemctl is-enabled helixscreen &>/dev/null
 }
 
-preflight() {
-    banner "Pre-flight checks"
-
-    require_supported_firmware_layout "pre-flight install/addon checks" || return 1
-
+# _preflight_common <config_dir_ok_message>
+# Shared body of preflight() and preflight_q2_112().
+_preflight_common() {
     if ! curl --fail --silent --head --max-time 10 \
          'https://raw.githubusercontent.com' >/dev/null 2>&1; then
         err "Cannot reach raw.githubusercontent.com"
@@ -1673,7 +1638,7 @@ preflight() {
         err "Is this a Qidi Q2 running Klipper?"
         return 1
     fi
-    ok "Config directory present"
+    ok "$1"
 
     if [ -f "${CONFIG_DIR}/printer.cfg" ]; then
         if grep -q 'enable_force_move.*True' "${CONFIG_DIR}/printer.cfg" 2>/dev/null; then
@@ -1685,52 +1650,37 @@ preflight() {
 
     ok "Pre-flight complete"
     return 0
+}
+
+preflight() {
+    banner "Pre-flight checks"
+    require_supported_firmware_layout "pre-flight install/addon checks" || return 1
+    _preflight_common "Config directory present"
 }
 
 # Variant of preflight() for q2_112 installs; skips the mutation layout guard since q2_112 submenu functions scope their own layout checks.
 preflight_q2_112() {
     banner "Pre-flight checks (01.01.02+ / qidi layout)"
-    if ! curl --fail --silent --head --max-time 10 \
-         'https://raw.githubusercontent.com' >/dev/null 2>&1; then
-        err "Cannot reach raw.githubusercontent.com"
-        err "Check your network connection and try again."
-        return 1
-    fi
-    ok "Network connectivity"
-    if [ ! -d "$CONFIG_DIR" ]; then
-        err "Config directory not found: $CONFIG_DIR"
-        err "Is this a Qidi Q2 running Klipper?"
-        return 1
-    fi
-    ok "Config directory: $CONFIG_DIR"
-    if [ -f "${CONFIG_DIR}/printer.cfg" ]; then
-        if grep -q 'enable_force_move.*True' "${CONFIG_DIR}/printer.cfg" 2>/dev/null; then
-            ok "force_move enabled in printer.cfg"
-        else
-            warn "force_move not found in printer.cfg (spool rotation may not work)"
-        fi
-    fi
-    ok "Pre-flight complete"
-    return 0
+    _preflight_common "Config directory: $CONFIG_DIR"
 }
 
-install_jfp_q2_112() {
-    banner "Install: Just Faster Printer (01.01.02+ / qidi layout)"
+# _install_jf_q2_112 <label> <group>
+#   label = "Just Faster Printer" | "Just Faster Box"
+#   group = "JustFasterPrinter"   | "JustFasterBox"
+_install_jf_q2_112() {
+    local label="$1" group="$2"
+    banner "Install: ${label} (01.01.02+ / qidi layout)"
     preflight_q2_112 || { press_enter; return 1; }
     do_backup        || { press_enter; return 1; }
     local macro_dest="${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg"
     local printer_cfg="${CONFIG_DIR}/printer.cfg"
     local kamp_include="[include KAMP/KAMP_settings.cfg]"
     info "Writing macro file → klipper-macros-qd/gcode_macro.cfg"
-    fetch "${REPO_BASE}/macros/gcode_macro-JustFasterPrinter.cfg" \
+    fetch "${REPO_BASE}/macros/gcode_macro-${group}.cfg" \
           "$macro_dest" || { press_enter; return 1; }
     ok "gcode_macro.cfg installed to klipper-macros-qd/"
     info "Applying KAMP settings..."
-    clean_kamp_dir
-    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
+    install_kamp_files || { press_enter; return 1; }
     ok "KAMP files installed to ${CONFIG_DIR}/KAMP/"
     local tmp_cfg
     tmp_cfg=$(mktemp /tmp/printer_cfg_patched.XXXXXX)
@@ -1755,11 +1705,11 @@ PYEOF
         err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
     fi
     rm -f "$tmp_cfg"
-    write_aoi_ini "JustFasterPrinter" "${AIO_VERSION}" "${AIO_VERSION}"
+    write_aoi_ini "$group" "${AIO_VERSION}" "${AIO_VERSION}"
     offer_process_optimization
     banner "Install complete"
     cat <<EOF
-${C_BOLD}Just Faster Printer applied (01.01.02+ mode).${C_RESET}
+${C_BOLD}${label} applied (01.01.02+ mode).${C_RESET}
   Macros written to: ${macro_dest}
   KAMP files:        ${CONFIG_DIR}/KAMP/
 ${C_BOLD}Next steps:${C_RESET}
@@ -1769,60 +1719,8 @@ EOF
     press_enter
 }
 
-install_jfb_q2_112() {
-    banner "Install: Just Faster Box (01.01.02+ / qidi layout)"
-    preflight_q2_112 || { press_enter; return 1; }
-    do_backup        || { press_enter; return 1; }
-    local macro_dest="${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg"
-    local printer_cfg="${CONFIG_DIR}/printer.cfg"
-    local kamp_include="[include KAMP/KAMP_settings.cfg]"
-    info "Writing macro file → klipper-macros-qd/gcode_macro.cfg"
-    fetch "${REPO_BASE}/macros/gcode_macro-JustFasterBox.cfg" \
-          "$macro_dest" || { press_enter; return 1; }
-    ok "gcode_macro.cfg installed to klipper-macros-qd/"
-    info "Applying KAMP settings..."
-    clean_kamp_dir
-    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
-    ok "KAMP files installed to ${CONFIG_DIR}/KAMP/"
-    local tmp_cfg
-    tmp_cfg=$(mktemp /tmp/printer_cfg_patched.XXXXXX)
-    info "Patching printer.cfg: adding KAMP include"
-    python3 - "$printer_cfg" "$kamp_include" "$tmp_cfg" <<'PYEOF'
-import sys, re
-path, line_to_add, out = sys.argv[1], sys.argv[2], sys.argv[3]
-with open(path) as f:
-    content = f.read()
-if line_to_add in content:
-    sys.exit(0)
-patched = re.sub(r'(\[include )', line_to_add + '\n' + r'\1', content, count=1)
-with open(out, 'w') as f:
-    f.write(patched)
-PYEOF
-    if grep -qF "$kamp_include" "$tmp_cfg" 2>/dev/null; then
-        sudo cp "$tmp_cfg" "$printer_cfg"
-        ok "KAMP include added to printer.cfg"
-    elif grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
-        info "KAMP include already present in printer.cfg — skipping"
-    else
-        err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
-    fi
-    rm -f "$tmp_cfg"
-    write_aoi_ini "JustFasterBox" "${AIO_VERSION}" "${AIO_VERSION}"
-    offer_process_optimization
-    banner "Install complete"
-    cat <<EOF
-${C_BOLD}Just Faster Box applied (01.01.02+ mode).${C_RESET}
-  Macros written to: ${macro_dest}
-  KAMP files:        ${CONFIG_DIR}/KAMP/
-${C_BOLD}Next steps:${C_RESET}
-  1. FIRMWARE_RESTART (Klipper console or stock screen)
-Config snapshot: ${SNAPSHOT_DIR}
-EOF
-    press_enter
-}
+install_jfp_q2_112() { _install_jf_q2_112 "Just Faster Printer" "JustFasterPrinter"; }
+install_jfb_q2_112() { _install_jf_q2_112 "Just Faster Box"     "JustFasterBox"; }
 
 # Returns the path to the AIO persistent state directory inside BACKUP_ROOT.
 aio_state_dir() {
@@ -2329,7 +2227,6 @@ q2_112_aio_artifacts_absent() {
         "$MAINSAIL_DIR" \
         "$Q2_112_PROBE_STATE_DIR" \
         "${CONFIG_DIR}/bunnybox_macros.cfg" \
-        "${CONFIG_DIR}/KAMP_settings.cfg" \
         "${CONFIG_DIR}/KAMP_settings.cfg" \
         "${CONFIG_DIR}/Adaptive_Meshing.cfg" \
         "${CONFIG_DIR}/Adaptive_Mesh.cfg" \
@@ -3996,7 +3893,6 @@ report_aio_removal_dry_run() {
     for f in \
         "${CONFIG_DIR}/bunnybox_macros.cfg" \
         "${CONFIG_DIR}/KAMP_settings.cfg" \
-        "${CONFIG_DIR}/KAMP_settings.cfg" \
         "${CONFIG_DIR}/Adaptive_Meshing.cfg" \
         "${CONFIG_DIR}/Adaptive_Mesh.cfg" \
         "${CONFIG_DIR}/Line_Purge.cfg" \
@@ -4457,12 +4353,10 @@ revert_to_backup() {
 }
 
 # ---------- post-install verification --------------------------------
-verify_bunnybox_install() {
-    banner "Verifying installation"
-    local all_ok=true
-
-    for f in printer.cfg gcode_macro.cfg KAMP/KAMP_settings.cfg \
-              KAMP/Adaptive_Meshing.cfg KAMP/Line_Purge.cfg KAMP/Smart_Park.cfg; do
+# Prints ok/err for each CONFIG_DIR-relative file; returns 1 if any is missing or empty.
+_verify_config_files() {
+    local all_ok=true f
+    for f in "$@"; do
         if [ -s "${CONFIG_DIR}/${f}" ]; then
             ok "${f}"
         else
@@ -4470,6 +4364,15 @@ verify_bunnybox_install() {
             all_ok=false
         fi
     done
+    [ "$all_ok" = true ]
+}
+
+verify_bunnybox_install() {
+    banner "Verifying installation"
+    local all_ok=true
+
+    _verify_config_files printer.cfg gcode_macro.cfg KAMP/KAMP_settings.cfg \
+              KAMP/Adaptive_Meshing.cfg KAMP/Line_Purge.cfg KAMP/Smart_Park.cfg || all_ok=false
 
     local mmu_params
     mmu_params="$(find_mmu_params)" || mmu_params=""
@@ -4496,14 +4399,7 @@ verify_bunnybox_install() {
 verify_jfp_install() {
     banner "Verifying installation"
     local all_ok=true
-    for f in printer.cfg gcode_macro.cfg KAMP/KAMP_settings.cfg; do
-        if [ -s "${CONFIG_DIR}/${f}" ]; then
-            ok "${f}"
-        else
-            err "${f} missing"
-            all_ok=false
-        fi
-    done
+    _verify_config_files printer.cfg gcode_macro.cfg KAMP/KAMP_settings.cfg || all_ok=false
     if [ "$all_ok" = true ]; then
         ok "All files verified"
     else
@@ -4514,14 +4410,7 @@ verify_jfp_install() {
 verify_jfb_install() {
     banner "Verifying installation"
     local all_ok=true
-    for f in printer.cfg gcode_macro.cfg KAMP/KAMP_settings.cfg; do
-        if [ -s "${CONFIG_DIR}/${f}" ]; then
-            ok "${f}"
-        else
-            err "${f} missing"
-            all_ok=false
-        fi
-    done
+    _verify_config_files printer.cfg gcode_macro.cfg KAMP/KAMP_settings.cfg || all_ok=false
     if grep -q 'Superuser Macros: Just Faster Box' "${CONFIG_DIR}/gcode_macro.cfg" 2>/dev/null; then
         ok "gcode_macro.cfg identified as Just Faster Box macros"
     else
@@ -4810,7 +4699,7 @@ report_stock_macro_layout() {
 report_qidi_box_object_inventory() {
     banner "Qidi Box Moonraker object inventory"
 
-    local response summary level message
+    local response summary
     if ! response=$(moonraker_get "/printer/objects/list"); then
         warn "Could not query Moonraker object list"
         return 0
@@ -4851,13 +4740,7 @@ else:
         return 0
     fi
 
-    while IFS='|' read -r level message; do
-        case "$level" in
-            OK) ok "$message" ;;
-            INFO) info "$message" ;;
-            *) warn "$message" ;;
-        esac
-    done <<< "$summary"
+    _emit_tagged_lines "$summary"
 }
 
 report_active_config_graph() {
@@ -4892,7 +4775,7 @@ find_duplicate_macros_readonly() {
         return 0
     fi
 
-    local summary level message
+    local summary
     summary=$(list_active_klipper_configs | python3 -c '
 import collections
 import re
@@ -4929,13 +4812,7 @@ else:
         return 0
     fi
 
-    while IFS='|' read -r level message; do
-        case "$level" in
-            OK) ok "$message" ;;
-            INFO) info "$message" ;;
-            *) warn "$message" ;;
-        esac
-    done <<< "$summary"
+    _emit_tagged_lines "$summary"
 }
 
 check_invalid_klipper_options_readonly() {
@@ -5137,6 +5014,15 @@ find_duplicate_macros() {
     return 1
 }
 
+# Prefixes every line of the [gcode_macro <name>] section of <file> with "## AIO_DISABLED: ".
+_disable_macro_section() {
+    local file="$1" macro="$2"
+    awk -v target="[gcode_macro ${macro}]" '
+        /^\[/ { in_section = ($0 == target) }
+        { if (in_section) print "## AIO_DISABLED: " $0; else print $0 }
+    ' "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+}
+
 # Removes or comments out config files and macros known to cause "gcode command already registered" Klipper crashes when BunnyBox is installed alongside stock Qidi configs. Idempotent.
 fix_known_klipper_conflicts() {
     banner "Resolving known Klipper macro conflicts"
@@ -5159,10 +5045,7 @@ fix_known_klipper_conflicts() {
         local box1_changed=0
         for macro in T0 T1 T2 T3 UNLOAD_T0 UNLOAD_T1 UNLOAD_T2 UNLOAD_T3; do
             if grep -q "^\[gcode_macro ${macro}\]" "$box1" 2>/dev/null; then
-                awk -v target="[gcode_macro ${macro}]" '
-                    /^\[/ { in_section = ($0 == target) }
-                    { if (in_section) print "## AIO_DISABLED: " $0; else print $0 }
-                ' "$box1" > "${box1}.tmp" && mv "${box1}.tmp" "$box1"
+                _disable_macro_section "$box1" "$macro"
                 box1_changed=1
             fi
         done
@@ -5181,10 +5064,7 @@ fix_known_klipper_conflicts() {
     if [ -f "$gcfg" ] && [ -f "${CONFIG_DIR}/bunnybox_macros.cfg" ] && \
        grep -q '^\[gcode_macro EXTRUSION_AND_FLUSH\]' "$gcfg" 2>/dev/null && \
        grep -q '^\[gcode_macro EXTRUSION_AND_FLUSH\]' "${CONFIG_DIR}/bunnybox_macros.cfg" 2>/dev/null; then
-        awk -v target="[gcode_macro EXTRUSION_AND_FLUSH]" '
-            /^\[/ { in_section = ($0 == target) }
-            { if (in_section) print "## AIO_DISABLED: " $0; else print $0 }
-        ' "$gcfg" > "${gcfg}.tmp" && mv "${gcfg}.tmp" "$gcfg"
+        _disable_macro_section "$gcfg" "EXTRUSION_AND_FLUSH"
         ok "Disabled duplicate EXTRUSION_AND_FLUSH in gcode_macro.cfg (bunnybox_macros.cfg owns it)"
     fi
 
@@ -5201,10 +5081,7 @@ fix_known_klipper_conflicts() {
         local bb_changed=0
         for macro in TOOL_CHANGE_START TOOL_CHANGE_END; do
             if grep -q "^\[gcode_macro ${macro}\]" "$bbmacros" 2>/dev/null; then
-                awk -v target="[gcode_macro ${macro}]" '
-                    /^\[/ { in_section = ($0 == target) }
-                    { if (in_section) print "## AIO_DISABLED: " $0; else print $0 }
-                ' "$bbmacros" > "${bbmacros}.tmp" && mv "${bbmacros}.tmp" "$bbmacros"
+                _disable_macro_section "$bbmacros" "$macro"
                 bb_changed=1
             fi
         done
@@ -5228,10 +5105,7 @@ fix_known_klipper_conflicts() {
             warn "BED_MESH_CALIBRATE defined in multiple files — will comment out non-canonical copies"
             echo "$bmc_files" | while IFS= read -r f; do
                 [ "$(basename "$f")" = "Adaptive_Meshing.cfg" ] && continue
-                awk -v target="[gcode_macro BED_MESH_CALIBRATE]" '
-                    /^\[/ { in_section = ($0 == target) }
-                    { if (in_section) print "## AIO_DISABLED: " $0; else print $0 }
-                ' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+                _disable_macro_section "$f" "BED_MESH_CALIBRATE"
                 ok "Commented out duplicate BED_MESH_CALIBRATE in $(basename "$f")"
             done
         else
@@ -5504,11 +5378,7 @@ _install_bunnybox() {
         ok "Unified configs installed"
 
         banner "Applying KAMP settings"
-        clean_kamp_dir
-        fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || return 1
-        fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || return 1
-        fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || return 1
-        fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || return 1
+        install_kamp_files || return 1
         ok "KAMP settings and sub-files applied to ${CONFIG_DIR}/KAMP/"
 
         switch_display_to_helixscreen
@@ -5591,51 +5461,10 @@ EOF
 install_bunnybox_helixscreen() { _install_bunnybox; }
 
 # ---------- install: Just Faster Printer -----------------------------
-install_just_faster() {
-    banner "Install: Just Faster Printer (Q2 without Box)"
-
-    preflight || { press_enter; return 1; }
-    do_backup || { press_enter; return 1; }
-
-    info "Updating gcode_macro.cfg..."
-    fetch "${REPO_BASE}/macros/gcode_macro-JustFasterPrinter.cfg" \
-          "${CONFIG_DIR}/gcode_macro.cfg" || { press_enter; return 1; }
-    ok "gcode_macro.cfg installed"
-
-    info "Updating printer.cfg..."
-    fetch "${REPO_BASE}/macros/JustFasterPrinter.cfg" \
-          "${CONFIG_DIR}/printer.cfg" || { press_enter; return 1; }
-    ok "printer.cfg installed"
-
-    info "Applying KAMP settings..."
-    clean_kamp_dir
-    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
-    ok "KAMP settings and sub-files applied to ${CONFIG_DIR}/KAMP/"
-    write_aoi_ini "JustFasterPrinter" "${AIO_VERSION}" "${AIO_VERSION}"
-
-    verify_jfp_install
-
-    offer_process_optimization
-
-    banner "Install complete"
-    cat <<EOF
-${C_BOLD}Your Q2 is now running the 'Just Faster' setup.${C_RESET}
-  No Bunny Box, no HelixScreen - just cleaner macros and faster starts.
-
-${C_BOLD}Next steps:${C_RESET}
-  1. FIRMWARE_RESTART (Klipper console or stock screen)
-
-Config snapshot: ${SNAPSHOT_DIR}
-EOF
-
-    press_enter
-}
-
-install_just_faster_box() {
-    banner "Install: Just Faster Box (Q2 with Qidi Box)"
+# _install_jf <label> <group> <verify_fn> <summary_line_1> <summary_line_2>
+_install_jf() {
+    local label="$1" group="$2" verify_fn="$3" summary_1="$4" summary_2="$5"
+    banner "Install: ${label}"
 
     preflight || { press_enter; return 1; }
     do_backup || { press_enter; return 1; }
@@ -5643,7 +5472,7 @@ install_just_faster_box() {
     # Warn if BunnyBox/Happy Hare is already installed — JFB is incompatible
     # with BunnyBox. Running JFB on top of BunnyBox will leave the MMU config
     # in place but remove the macros that drive it, causing Klipper errors.
-    if bunnybox_installed; then
+    if [ "$group" = "JustFasterBox" ] && bunnybox_installed; then
         warn "BunnyBox / Happy Hare appears to be installed on this printer."
         warn "JFB (Just Faster Box) is incompatible with BunnyBox — it provides"
         warn "its own box macros without Happy Hare's MMU system."
@@ -5656,7 +5485,7 @@ install_just_faster_box() {
     fi
 
     info "Updating gcode_macro.cfg..."
-    fetch "${REPO_BASE}/macros/gcode_macro-JustFasterBox.cfg" \
+    fetch "${REPO_BASE}/macros/gcode_macro-${group}.cfg" \
           "${CONFIG_DIR}/gcode_macro.cfg" || { press_enter; return 1; }
     ok "gcode_macro.cfg installed"
 
@@ -5666,22 +5495,18 @@ install_just_faster_box() {
     ok "printer.cfg installed"
 
     info "Applying KAMP settings..."
-    clean_kamp_dir
-    fetch "${REPO_BASE}/KAMP/KAMP_settings.cfg"    "${CONFIG_DIR}/KAMP/KAMP_settings.cfg"    || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Adaptive_Meshing.cfg" "${CONFIG_DIR}/KAMP/Adaptive_Meshing.cfg" || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Line_Purge.cfg"       "${CONFIG_DIR}/KAMP/Line_Purge.cfg"       || { press_enter; return 1; }
-    fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || { press_enter; return 1; }
+    install_kamp_files || { press_enter; return 1; }
     ok "KAMP settings and sub-files applied to ${CONFIG_DIR}/KAMP/"
-    write_aoi_ini "JustFasterBox" "${AIO_VERSION}" "${AIO_VERSION}"
+    write_aoi_ini "$group" "${AIO_VERSION}" "${AIO_VERSION}"
 
-    verify_jfb_install
+    "$verify_fn"
 
     offer_process_optimization
 
     banner "Install complete"
     cat <<EOF
-${C_BOLD}Your Q2 is now running the 'Just Faster Box' setup.${C_RESET}
-  Stock Qidi Box controls, no BunnyBox, no HelixScreen — just cleaner macros and faster starts.
+${summary_1}
+${summary_2}
 
 ${C_BOLD}Next steps:${C_RESET}
   1. FIRMWARE_RESTART (Klipper console or stock screen)
@@ -5690,6 +5515,18 @@ Config snapshot: ${SNAPSHOT_DIR}
 EOF
 
     press_enter
+}
+
+install_just_faster() {
+    _install_jf "Just Faster Printer (Q2 without Box)" "JustFasterPrinter" verify_jfp_install \
+        "${C_BOLD}Your Q2 is now running the 'Just Faster' setup.${C_RESET}" \
+        "  No Bunny Box, no HelixScreen - just cleaner macros and faster starts."
+}
+
+install_just_faster_box() {
+    _install_jf "Just Faster Box (Q2 with Qidi Box)" "JustFasterBox" verify_jfb_install \
+        "${C_BOLD}Your Q2 is now running the 'Just Faster Box' setup.${C_RESET}" \
+        "  Stock Qidi Box controls, no BunnyBox, no HelixScreen — just cleaner macros and faster starts."
 }
 
 # ---------- about ----------------------------------------------------
