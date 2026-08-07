@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC3.01'
+AIO_VERSION='RC3.02'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -746,7 +746,7 @@ install_mainsail() {
         warn "Installer finished but Mainsail files not detected — check ${MAINSAIL_DIR}"
     fi
 
-    install_camera || warn "Camera setup had problems — re-run option 6 to retry"
+    install_camera || warn "Camera setup had problems — re-run option 7 to retry"
 }
 
 uninstall_mainsail() {
@@ -1032,7 +1032,7 @@ EOF
         fi
     else
         warn "Mainsail nginx config not found at ${MAINSAIL_NGINX_SITE_AVAIL}"
-        warn "  → Install Mainsail first (option 6), then re-run camera setup"
+        warn "  → Install Mainsail first (option 7), then re-run camera setup"
     fi
 
     # Write/rewrite the [webcam printer] section in moonraker.conf using the
@@ -1190,33 +1190,27 @@ update_macros() {
             ok "printer.cfg updated"
             ;;
         JustFasterPrinter|JustFasterBox)
-            info "Updating gcode_macro.cfg..."
+            # Where the Just Faster installers put gcode_macro.cfg depends on the
+            # firmware layout: 01.01.02+ writes into klipper-macros-qd/, legacy mks
+            # writes to the config root (and JustFasterPrinter.cfg does
+            # '[include gcode_macro.cfg]' from there). Writing to the wrong one
+            # silently leaves the live macros untouched.
+            local macro_dest
+            case "$MACRO_LAYOUT" in
+                klipper-macros-qd) macro_dest="${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg" ;;
+                root)              macro_dest="${CONFIG_DIR}/gcode_macro.cfg" ;;
+                *)
+                    err "Macro layout is '${MACRO_LAYOUT}' — cannot determine where gcode_macro.cfg belongs."
+                    err "Refusing to guess; reinstall using option 1, 2, or 3 on a supported layout."
+                    press_enter
+                    return 1
+                    ;;
+            esac
+            info "Updating gcode_macro.cfg (${MACRO_LAYOUT} layout)..."
             fetch "${REPO_BASE}/macros/gcode_macro-${group}.cfg" \
-                  "${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg" || { press_enter; return 1; }
-            ok "gcode_macro.cfg updated"
-            local kamp_include="[include KAMP/KAMP_settings.cfg]"
-            local printer_cfg="${CONFIG_DIR}/printer.cfg"
-            local tmp_cfg
-            tmp_cfg=$(mktemp /tmp/printer_cfg_patched.XXXXXX)
-            info "Re-patching printer.cfg: KAMP include missing"
-            python3 - "$printer_cfg" "$kamp_include" "$tmp_cfg" <<'PYEOF'
-import sys
-cfg, line, out = sys.argv[1], sys.argv[2], sys.argv[3]
-txt = open(cfg).read()
-if line not in txt:
-    txt = txt.rstrip('\n') + '\n' + line + '\n'
-with open(out, 'w') as f:
-    f.write(txt)
-PYEOF
-            if grep -qF "$kamp_include" "$tmp_cfg" 2>/dev/null; then
-                sudo cp "$tmp_cfg" "$printer_cfg"
-                ok "KAMP include re-added to printer.cfg"
-            elif grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
-                info "KAMP include already present in printer.cfg — skipping"
-            else
-                err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
-            fi
-            rm -f "$tmp_cfg"
+                  "$macro_dest" || { press_enter; return 1; }
+            ok "gcode_macro.cfg updated: ${macro_dest}"
+            ensure_kamp_include_in_printer_cfg || true
             ;;
         *)
             err "Unknown install group '${group}' in aoi.ini — please reinstall using option 1, 2, or 3"
@@ -1319,19 +1313,19 @@ restore_aio_disabled_macros() {
 
 # Removes the Happy Hare Klipper extras package/files and the Moonraker mmu_server component.
 _purge_happy_hare_extras() {
-    info "Removing Klipper extras: ${HOME}/klipper/klippy/extras/mmu"
-    sudo rm -rf "${HOME}/klipper/klippy/extras/mmu"
+    info "Removing Klipper extras: ${KLIPPER_DIR}/klippy/extras/mmu"
+    sudo rm -rf "${KLIPPER_DIR}/klippy/extras/mmu"
     for f in mmu.py mmu_machine.py mmu_leds.py mmu_sensors.py mmu_encoder.py; do
-        sudo rm -f "${HOME}/klipper/klippy/extras/${f}"
+        sudo rm -f "${KLIPPER_DIR}/klippy/extras/${f}"
     done
-    sudo find "${HOME}/klipper/klippy/extras" -maxdepth 1 \
+    sudo find "${KLIPPER_DIR}/klippy/extras" -maxdepth 1 \
         \( -name 'mmu_*.py' -o -name 'mmu_*.pyc' \) \
         -delete 2>/dev/null || true
-    sudo find "${HOME}/klipper/klippy/extras" -path '*/__pycache__/mmu*' \
+    sudo find "${KLIPPER_DIR}/klippy/extras" -path '*/__pycache__/mmu*' \
         -delete 2>/dev/null || true
 
     info "Removing Moonraker component: mmu_server.py"
-    sudo rm -f "${HOME}/moonraker/moonraker/components/mmu_server.py"
+    sudo rm -f "${MOONRAKER_DIR}/moonraker/components/mmu_server.py"
 }
 
 # Removes Happy Hare / BunnyBox artifacts outside CONFIG_DIR: source tree, klipper extras, and the moonraker mmu_server component.
@@ -1355,7 +1349,7 @@ _purge_happy_hare_nonconfig() {
 
     local residue=0
     [ -d "$HAPPY_HARE_DIR" ]                          && { warn "RESIDUE: ${HAPPY_HARE_DIR} still exists"; residue=1; }
-    [ -d "${HOME}/klipper/klippy/extras/mmu" ]        && { warn "RESIDUE: extras/mmu/ still exists"; residue=1; }
+    [ -d "${KLIPPER_DIR}/klippy/extras/mmu" ]      && { warn "RESIDUE: extras/mmu/ still exists"; residue=1; }
     if [ $residue -eq 1 ]; then
         warn "Some Happy Hare artifacts survived purge — check output above"
     else
@@ -1437,7 +1431,7 @@ purge_happy_hare_all() {
     # Final verification — if anything critical survived, report it
     local residue=0
     [ -d "$HAPPY_HARE_DIR" ]                          && { warn "RESIDUE: ${HAPPY_HARE_DIR} still exists"; residue=1; }
-    [ -d "${HOME}/klipper/klippy/extras/mmu" ]        && { warn "RESIDUE: extras/mmu/ still exists"; residue=1; }
+    [ -d "${KLIPPER_DIR}/klippy/extras/mmu" ]      && { warn "RESIDUE: extras/mmu/ still exists"; residue=1; }
     [ -d "${CONFIG_DIR}/mmu" ]                        && { warn "RESIDUE: config/mmu/ still exists"; residue=1; }
     if [ $residue -eq 1 ]; then
         warn "Some Happy Hare artifacts survived purge — check output above"
@@ -1579,6 +1573,46 @@ install_kamp_files() {
     fetch "${REPO_BASE}/KAMP/Smart_Park.cfg"       "${CONFIG_DIR}/KAMP/Smart_Park.cfg"       || return 1
 }
 
+# Ensures '[include KAMP/KAMP_settings.cfg]' is present in printer.cfg, appending it at
+# end-of-file when missing. Shared by the Just Faster installers and update_macros so both
+# behave identically: it no-ops when the include is already there, and it works on a
+# printer.cfg that contains no [include] line at all.
+ensure_kamp_include_in_printer_cfg() {
+    local printer_cfg="${CONFIG_DIR}/printer.cfg"
+    local kamp_include="[include KAMP/KAMP_settings.cfg]"
+
+    if [ ! -f "$printer_cfg" ]; then
+        err "printer.cfg not found at ${printer_cfg} — add '${kamp_include}' manually"
+        return 1
+    fi
+    if grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
+        info "KAMP include already present in printer.cfg — skipping"
+        return 0
+    fi
+
+    local tmp_cfg rc=0
+    tmp_cfg=$(mktemp /tmp/printer_cfg_patched.XXXXXX)
+    info "Patching printer.cfg: adding KAMP include"
+    python3 - "$printer_cfg" "$kamp_include" "$tmp_cfg" <<'PYEOF'
+import sys
+cfg, line, out = sys.argv[1], sys.argv[2], sys.argv[3]
+txt = open(cfg).read()
+if line not in txt:
+    txt = txt.rstrip('\n') + '\n' + line + '\n'
+with open(out, 'w') as f:
+    f.write(txt)
+PYEOF
+    if grep -qF "$kamp_include" "$tmp_cfg" 2>/dev/null; then
+        sudo cp "$tmp_cfg" "$printer_cfg"
+        ok "KAMP include added to printer.cfg"
+    else
+        err "Failed to patch printer.cfg — add '${kamp_include}' manually"
+        rc=1
+    fi
+    rm -f "$tmp_cfg"
+    return $rc
+}
+
 bunnybox_installed() {
     # Look for mmu_parameters.cfg anywhere under ${CONFIG_DIR}/mmu/ so
     # we work with both flat (current) and base/ (legacy) layouts.
@@ -1673,8 +1707,6 @@ _install_jf_q2_112() {
     preflight_q2_112 || { press_enter; return 1; }
     do_backup        || { press_enter; return 1; }
     local macro_dest="${CONFIG_DIR}/klipper-macros-qd/gcode_macro.cfg"
-    local printer_cfg="${CONFIG_DIR}/printer.cfg"
-    local kamp_include="[include KAMP/KAMP_settings.cfg]"
     info "Writing macro file → klipper-macros-qd/gcode_macro.cfg"
     fetch "${REPO_BASE}/macros/gcode_macro-${group}.cfg" \
           "$macro_dest" || { press_enter; return 1; }
@@ -1682,31 +1714,9 @@ _install_jf_q2_112() {
     info "Applying KAMP settings..."
     install_kamp_files || { press_enter; return 1; }
     ok "KAMP files installed to ${CONFIG_DIR}/KAMP/"
-    local tmp_cfg
-    tmp_cfg=$(mktemp /tmp/printer_cfg_patched.XXXXXX)
-    info "Patching printer.cfg: adding KAMP include"
-    python3 - "$printer_cfg" "$kamp_include" "$tmp_cfg" <<'PYEOF'
-import sys, re
-path, line_to_add, out = sys.argv[1], sys.argv[2], sys.argv[3]
-with open(path) as f:
-    content = f.read()
-if line_to_add in content:
-    sys.exit(0)
-patched = re.sub(r'(\[include )', line_to_add + '\n' + r'\1', content, count=1)
-with open(out, 'w') as f:
-    f.write(patched)
-PYEOF
-    if grep -qF "$kamp_include" "$tmp_cfg" 2>/dev/null; then
-        sudo cp "$tmp_cfg" "$printer_cfg"
-        ok "KAMP include added to printer.cfg"
-    elif grep -qF "$kamp_include" "$printer_cfg" 2>/dev/null; then
-        info "KAMP include already present in printer.cfg — skipping"
-    else
-        err "Failed to patch printer.cfg — add '[include KAMP/KAMP_settings.cfg]' manually"
-    fi
-    rm -f "$tmp_cfg"
+    ensure_kamp_include_in_printer_cfg || true
     write_aoi_ini "$group" "${AIO_VERSION}" "${AIO_VERSION}"
-    offer_process_optimization
+    offer_process_optimization true
     banner "Install complete"
     cat <<EOF
 ${C_BOLD}${label} applied (01.01.02+ mode).${C_RESET}
@@ -1733,6 +1743,9 @@ aio_preexisting_paths_file() {
 }
 
 # On first run, records which AIO-managed paths already existed so uninstall can avoid removing user-preexisting directories.
+# Called from take_snapshot(), i.e. before the first mutating install writes anything.
+# Captures at most once: the manifest's own existence is the primary guard, and if AIO has
+# already installed on this printer an EMPTY manifest is sealed instead — see below.
 capture_first_run_state() {
     local state_dir preexisting path
     state_dir=$(aio_state_dir)
@@ -1750,6 +1763,17 @@ capture_first_run_state() {
         return 0
     }
 
+    # Not a genuine first run: AIO has installed here before (older versions never
+    # wrote this manifest). Anything on disk now may be AIO's own work, and recording
+    # it as "pre-existing" would make it permanently undeletable on revert. Seal the
+    # manifest empty instead — removal behaviour is unchanged from before this fix,
+    # and no later run can capture a wrong one.
+    if [ -f "${AIO_MARKER}" ] || [ -f "${CONFIG_DIR}/.aio_installed" ]; then
+        warn "AIO has installed on this printer before — first-run state cannot be reconstructed"
+        info "Sealing an empty manifest; AIO-managed paths stay removable on revert"
+        return 0
+    fi
+
     for path in \
         "$HAPPY_HARE_DIR" \
         "$HELIX_DIR" \
@@ -1763,7 +1787,7 @@ capture_first_run_state() {
         /opt/helixscreen \
         /var/lib/helixscreen \
         /var/log/helixscreen \
-        "${HOME}/.helixscreen" \
+        "${AIO_HOME}/.helixscreen" \
         /root/.helixscreen; do
         if [ -e "$path" ]; then
             printf '%s\n' "$path" >> "$preexisting"
@@ -1792,6 +1816,11 @@ should_remove_aio_path() {
 }
 
 take_snapshot() {
+    # Record which AIO-managed paths already existed BEFORE anything is written.
+    # This is the single choke point every mutating path passes through (directly,
+    # or via do_backup()/ensure_repair_backup()), so it is the last safe moment.
+    capture_first_run_state
+
     # Takes the rsync snapshot only. Does NOT write .aio_installed.
     if [ ! -f "${AIO_MARKER}" ]; then
         banner "Capturing stock config snapshot"
@@ -1844,8 +1873,16 @@ aio_optimizations_file() {
     printf '%s\n' "$(aio_state_dir)/optimizations_applied"
 }
 
+# offer_process_optimization [retain_stock_display]
+#   retain_stock_display = true  (default) — the caller is keeping the stock
+#                                 touchscreen, so $STOCK_DISPLAY_SERVICE is
+#                                 filtered out of the disable list.
+#                          false — the caller replaces the stock display
+#                                 (HelixScreen/BunnyBox), so it may be disabled.
 # Offers to disable a fixed set of unused stock services (and, on q2_112, run the community QidiClient static-GIF patch); records exactly what succeeded under aio_state_dir() so revert_to_backup() can undo it precisely. Never fails the calling install — every step warns and continues on error.
 offer_process_optimization() {
+    local retain_stock_display="${1:-true}"
+
     if ! confirm "Would you like to disable unnecessary processes? (recommended)"; then
         return 0
     fi
@@ -1861,6 +1898,14 @@ offer_process_optimization() {
     local unit
     for unit in algo_app.service QIDILink-client.service strongswan-starter.service \
                 openvpn.service triggerhappy.service bluetooth lightdm packagekit xl2tpd; do
+        # Never disable the stock display manager on a path that keeps the
+        # stock touchscreen — doing so blanks the screen permanently (it is
+        # not masked, but the user has no way to know that).
+        if [ "$retain_stock_display" = true ] && [ -n "$STOCK_DISPLAY_SERVICE" ] && \
+           [ "$unit" = "$STOCK_DISPLAY_SERVICE" ]; then
+            info "Keeping ${unit} — this install keeps the stock ${STOCK_DISPLAY_LABEL} touchscreen"
+            continue
+        fi
         if sudo systemctl disable --now "$unit" 2>/dev/null; then
             ok "Disabled ${unit}"
             applied+=("$unit")
@@ -2025,7 +2070,7 @@ cleanup_aio_runtime_artifacts() {
         /opt/helixscreen \
         /var/lib/helixscreen \
         /var/log/helixscreen \
-        "${HOME}/.helixscreen" \
+        "${AIO_HOME}/.helixscreen" \
         /root/.helixscreen; do
         if should_remove_aio_path "$d"; then
             sudo rm -rf "$d" && ok "Removed $d" || warn "Could not remove $d"
@@ -2091,7 +2136,7 @@ restore_stock_display_services() {
         ok "Qidi stock display services are active"
     else
         warn "Qidi stock display services were requested but one is not active"
-        warn "Run Option 8 or check: systemctl status ${STOCK_DISPLAY_SERVICE:-display-manager.service} ${STOCK_UI_SERVICE:-}"
+        warn "Run option 9 or check: systemctl status ${STOCK_DISPLAY_SERVICE:-display-manager.service} ${STOCK_UI_SERVICE:-}"
         if [ "$display_ok" != true ]; then
             show_systemd_journal_tail "$STOCK_DISPLAY_SERVICE" "$STOCK_DISPLAY_LABEL"
         fi
@@ -2323,7 +2368,7 @@ q2_112_restore_contract_paths() {
         "$HAPPY_HARE_DIR" \
         "$HELIX_DIR" \
         "$HELIX_PRINT_DIR" \
-        "${AIO_HOME}/.config/helixscreen" \
+        "${AIO_HOME}/.helixscreen" \
         /opt/helixscreen \
         /var/lib/helixscreen \
         /var/log/helixscreen \
@@ -2623,7 +2668,7 @@ report_q2_112_restore_contract() {
 
     if ! validate_q2_112_restore_contract; then
         warn "No complete, verified 1.1.2 restore contract is available."
-        info "Option 4 can capture one after the guarded stock baseline passes."
+        info "Testing options 4-9 offer to capture one after the guarded stock baseline passes."
         return 1
     fi
 
@@ -2700,7 +2745,7 @@ report_q2_112_external_restore_audit() {
     fi
     if ! validate_q2_112_restore_contract; then
         err "No complete, verified restore contract is available."
-        info "Run option 4 to capture and validate the restore contract first."
+        info "Accept the guarded restore-contract capture offered when entering Testing options 4-9."
         return 1
     fi
 
@@ -2999,7 +3044,7 @@ run_q2_112_restore_rehearsal() {
     fi
     if ! validate_q2_112_restore_contract; then
         err "No complete, verified restore contract is available."
-        info "Run option 4 to capture and validate the restore contract first."
+        info "Accept the guarded restore-contract capture offered when entering Testing options 4-9."
         return 1
     fi
 
@@ -3202,7 +3247,7 @@ run_q2_112_live_restore_proof() {
     fi
     if ! q2_112_restore_rehearsal_passed; then
         err "The isolated restore rehearsal has not passed for the current contract."
-        info "Run option 10 before attempting the controlled live restore proof."
+        info "Run Testing option 4 (isolated restore rehearsal) before the controlled live restore proof."
         return 1
     fi
     if ! verify_q2_112_active_config_matches_contract; then
@@ -3337,7 +3382,7 @@ EOF
     ok "Controlled live restore proof passed"
     ok "Active config exactly matches stock contract; proof artifacts are absent"
     ok "Service enablement, default target, and package inventory are unchanged"
-    info "Run option 8 to verify Klipper, Moonraker, QIDIClient, Crowsnest, and Qidi Box health."
+    info "Run option 9 to verify Klipper, Moonraker, QIDIClient, Crowsnest, and Qidi Box health."
     info "Full install and general real revert remain blocked."
     return 0
 }
@@ -3424,7 +3469,7 @@ run_q2_112_present_path_restore_proof() {
     fi
     if ! q2_112_external_paths_match_contract; then
         err "One or more external paths no longer exactly match the sealed contract."
-        info "Run option 12 and review every reported change before continuing."
+        info "Run Testing option 6 (external restore audit) and review every reported change first."
         return 1
     fi
     if ! q2_112_contract_path_was_present_directory "$Q2_112_PRESENT_PROOF_TARGET"; then
@@ -3564,7 +3609,7 @@ EOF
     ok "Controlled captured-present path restore proof passed"
     ok "QIDIClient remained active; no service reload or restart was performed"
     ok "Config, service enablement, default target, and package inventory are unchanged"
-    info "Run option 8 to verify full printer runtime health."
+    info "Run option 9 to verify full printer runtime health."
     info "Full install and general real revert remain blocked."
     return 0
 }
@@ -3680,7 +3725,7 @@ run_q2_112_runtime_path_restore_proof() {
     fi
     if ! q2_112_external_paths_match_contract; then
         err "One or more external paths no longer exactly match the sealed contract."
-        info "Run option 12 and review every reported change before continuing."
+        info "Run Testing option 6 (external restore audit) and review every reported change first."
         return 1
     fi
     if ! q2_112_contract_path_was_present_directory "$target"; then
@@ -3817,7 +3862,7 @@ EOF
     ok "Controlled ${label} restore proof passed"
     ok "Klipper, Moonraker, QIDIClient, and Crowsnest remained active"
     ok "No Python reload, service restart, config change, or package change occurred"
-    info "Run option 8 to verify full printer runtime and Qidi Box sensor health."
+    info "Run option 9 to verify full printer runtime and Qidi Box sensor health."
     info "Full install and general real revert remain blocked."
     return 0
 }
@@ -3885,7 +3930,7 @@ report_aio_removal_dry_run() {
         /opt/helixscreen \
         /var/lib/helixscreen \
         /var/log/helixscreen \
-        "${HOME}/.helixscreen" \
+        "${AIO_HOME}/.helixscreen" \
         /root/.helixscreen; do
         dry_run_removal_state "$d"
     done
@@ -3958,6 +4003,16 @@ offer_q2_112_baseline_capture() {
     fi
 }
 
+# Entry gate for the 1.1.2 restore-contract lane (Testing options 4-9). Every proof in that
+# lane requires a validated restore contract, which in turn requires a guarded stock
+# baseline — so offer to capture both, in order, before handing over to the proof itself.
+# No-ops on other layouts and whenever the material already validates.
+prepare_q2_112_restore_contract_lane() {
+    [ "$AIO_LAYOUT" = "q2_112" ] || return 0
+    offer_q2_112_baseline_capture
+    offer_q2_112_restore_contract_capture
+}
+
 q2_112_probe_installed() {
     [ -d "$Q2_112_PROBE_STATE_DIR" ] || \
     [ -e "$Q2_112_PROBE_CFG" ] || \
@@ -3978,13 +4033,13 @@ q2_112_probe_manifest_value() {
 q2_112_baseline_safe() {
     local selected selected_label selected_path selected_delete
     if ! selected=$(select_revert_backup_source); then
-        err "No stock baseline exists. Run option 4 and capture the guarded baseline first."
+        err "No stock baseline exists. Accept the guarded stock-baseline capture offered on entry to Testing options 3-9."
         return 1
     fi
     IFS='|' read -r selected_label selected_path selected_delete <<< "$selected"
     if backup_missing_active_stock_essentials "$selected_path"; then
         err "Selected stock baseline is missing active 1.1.2 stock essentials."
-        info "Run option 4 to inspect or repair the baseline before using the probe."
+        info "Accept the guarded stock-baseline capture offered on entry to repair the baseline."
         return 1
     fi
     ok "Guarded stock baseline is ready: ${selected_path}"
@@ -4107,8 +4162,8 @@ EOF
     fi
 
     ok "Compatibility probe installed with exact before/after hashes"
-    info "Run FIRMWARE_RESTART, then option 8 to verify Klipper and the active include graph."
-    info "After verification, run option 9 again to perform the guarded round-trip removal."
+    info "Run FIRMWARE_RESTART, then option 9 to verify Klipper and the active include graph."
+    info "After verification, run Testing option 3 again to perform the guarded round-trip removal."
     return 0
 }
 
@@ -4534,7 +4589,7 @@ check_orphan_includes() {
 # Detects Happy Hare / MMU artifacts (extras/mmu/, mmu_*.py, mmu_server.py) that survived an uninstall and offers to remove them interactively.
 check_leftover_mmu_artifacts() {
     banner "Checking for leftover MMU / Happy Hare artifacts"
-    local extras="${HOME}/klipper/klippy/extras"
+    local extras="${KLIPPER_DIR}/klippy/extras"
     local found=0
 
     # extras/mmu/ package (Happy Hare v3)
@@ -4583,7 +4638,7 @@ check_leftover_mmu_artifacts() {
     fi
 }
 
-# Runs the full verifier sequence (runtime health, install checks, conflict scans); shared by menu option 8 and revert_to_backup(). Does not call press_enter.
+# Runs the full verifier sequence (runtime health, install checks, conflict scans); shared by menu option 9 and revert_to_backup(). Does not call press_enter.
 _run_verifiers_core() {
     verify_runtime_health
 
@@ -5076,8 +5131,8 @@ fix_known_klipper_conflicts() {
     #    Comment them out so box_extras.py's implementation is used.
     local bbmacros="${CONFIG_DIR}/bunnybox_macros.cfg"
     if [ -f "$bbmacros" ] && \
-       { [ -f "${HOME}/klipper/klippy/extras/box_extras.py" ] || \
-         [ -f "${HOME}/klipper/klippy/extras/box_extras.so" ]; }; then
+       { [ -f "${KLIPPER_DIR}/klippy/extras/box_extras.py" ] || \
+         [ -f "${KLIPPER_DIR}/klippy/extras/box_extras.so" ]; }; then
         local bb_changed=0
         for macro in TOOL_CHANGE_START TOOL_CHANGE_END; do
             if grep -q "^\[gcode_macro ${macro}\]" "$bbmacros" 2>/dev/null; then
@@ -5318,9 +5373,9 @@ _install_bunnybox() {
                 sudo rm -rf "$HAPPY_HARE_DIR"
                 rm -f "${CONFIG_DIR}/bunnybox_macros.cfg"
                 for f in mmu.py mmu_machine.py mmu_leds.py; do
-                    rm -f "${HOME}/klipper/klippy/extras/${f}"
+                    rm -f "${KLIPPER_DIR}/klippy/extras/${f}"
                 done
-                rm -f "${HOME}/moonraker/moonraker/components/mmu_server.py"
+                rm -f "${MOONRAKER_DIR}/moonraker/components/mmu_server.py"
                 ok "Stale artifacts removed — BunnyBox will install fresh"
             else
                 info "Leaving artifacts — BunnyBox will offer its own Reinstall/Revert menu"
@@ -5385,9 +5440,19 @@ _install_bunnybox() {
         info "HelixScreen is running its first-time setup wizard on the printer screen."
         info "Please walk to the printer, complete the wizard, then return here."
         printf '\n'
+        # Read from the controlling terminal, not stdin: the documented install
+        # method is `curl … | bash`, where stdin is the pipe. Reading stdin here
+        # fails immediately at EOF, leaves the answer empty, and spins this loop
+        # forever. Bail out if even /dev/tty gives us nothing.
+        local _wizard_done
         while true; do
             printf '  Have you completed the HelixScreen startup wizard? [y/N]: '
-            read -r _wizard_done
+            if ! read -r _wizard_done </dev/tty; then
+                printf '\n'
+                warn "No answer could be read from the terminal — continuing without wizard confirmation."
+                warn "If the wizard is not finished, run Testing > option 10 afterwards to apply the layout."
+                break
+            fi
             case "$_wizard_done" in
                 y|Y|yes|YES) break ;;
                 *) info "Take your time — press y when done." ;;
@@ -5418,7 +5483,10 @@ PYCHECK
 
         verify_runtime_health
 
-        offer_process_optimization
+        # HelixScreen replaces the stock display stack, so the stock display
+        # manager is fair game here (switch_display_to_helixscreen already
+        # stopped/masked it).
+        offer_process_optimization false
     } 2>&1 | tee -a "$INSTALL_LOG"
 
     # Check the exit code of the install block (left side of the tee pipe).
@@ -5501,7 +5569,7 @@ _install_jf() {
 
     "$verify_fn"
 
-    offer_process_optimization
+    offer_process_optimization true
 
     banner "Install complete"
     cat <<EOF
@@ -5560,6 +5628,15 @@ ${C_BOLD}What it can install:${C_RESET}
     - KAMP adaptive meshing, screws_tilt_adjust, Spoolman hooks
     - No UI changes - stock Qidi screen stays
 
+  ${C_GREEN}Just Faster Box${C_RESET}        (Q2 ${C_BOLD}with${C_RESET} the Qidi Box, no BunnyBox)
+    - The same faster macros plus stock Qidi Box control macros
+    - Keeps Qidi's own box software; no Happy Hare, no HelixScreen
+    - No UI changes - stock Qidi screen stays
+    - Incompatible with BunnyBox; the installer warns before proceeding
+
+  Options 2 and 3 are the only install paths that also run on Q2 firmware
+  1.1.2 / qidi layout, where they write macros into klipper-macros-qd/.
+
 ${C_BOLD}Optional addons:${C_RESET}
   - Mainsail: web UI on port ${MAINSAIL_PORT}, including camera proxy setup
 
@@ -5573,29 +5650,29 @@ ${C_BOLD}Health Check / Run Verifiers:${C_RESET}
     stock macro layout, active include graph, and config scans only.
 
 ${C_BOLD}1.1.2 compatibility round-trip probe:${C_RESET}
-  - Option 9 installs one harmless no-op macro config and one include
-    line after verifying the guarded stock baseline is safe.
+  - Testing option 3 installs one harmless no-op macro config and one
+    include line after verifying the guarded stock baseline is safe.
   - It records exact before/after printer.cfg hashes and an original copy.
-  - Running option 9 again restores the exact original printer.cfg,
+  - Running Testing option 3 again restores the exact original printer.cfg,
     removes the probe config, and verifies the original hash.
   - Cleanup refuses to overwrite printer.cfg if unrelated changes were
     made after the probe was installed.
 
 ${C_BOLD}1.1.2 restore contract:${C_RESET}
-  - Option 4 can atomically capture a verified restore contract after
-    the guarded stock baseline passes.
+  - Entering any of Testing options 4-9 offers to atomically capture a
+    verified restore contract after the guarded stock baseline passes.
   - The contract preserves the exact config tree, Klipper extras,
     Moonraker components, mapped display/runtime and system integration
     paths, their present/absent state, file hashes, metadata, symlink
     targets, service states, default boot target, and Debian package inventory.
-  - Option 4 previews the exact contract-backed restore plan. Option 8
-    verifies contract integrity without modifying active printer state.
+  - The capture step previews the exact contract-backed restore plan.
+    Option 9 verifies contract integrity without modifying printer state.
   - Full install and general real revert remain blocked while the
     1.1.2 compatibility lane is tested.
 
 ${C_BOLD}1.1.2 isolated restore rehearsal:${C_RESET}
-  - Option 10 reconstructs the sealed config and external recovery trees
-    only under ${Q2_112_REHEARSAL_DIR}.
+  - Testing option 4 reconstructs the sealed config and external recovery
+    trees only under ${Q2_112_REHEARSAL_DIR}.
   - It verifies file hashes, ownership, permissions, timestamps, and
     symlink targets against the contract, then generates non-executing
     config/path/service/package restore plans.
@@ -5605,7 +5682,7 @@ ${C_BOLD}1.1.2 isolated restore rehearsal:${C_RESET}
     or services. Full install and general real revert remain blocked.
 
 ${C_BOLD}1.1.2 controlled live restore proof:${C_RESET}
-  - Option 11 requires a verified stock restore contract, a passed
+  - Testing option 5 requires a verified stock restore contract, a passed
     isolated rehearsal, and an active config tree exactly matching the
     sealed contract.
   - It creates one harmless non-included config marker and one marker
@@ -5614,21 +5691,21 @@ ${C_BOLD}1.1.2 controlled live restore proof:${C_RESET}
   - It removes only the identified external proof path, verifies the
     exact stock config and guarded system state, and retains an emergency
     config snapshot if any verification fails.
-  - Option 8 validates the sealed historical proof and stored guards
+  - Option 9 validates the sealed historical proof and stored guards
     without requiring stock processes to preserve active config metadata
     unchanged after a reboot.
   - Full install and general real revert remain blocked.
 
 ${C_BOLD}1.1.2 external restore audit:${C_RESET}
-  - Option 12 compares every captured-present and captured-absent
+  - Testing option 6 compares every captured-present and captured-absent
     external path against the sealed stock contract.
   - It uses checksum-backed rsync --dry-run --itemize-changes to report
     exactly what a future restore would replace or remove.
   - It does not write files or change packages, services, or boot targets.
 
 ${C_BOLD}1.1.2 captured-present path restore proof:${C_RESET}
-  - Option 13 requires every mapped external path to exactly match the
-    sealed stock contract.
+  - Testing option 7 requires every mapped external path to exactly match
+    the sealed stock contract.
   - It creates one ignored marker without a .conf extension under
     ${Q2_112_PRESENT_PROOF_TARGET}, then restores only that directory
     from the sealed contract using rsync --delete.
@@ -5636,8 +5713,8 @@ ${C_BOLD}1.1.2 captured-present path restore proof:${C_RESET}
     QIDIClient remains active plus all guarded printer state is unchanged.
 
 ${C_BOLD}1.1.2 loaded runtime-path restore proofs:${C_RESET}
-  - Options 14 and 15 independently test sealed restoration of the stock
-    Klipper extras and Moonraker components directories.
+  - Testing options 8 and 9 independently test sealed restoration of the
+    stock Klipper extras and Moonraker components directories.
   - Each creates one hidden marker without a .py extension, permits only
     that marker in the final safety comparison, then restores one directory
     from the sealed contract using rsync --delete.
@@ -5662,18 +5739,21 @@ ${C_BOLD}Safety:${C_RESET}
   pre-AIO state is preserved. A marker file (${AIO_MARKER}) gates this.
   Health-check repairs also call do_backup() before editing configs.
   Firmware layout detection resolves active home/config/service names.
-  Option 8 read-only diagnostics is allowed on all layouts.
-  Option 4 dry-run reporting is allowed on unsupported layouts.
-  Option 4 guarded 1.1.2 baseline capture only writes under ${BACKUP_ROOT}/.
-  Option 4 guarded 1.1.2 restore-contract capture only writes under ${BACKUP_ROOT}/.
+  Option 9 read-only diagnostics is allowed on all layouts.
+  The guarded 1.1.2 baseline capture (offered on entry to Testing options
+  3-9) only writes under ${BACKUP_ROOT}/.
+  The guarded 1.1.2 restore-contract capture (offered on entry to Testing
+  options 4-9) only writes under ${BACKUP_ROOT}/.
   Run FIRMWARE_RESTART after an install or revert.
   Refuses to run as root.
 
 ${C_BOLD}Known limitations:${C_RESET}
   - ${C_YELLOW}MMU_CALIBRATE_GEAR${C_RESET} is required after clean installs.
   - Qidi Q2 firmware 1.1.2 / V01.01.02.01 uses a new /home/qidi
-    layout and qidi-client stock UI. AIO currently detects the new
-    paths/services and blocks mutating actions on that layout.
+    layout and qidi-client stock UI. On that layout options 2 and 3
+    (Just Faster Printer / Box) install; options 1, 4, 5 and 7 are
+    blocked; option 9 runs read-only diagnostics; and the Testing
+    submenu hosts the guarded 1.1.2 compatibility lane.
   - BunnyBox currently requires HelixScreen for MMU workflows; the
     stock Qidi screen does not yet expose the MMU UI.
 
@@ -5750,7 +5830,7 @@ draw_menu() {
     printf '   %s4)%s Update Macros                     (re-fetch AOI macro files)\n'     "$C_CYAN" "$C_RESET"
     printf '  %sUNINSTALL%s\n' "$C_BOLD$C_YELLOW" "$C_RESET"
     printf '   %s5)%s Revert to Backup                  (full uninstall + restore stock)\n' "$C_CYAN" "$C_RESET"
-    printf '   %s6)%s Uninstall Mainsail                 (remove web UI only)\n'            "$C_CYAN" "$C_RESET"
+    printf '   %s6)%s Uninstall Mainsail                (remove web UI only)\n'             "$C_CYAN" "$C_RESET"
     printf '  %sADDONS%s\n' "$C_BOLD$C_MAGENTA" "$C_RESET"
     printf '   %s7)%s Mainsail                          (web UI on port 100)\n'            "$C_CYAN" "$C_RESET"
     printf '  %sINFO%s\n' "$C_BOLD$C_CYAN" "$C_RESET"
@@ -5814,12 +5894,12 @@ testing_submenu() {
         printf '   %s2)%s Force Config Restore     (rsync --delete from snapshot to config)\n' "$C_CYAN" "$C_RESET"
         printf '  %s1.1.2 PROBES%s\n' "$C_BOLD$C_CYAN" "$C_RESET"
         printf '   %s3)%s 1.1.2 Compatibility Probe          (reversible round trip)\n' "$C_CYAN" "$C_RESET"
-        printf '   %s4)%s 1.1.2 Restore Rehearsal             (isolated, no live changes)\n' "$C_CYAN" "$C_RESET"
-        printf '   %s5)%s 1.1.2 Live Restore Proof            (controlled contract restore)\n' "$C_CYAN" "$C_RESET"
-        printf '   %s6)%s 1.1.2 External Restore Audit         (read-only drift report)\n' "$C_CYAN" "$C_RESET"
-        printf '   %s7)%s 1.1.2 Present-Path Restore Proof     (controlled systemd path)\n' "$C_CYAN" "$C_RESET"
-        printf '   %s8)%s 1.1.2 Klipper Extras Restore Proof    (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
-        printf '   %s9)%s 1.1.2 Moonraker Components Proof      (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
+        printf '   %s4)%s 1.1.2 Restore Rehearsal            (isolated, no live changes)\n' "$C_CYAN" "$C_RESET"
+        printf '   %s5)%s 1.1.2 Live Restore Proof           (controlled contract restore)\n' "$C_CYAN" "$C_RESET"
+        printf '   %s6)%s 1.1.2 External Restore Audit       (read-only drift report)\n' "$C_CYAN" "$C_RESET"
+        printf '   %s7)%s 1.1.2 Present-Path Restore Proof   (controlled systemd path)\n' "$C_CYAN" "$C_RESET"
+        printf '   %s8)%s 1.1.2 Klipper Extras Restore Proof (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
+        printf '   %s9)%s 1.1.2 Moonraker Components Proof   (controlled runtime path)\n' "$C_CYAN" "$C_RESET"
         printf '  %sHELIXSCREEN%s\n' "$C_BOLD$C_CYAN" "$C_RESET"
         printf '   %s10)%s Patch HelixScreen Dashboard Layout  (patches panel_widgets in live settings.json)\n' "$C_CYAN" "$C_RESET"
         printf '   %s0)%s Back\n' "$C_CYAN" "$C_RESET"
@@ -5860,13 +5940,17 @@ testing_submenu() {
                     press_enter
                 fi
                 ;;
-            3) menu_q2_112_roundtrip_probe ;;
-            4) menu_q2_112_restore_rehearsal ;;
-            5) menu_q2_112_live_restore_proof ;;
-            6) menu_q2_112_external_restore_audit ;;
-            7) menu_q2_112_present_path_restore_proof ;;
-            8) menu_q2_112_klipper_extras_restore_proof ;;
-            9) menu_q2_112_moonraker_components_restore_proof ;;
+            # The compatibility probe needs a guarded stock baseline; options 4-9
+            # additionally need a validated restore contract. Offer to capture the
+            # missing prerequisites here — this is the only path that can create
+            # them, so without it options 4-9 are permanently unreachable.
+            3) offer_q2_112_baseline_capture; menu_q2_112_roundtrip_probe ;;
+            4) prepare_q2_112_restore_contract_lane; menu_q2_112_restore_rehearsal ;;
+            5) prepare_q2_112_restore_contract_lane; menu_q2_112_live_restore_proof ;;
+            6) prepare_q2_112_restore_contract_lane; menu_q2_112_external_restore_audit ;;
+            7) prepare_q2_112_restore_contract_lane; menu_q2_112_present_path_restore_proof ;;
+            8) prepare_q2_112_restore_contract_lane; menu_q2_112_klipper_extras_restore_proof ;;
+            9) prepare_q2_112_restore_contract_lane; menu_q2_112_moonraker_components_restore_proof ;;
             10) apply_helixscreen_dashboard_layout; press_enter ;;
             0|q|Q|back) return 0 ;;
             *) err "Invalid selection: '$choice'"; sleep 1 ;;
@@ -5903,6 +5987,14 @@ main_loop() {
                 fi
                 ;;
             5)
+                # revert_to_backup() assumes the legacy layout: it sets
+                # graphical.target unconditionally and runs the *mutating*
+                # verifier/repair core, which run_readonly_diagnostics() exists
+                # specifically to avoid on unsupported layouts.
+                if ! require_supported_firmware_layout "Revert to Backup"; then
+                    press_enter
+                    continue
+                fi
                 warn "Revert to Backup will uninstall AIO display/MMU changes,"
                 warn "restore configs from ${SNAPSHOT_DIR}/, and re-enable stock $(stock_display_stack_label)."
                 if confirm "Proceed with full revert?"; then
