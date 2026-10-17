@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC3.03'
+AIO_VERSION='RC3.04'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -5208,8 +5208,8 @@ BACKUP2   = os.environ["HELIX_BACKUP2"]
 BACKUP1   = os.environ["HELIX_BACKUP1"]
 
 DESIRED_BY_ID = {
-  "printer_image":       {"col": 2,  "colspan": 2, "enabled": True,  "row": 0,  "rowspan": 2},
-  "print_status":        {"col": 0,  "colspan": 2, "enabled": True,  "row": 2,  "rowspan": 2},
+  "printer_image":       {"col": -1, "colspan": 2, "enabled": False, "row": -1, "rowspan": 2},
+  "print_status":        {"col": 0,  "colspan": 2, "enabled": True,  "row": 1,  "rowspan": 3},
   "tips":                {"col": -1, "colspan": 2, "enabled": False, "row": -1, "rowspan": 2},
   "temperature":         {"col": 2,  "colspan": 1, "enabled": True,  "row": 2,  "rowspan": 1},
   "shutdown":            {"col": 5,  "colspan": 1, "enabled": False, "row": 3,  "rowspan": 1},
@@ -5236,16 +5236,17 @@ DESIRED_BY_ID = {
   "favorite_macro":      {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
   "macros":              {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
   "motion":              {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
-  "clock":               {"col": 0,  "colspan": 2, "enabled": True,  "row": 0,  "rowspan": 1},
+  "clock":               {"col": 2,  "colspan": 2, "enabled": True,  "row": 0,  "rowspan": 2},
   "job_queue":           {"col": -1, "colspan": 2, "enabled": False, "row": -1, "rowspan": 2},
-  "clog_detection":      {"col": 0,  "colspan": 2, "enabled": True,  "row": 1,  "rowspan": 1},
+  "clog_detection":      {"col": -1, "colspan": 2, "enabled": False, "row": -1, "rowspan": 1},
   "print_stats":         {"col": -1, "colspan": 2, "enabled": False, "row": -1, "rowspan": 2},
   "gcode_console":       {"col": 5,  "colspan": 1, "enabled": True,  "row": 1,  "rowspan": 1},
   "camera":              {"col": -1, "colspan": 2, "enabled": False, "row": -1, "rowspan": 2},
-  "notifications":       {"col": 5,  "colspan": 1, "enabled": True,  "row": 0,  "rowspan": 1},
+  "notifications":       {"col": 0,  "colspan": 2, "enabled": True,  "row": 0,  "rowspan": 1},
   "bed_temperature":     {"col": 3,  "colspan": 1, "enabled": True,  "row": 2,  "rowspan": 1},
   "chamber_temperature": {"col": 4,  "colspan": 1, "enabled": True,  "row": 2,  "rowspan": 1},
   "control_buttons":     {"col": -1, "colspan": 2, "enabled": False, "row": -1, "rowspan": 1},
+  "bypass":              {"col": -1, "colspan": 1, "enabled": False, "row": -1, "rowspan": 1},
 }
 
 def check_no_dups(path):
