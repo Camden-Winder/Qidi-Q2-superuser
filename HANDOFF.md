@@ -13,6 +13,21 @@
 
 ---
 
+## RC3.03 — HelixScreen installer moved to releases.helixscreen.org
+
+Branch: `claude/helixscreen-releases-url`.
+
+### What changed
+
+- `HELIXSCREEN_INSTALLER` now points at `https://releases.helixscreen.org/install.sh`. `HELIX_UNINSTALLER` is defined as the same variable, since upstream serves install and `--uninstall` from one script.
+- `HANDOFF.md` is now written only via `/endsession`, with no PR number (`CLAUDE.md` End-of-session requirements, `.claude/session_brief.md`).
+
+### Root cause
+
+Upstream moved its installer off `raw.githubusercontent.com/prestonbrown/helixscreen/main/scripts/install.sh`. The new script detects the Q2 (hostname `linaro-alip`, user `mks`/`qidi`), installs to `$KLIPPER_HOME/helixscreen` (same as `HELIX_DIR`), and uses sudo internally when not root, so no other AIO path changed. Not yet run on a printer.
+
+---
+
 ## RC3.02 — Fix stock-screen kill, wrong macro path, curl|bash hang; re-wire dead safety code
 
 ### What changed

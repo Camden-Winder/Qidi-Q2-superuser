@@ -19,7 +19,7 @@
 set -uo pipefail
 
 # ---------- version --------------------------------------------------
-AIO_VERSION='RC3.02'
+AIO_VERSION='RC3.03'
 
 # ---------- firmware layout ------------------------------------------
 detect_q2_firmware_layout() {
@@ -85,8 +85,9 @@ esac
 REPO_REF="${AIO_REPO_REF:-main}"
 REPO_BASE="https://raw.githubusercontent.com/Camden-Winder/Qidi-Q2-superuser/refs/heads/${REPO_REF}/Q2"
 BUNNYBOX_INSTALLER='https://raw.githubusercontent.com/Camden-Winder/Bunny-Box/refs/heads/main/Q2/install-bb-q2.sh'
-HELIXSCREEN_INSTALLER="https://raw.githubusercontent.com/prestonbrown/helixscreen/main/scripts/install.sh"
-HELIX_UNINSTALLER='https://releases.helixscreen.org/install.sh'
+HELIXSCREEN_INSTALLER='https://releases.helixscreen.org/install.sh'
+# Upstream serves install and uninstall (--uninstall flag) from the same script.
+HELIX_UNINSTALLER="$HELIXSCREEN_INSTALLER"
 # KAMP_BASE no longer used — Adaptive_Meshing.cfg, Line_Purge.cfg, Smart_Park.cfg now served from REPO_BASE
 # Mainsail is delegated to Camden-Winder's standalone installer, which
 # installs to ${AIO_HOME}/mainsail on port 100 (Qidi's stock lighttpd owns

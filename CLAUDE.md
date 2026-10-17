@@ -2,6 +2,8 @@
 
 Project context for Claude Code sessions. Read this first every time.
 
+Persistent memory is `memory.md` (local, gitignored); read it with `/loadhistory`, update it with `/endsession`. Close-out steps are in `closeout.md`.
+
 ## Core Goals
 
 The Qidi Superuser repository exists to give basic users better tools for their Qidi printers. The target audience is new or non-technical users who want improved performance without deep Klipper knowledge.
@@ -249,12 +251,12 @@ Claude **must ask first** before:
 - Taking actions visible to users outside this repo (posting comments, etc.)
 - Using `Closes #N`, `Fixes #N`, or `Resolves #N` in commit messages or PR bodies — use `References #N` only. Issue closure is Calvin's decision.
 
-### End-of-session requirements (always, no exceptions)
+### End-of-session requirements
 
-Every session that modifies `aio_menu.sh` or bumps `AIO_VERSION` **must** update `HANDOFF.md` in the same commit (or a follow-up commit before the session ends):
+`HANDOFF.md` is updated only when the user runs `/endsession` (or asks for it). Do not edit it mid-session. A session that modifies `aio_menu.sh` or bumps `AIO_VERSION` gets one entry when it closes out:
 
 - Add a new `## <version> — <short title>` section **at the top of the RC log** (below the Known Issues section)
-- Include: current branch, PR number, what changed, and root causes if it was a bug fix
+- Include: current branch, what changed, and root causes if it was a bug fix. No PR number.
 - Do **not** include carry-forward known issues in the per-version section — those belong in the `## Known Issues (carry-forward)` section pinned at the very top of `HANDOFF.md`
 - The version heading must match `AIO_VERSION` in `aio_menu.sh`
 
@@ -272,7 +274,7 @@ Every session that modifies `aio_menu.sh` or bumps `AIO_VERSION` **must** update
 
 ## External Resources
 
-- HelixScreen: `prestonbrown/helixscreen` on GitHub
+- HelixScreen: `prestonbrown/helixscreen` on GitHub; installer at `https://releases.helixscreen.org/install.sh`
 - Happy Hare: `moggieuk/Happy-Hare`
 - BunnyBox installer: `Camden-Winder/Bunny-Box` → `Q2/install-bb-q2.sh`
 - Qidi Box: `wiki.qidi3d.com`

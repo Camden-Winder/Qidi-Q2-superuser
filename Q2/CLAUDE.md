@@ -17,27 +17,9 @@ shellcheck -S warning Q2/aio_menu.sh                # style (advisory)
 ## Key Paths on the Printer (Q2)
 
 Paths vary by firmware layout. The AIO detects the layout at startup and sets
-`AIO_HOME` accordingly.
-
-| Purpose | legacy_mks (`/home/mks`) | q2_112 (`/home/qidi`) |
-|---------|--------------------------|----------------------|
-| Klipper config root | `/home/mks/printer_data/config/` | `/home/qidi/printer_data/config/` |
-| AIO backup snapshots | `/home/mks/mudstockbackups/` | `/home/qidi/mudstockbackups/` |
-| AIO config snapshot | `/home/mks/aio_config_backup/` | `/home/qidi/aio_config_backup/` |
-| HelixScreen install dir | `/home/mks/helixscreen/` | `/home/qidi/helixscreen/` |
-| Happy Hare MMU firmware | `/home/mks/Happy-Hare/` | `/home/qidi/Happy-Hare/` |
-| HelixScreen config (canonical) | `~/helixscreen/config/settings.json` | `~/helixscreen/config/settings.json` |
-| HelixScreen config (symlink target) | `~/printer_data/config/helixscreen/settings.json` | `~/printer_data/config/helixscreen/settings.json` |
-| HelixScreen rolling backup | `/var/lib/helixscreen/settings.json.backup` (root-owned) | `/var/lib/helixscreen/settings.json.backup` (root-owned) |
-| HelixScreen user backup | `~/.helixscreen/` (created lazily) | `~/.helixscreen/` (created lazily) |
-| SSH login user | `mks` (password: `makerbase`) | `mks` (password: `makerbase`) |
-| Printer OS user | `mks` | `qidi` |
-| `printer.cfg` permissions | `664` (group-writable) | `644` — no group write bit; requires `sudo tee` for patching |
-
-**q2_112 write permissions:** On 01.01.02+ firmware, `mks` does not own
-`/home/qidi`. All write operations that touch `AIO_HOME`-derived paths must use
-the `cmd 2>/dev/null || sudo cmd` fallback pattern so that `mks` can escalate
-via `sudo` (password: `makerbase`) when needed.
+`AIO_HOME` accordingly. The per-layout path table (`legacy_mks` `/home/mks` vs
+`q2_112` `/home/qidi`) and the q2_112 `sudo` write-fallback rule are in
+`memory.md` → Printer-side facts (local file, not committed).
 
 ## Critical: settings.json Symlink
 

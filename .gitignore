@@ -1,0 +1,6 @@
+# Local Claude session memory (see /createhistory, /endsession); not shared
+memory.md
+memory-index.md
+memory/
+closeout.md
+references.md

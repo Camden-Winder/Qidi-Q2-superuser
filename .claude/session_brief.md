@@ -25,7 +25,7 @@ be embedded in or referenced from the Session Brief.
 
 ## At the End of Every Session
 
-1. Add a new entry at the top of `HANDOFF.md` documenting what was done this session.
+1. When the user runs `/endsession`, add a new entry at the top of `HANDOFF.md` documenting what was done this session (branch, change, root cause; no PR number). Do not edit it earlier.
 2. Update `CLAUDE.md` — add a version history entry for this session's changes.
 3. **Check whether a new LESSONS.md entry is warranted** (see criteria below). If yes, add it in the same commit.
 4. Commit everything on a `claude/*` branch. Never push to `main` directly.
