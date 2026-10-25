@@ -1657,6 +1657,53 @@ helixscreen_installed() {
     systemctl is-enabled helixscreen &>/dev/null
 }
 
+# Debian 11 (bullseye) has aged out of normal security support. Live regional
+# mirrors increasingly serve a stale index — listing package versions whose
+# .deb files have since been pruned from the mirror's pool — while
+# bullseye-backports has been retired entirely (every mirror, including the
+# official deb.debian.org, 404s fetching its Release file). This leaves
+# `apt-get update` partially failing and any subsequent `apt-get install`
+# (git, ustreamer, nginx, etc.) 404ing on packages the stale index claims
+# exist, which is what silently breaks the BunnyBox dependency-install step
+# on affected images. Point bullseye/bullseye-updates/bullseye-security at
+# the permanent archive instead — it reliably serves matching index+pool
+# content for EOL releases — and drop backports entirely. Idempotent; safe
+# to call on every pre-flight.
+ensure_apt_sources_healthy() {
+    local sources="/etc/apt/sources.list"
+    [ -f "$sources" ] || return 0
+    grep -qE '^[[:space:]]*deb[[:space:]].*bullseye' "$sources" 2>/dev/null || return 0
+
+    if grep -q 'archive\.debian\.org' "$sources" 2>/dev/null && \
+       ! grep -q 'bullseye-backports' "$sources" 2>/dev/null; then
+        return 0 # Already patched on a prior run
+    fi
+
+    banner "Checking apt sources (Debian 11 is past normal support on live mirrors)"
+    local backup="${sources}.aio-bak-$(date +%Y%m%d%H%M%S)"
+    if sudo cp "$sources" "$backup" 2>/dev/null; then
+        info "Backed up ${sources} -> ${backup}"
+    else
+        warn "Could not back up ${sources} — continuing anyway"
+    fi
+
+    sudo sed -E -i \
+        -e 's#https?://[^/[:space:]]+/debian-security#http://archive.debian.org/debian-security#g' \
+        -e 's#https?://[^/[:space:]]+/debian([^-[:alnum:]]|$)#http://archive.debian.org/debian\1#g' \
+        -e '/bullseye-backports/d' \
+        "$sources"
+
+    echo 'Acquire::Check-Valid-Until "false";' | sudo tee /etc/apt/apt.conf.d/99-aio-no-check-valid-until >/dev/null 2>&1
+
+    info "Refreshing apt index from archive.debian.org (this is normal/expected on an older Q2 image)..."
+    if sudo apt-get update >/tmp/aio_apt_update.log 2>&1; then
+        ok "apt sources fixed — apt-get update succeeded"
+    else
+        warn "apt-get update still reported errors — see /tmp/aio_apt_update.log"
+        warn "Package installs below may still fail, but this is now a different/network issue, not the known EOL-mirror one."
+    fi
+}
+
 # _preflight_common <config_dir_ok_message>
 # Shared body of preflight() and preflight_q2_112().
 _preflight_common() {
@@ -1667,6 +1714,8 @@ _preflight_common() {
         return 1
     fi
     ok "Network connectivity"
+
+    ensure_apt_sources_healthy
 
     if [ ! -d "$CONFIG_DIR" ]; then
         err "Config directory not found: $CONFIG_DIR"
